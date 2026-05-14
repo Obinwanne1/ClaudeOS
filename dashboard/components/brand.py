@@ -1,12 +1,14 @@
 """Brand CSS injection — dark (green) / light (white) themes."""
 import streamlit as st
 
-PRIMARY    = "#407E3C"
-PRIMARY_LT = "#5a9e56"
-PRIMARY_DK = "#2d5a29"
-WHITE      = "#FFFFFF"
-DANGER     = "#ef4444"
-WARNING    = "#f59e0b"
+PRIMARY       = "#407E3C"
+PRIMARY_LIGHT = "#5a9e56"   # alias kept for page imports
+PRIMARY_LT    = "#5a9e56"
+PRIMARY_DK    = "#2d5a29"
+WHITE         = "#FFFFFF"
+DANGER        = "#ef4444"
+WARNING       = "#f59e0b"
+SURFACE       = "#2d6b29"   # alias kept for page imports
 
 THEMES = {
     "dark": {
