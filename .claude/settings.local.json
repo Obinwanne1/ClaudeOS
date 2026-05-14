@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(python:*)",
+      "Skill(gsd-execute-phase)",
+      "Bash(echo \"Flask PID: $!\")",
+      "Bash(curl -s http://localhost:5000/api/v1/health)",
+      "Bash(streamlit run:*)",
+      "Bash(echo \"Streamlit PID: $!\")",
+      "Bash(curl -s http://localhost:8501)",
+      "Bash(curl:*)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill /F /PID 19024)",
+      "Bash(taskkill /F /PID 7200)",
+      "Bash(wmic process:*)",
+      "Bash(kill -9 19024 7200 24248)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(powershell -Command \"Get-Process -Id 19024,7200,24248 | Stop-Process -Force\")",
+      "Bash(read p:*)",
+      "Bash(powershell -Command 'Stop-Process -Id __TRACKED_VAR__ -Force')",
+      "Bash(CLAUDEOS_DEV_API_KEY=\"cos-WruDdzS_L3ZGmdsFdx43jlpTjy2EhNCJZ7nO0MLCwlc\" streamlit run dashboard/app.py --server.port 8501 --server.headless true)",
+      "Bash(CLAUDEOS_DEV_API_KEY=\"cos-WruDdzS_L3ZGmdsFdx43jlpTjy2EhNCJZ7nO0MLCwlc\" python -m streamlit run dashboard/app.py --server.port 8501 --server.headless true)",
+      "Bash(mkdir -p /c/Users/rigwe/Desktop/ClaudeOS/claude/tasks)",
+      "Bash(mkdir -p /c/Users/rigwe/Desktop/ClaudeOS/sync)",
+      "Bash(mkdir -p /c/Users/rigwe/Desktop/ClaudeOS/.claude)",
+      "Bash(xargs -I{} taskkill /F /PID {})",
+      "Bash(CLAUDEOS_DEV_API_KEY=cos-WruDdzS_L3ZGmdsFdx43jlpTjy2EhNCJZ7nO0MLCwlc python:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)"
+    ]
+  }
+}

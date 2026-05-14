@@ -1,0 +1,119 @@
+"""Flask application factory."""
+import logging
+import logging.handlers
+from pathlib import Path
+
+from flask import Flask
+from flask_cors import CORS
+
+from core.config import get_settings
+from core.api.middleware import register_middleware
+from core.api.routes.system import system_bp
+
+
+def create_app() -> Flask:
+    settings = get_settings()
+    app = Flask(__name__)
+    app.config["SECRET_KEY"] = settings.CLAUDEOS_SECRET_KEY
+
+    # CORS — allow dashboard origin
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+    # Logging
+    _setup_logging(settings)
+
+    # Middleware
+    register_middleware(app)
+
+    # Routes — Phase 1
+    app.register_blueprint(system_bp)
+
+    # Routes — Phase 2+ (registered lazily when modules exist)
+    _register_optional_blueprints(app)
+
+    # Workflow Scheduler — start after blueprints registered
+    _start_scheduler(app)
+
+    return app
+
+
+def _register_optional_blueprints(app: Flask):
+    try:
+        from core.api.routes.memory import memory_bp
+        app.register_blueprint(memory_bp)
+    except ImportError:
+        pass
+
+    try:
+        from core.api.routes.agents import agents_bp
+        app.register_blueprint(agents_bp)
+    except ImportError:
+        pass
+
+    try:
+        from core.api.routes.workflows import workflows_bp
+        app.register_blueprint(workflows_bp)
+    except ImportError:
+        pass
+
+    try:
+        from core.api.routes.projects import projects_bp
+        app.register_blueprint(projects_bp)
+    except ImportError:
+        pass
+
+    try:
+        from core.api.routes.outputs import outputs_bp
+        app.register_blueprint(outputs_bp)
+    except ImportError:
+        pass
+
+    try:
+        from core.api.routes.sync import sync_bp
+        app.register_blueprint(sync_bp)
+    except ImportError:
+        pass
+
+
+def _start_scheduler(app: Flask):
+    try:
+        from workflows.scheduler import init_scheduler
+        init_scheduler()
+        import atexit
+        from workflows.scheduler import shutdown_scheduler
+        atexit.register(shutdown_scheduler)
+    except ImportError:
+        pass
+    except Exception as e:
+        import logging
+        logging.getLogger("claudeos.api").warning("Scheduler init failed: %s", e)
+
+
+def _setup_logging(settings):
+    log_dir = Path(settings.LOG_PATH)
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
+
+    fmt = logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    # File handler
+    fh = logging.handlers.RotatingFileHandler(
+        log_dir / "api.log",
+        maxBytes=5 * 1024 * 1024,
+        backupCount=3,
+        encoding="utf-8",
+    )
+    fh.setFormatter(fmt)
+
+    # Console handler
+    ch = logging.StreamHandler()
+    ch.setFormatter(fmt)
+
+    root = logging.getLogger()
+    root.setLevel(level)
+    root.addHandler(fh)
+    root.addHandler(ch)

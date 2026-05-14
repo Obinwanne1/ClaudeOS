@@ -1,0 +1,101 @@
+"""ClaudeOS Control Center — Streamlit entry point."""
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import streamlit as st
+
+st.set_page_config(
+    page_title="ClaudeOS",
+    page_icon="🖥️",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+from dashboard.components.brand import inject, sidebar_logo, PRIMARY, TEXT_MUTED
+inject()
+
+import os
+import requests
+from datetime import datetime
+
+API_BASE = "http://localhost:5000/api/v1"
+_API_KEY = os.environ.get("CLAUDEOS_DEV_API_KEY", "")
+_HEADERS = {"X-API-Key": _API_KEY} if _API_KEY else {}
+
+
+def api_get(path: str, timeout: int = 3) -> dict | None:
+    try:
+        r = requests.get(f"{API_BASE}{path}", headers=_HEADERS, timeout=timeout)
+        if r.ok:
+            return r.json()
+    except Exception:
+        pass
+    return None
+
+
+def api_post(path: str, data: dict, timeout: int = 5, method: str = "POST") -> dict | None:
+    try:
+        fn = {"POST": requests.post, "PATCH": requests.patch, "PUT": requests.put}.get(method, requests.post)
+        r = fn(f"{API_BASE}{path}", json=data, headers=_HEADERS, timeout=timeout)
+        if r.ok:
+            return r.json()
+    except Exception:
+        pass
+    return None
+
+
+# Sidebar
+sidebar_logo()
+st.sidebar.markdown("---")
+
+pages = {
+    "Overview": "🖥️",
+    "Agents": "🤖",
+    "Memory": "🧠",
+    "Workflows": "⚙️",
+    "Projects": "📁",
+    "Outputs": "📄",
+    "Settings": "🔧",
+}
+
+page = st.sidebar.radio(
+    "",
+    list(pages.keys()),
+    format_func=lambda p: f"{pages[p]}  {p}",
+    label_visibility="collapsed",
+)
+
+st.sidebar.markdown("---")
+
+health = api_get("/health")
+if health and health.get("status") == "ok":
+    st.sidebar.markdown(f'<div style="color:#5a9e56;font-size:0.8rem;">● API online · v{health.get("version","?")}</div>', unsafe_allow_html=True)
+else:
+    st.sidebar.markdown('<div style="color:#ef4444;font-size:0.8rem;">● API offline</div>', unsafe_allow_html=True)
+
+st.sidebar.markdown(f'<div style="color:{TEXT_MUTED};font-size:0.75rem;margin-top:4px;">{datetime.now().strftime("%a %d %b · %H:%M")}</div>', unsafe_allow_html=True)
+
+# ─── Route to pages ─────────────────────────────────────────────────────────
+
+if page == "Overview":
+    from dashboard.pages._overview import render
+    render(api_get, api_post)
+elif page == "Agents":
+    from dashboard.pages._agents import render
+    render(api_get, api_post)
+elif page == "Memory":
+    from dashboard.pages._memory import render
+    render(api_get, api_post)
+elif page == "Workflows":
+    from dashboard.pages._workflows import render
+    render(api_get, api_post)
+elif page == "Projects":
+    from dashboard.pages._projects import render
+    render(api_get, api_post)
+elif page == "Outputs":
+    from dashboard.pages._outputs import render
+    render(api_get, api_post)
+elif page == "Settings":
+    from dashboard.pages._settings import render
+    render(api_get, api_post)
