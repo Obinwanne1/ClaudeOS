@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-from dashboard.components.brand import inject, sidebar_logo, PRIMARY, TEXT_MUTED
+from dashboard.components.brand import inject, sidebar_logo, theme_toggle, PRIMARY, TEXT_MUTED
 inject()
 
 import os
@@ -66,6 +66,7 @@ page = st.sidebar.radio(
     label_visibility="collapsed",
 )
 
+theme_toggle()
 st.sidebar.markdown("---")
 
 health = api_get("/health")
