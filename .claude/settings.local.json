@@ -28,7 +28,22 @@
       "Bash(CLAUDEOS_DEV_API_KEY=cos-WruDdzS_L3ZGmdsFdx43jlpTjy2EhNCJZ7nO0MLCwlc python:*)",
       "Bash(git init:*)",
       "Bash(git add:*)",
-      "Bash(git commit -m ':*)"
+      "Bash(git commit -m ':*)",
+      "Bash(gh auth:*)",
+      "Bash(gh repo:*)",
+      "Bash(git push:*)",
+      "Bash(gh browse:*)",
+      "Bash(taskkill /F /PID 26932)",
+      "Bash(taskkill /F /PID 9128)",
+      "Bash(taskkill /F /IM python.exe)",
+      "Bash(taskkill /F /IM python3.exe)",
+      "Bash(taskkill /F /PID 26932 /T)",
+      "Bash(taskkill /F /PID 9128 /T)",
+      "Bash(grep -v \"^0$\")",
+      "Bash(xargs -I{} taskkill /F /PID {} /T)",
+      "Bash(powershell.exe -ExecutionPolicy Bypass -File scripts/start.ps1)",
+      "Bash(powershell.exe:*)",
+      "Bash(xargs -r -I{} taskkill /F /PID {})"
     ]
   }
 }
