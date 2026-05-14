@@ -60,7 +60,7 @@ pages = {
 }
 
 page = st.sidebar.radio(
-    "",
+    "Navigation",
     list(pages.keys()),
     format_func=lambda p: f"{pages[p]}  {p}",
     label_visibility="collapsed",
