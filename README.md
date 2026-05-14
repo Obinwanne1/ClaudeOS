@@ -1,19 +1,49 @@
-# ClaudeOS
+<p align="center">
+  <img src="assets/banner.svg" alt="ClaudeOS" width="100%"/>
+</p>
 
-AI Operating System — coordination layer unifying Claude Code skills, agents, and workflows into a single control center.
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.11+-407E3C?style=flat-square&logo=python&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Flask-3.0-407E3C?style=flat-square&logo=flask&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Streamlit-1.38-407E3C?style=flat-square&logo=streamlit&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Supabase-cloud_sync-407E3C?style=flat-square&logo=supabase&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Windows-10-407E3C?style=flat-square&logo=windows&logoColor=white"/>
+  <img src="https://img.shields.io/badge/license-MIT-5a9e56?style=flat-square"/>
+</p>
+
+<p align="center">
+  Coordination layer unifying Claude Code skills, agents, and workflows into a single AI control center.
+</p>
+
+---
 
 ## Architecture
 
-| Layer | Component | Tech |
-|-------|-----------|------|
-| 0 | Streamlit Dashboard | Streamlit :8501 |
-| 1 | REST API | Flask + waitress :5000 |
-| 2 | Memory Engine | SQLite FTS5 + ChromaDB |
-| 3 | Agent Registry | 12 agents, YAML definitions |
-| 4 | Workflow Engine | APScheduler, 7 pipelines |
-| 5 | Client Vault | Namespace isolation |
-| 6 | Output Manager | Auto-tag, FTS, export |
-| 7 | Cloud Sync | Supabase push sync |
+```
+┌─────────────────────────────────────────────┐
+│  Layer 0 · Streamlit Dashboard   :8501       │
+├─────────────────────────────────────────────┤
+│  Layer 1 · Flask REST API        :5000       │
+├──────────────┬──────────────────────────────┤
+│  Layer 2     │  Memory Engine               │
+│  SQLite FTS5 │  ChromaDB vectors            │
+├──────────────┼──────────────────────────────┤
+│  Layer 3     │  Agent Registry              │
+│  12 agents   │  YAML definitions            │
+├──────────────┼──────────────────────────────┤
+│  Layer 4     │  Workflow Engine             │
+│  APScheduler │  7 pipelines                 │
+├──────────────┼──────────────────────────────┤
+│  Layer 5     │  Client Vault                │
+│  Namespaces  │  Isolated workspaces         │
+├──────────────┼──────────────────────────────┤
+│  Layer 6     │  Output Manager              │
+│  Auto-tag    │  FTS search · Export         │
+├──────────────┼──────────────────────────────┤
+│  Layer 7     │  Supabase Cloud Sync         │
+│  Push-only   │  Watermark · Auto 15min      │
+└──────────────┴──────────────────────────────┘
+```
 
 ## Setup
 
@@ -22,6 +52,7 @@ AI Operating System — coordination layer unifying Claude Code skills, agents, 
 - Windows 10 / PowerShell
 
 ### Install
+
 ```powershell
 git clone https://github.com/Obinwanne1/ClaudeOS.git
 cd ClaudeOS
@@ -29,21 +60,24 @@ pip install -r requirements.txt
 ```
 
 ### Configure
+
 ```powershell
 copy .env.example .env
 ```
 
 Edit `.env`:
+
 ```env
 ANTHROPIC_API_KEY=your_key_here
-CLAUDEOS_SECRET_KEY=change_this
+CLAUDEOS_SECRET_KEY=change_this_in_prod
 
 # Optional: Supabase cloud sync
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_KEY=your_service_role_key
 ```
 
-### Run migrations
+### Migrate + Seed
+
 ```powershell
 python scripts/migrate.py
 python scripts/seed_agents.py
@@ -52,51 +86,49 @@ python scripts/seed_namespaces.py
 ```
 
 ### Start
+
 ```powershell
 .\scripts\start.ps1
 ```
 
-Opens:
-- Dashboard → http://localhost:8501
-- API → http://localhost:5000/api/v1/health
+| Service | URL |
+|---------|-----|
+| Dashboard | http://localhost:8501 |
+| API | http://localhost:5000/api/v1/health |
 
-## Cloud Sync (Supabase)
+## Cloud Sync
 
-1. Create a Supabase project
-2. Run `sync/supabase_schema.sql` in the SQL Editor
-3. Add `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` to `.env`
-4. Restart — auto-sync runs every 15 minutes
+1. Create a [Supabase](https://supabase.com) project
+2. Run `sync/supabase_schema.sql` in Supabase SQL Editor
+3. Add credentials to `.env` and restart
+4. Auto-sync fires every 15 minutes — or trigger manually from the **Settings** tab
 
-Manual sync via dashboard **Settings** tab or:
-```bash
-curl -X POST http://localhost:5000/api/v1/sync/push
-```
+## API Reference
 
-## API Endpoints
-
-```
-GET  /api/v1/health
-GET  /api/v1/memory
-POST /api/v1/memory
-GET  /api/v1/agents
-POST /api/v1/agents/{id}/run
-GET  /api/v1/workflows
-POST /api/v1/workflows/{id}/trigger
-GET  /api/v1/outputs
-GET  /api/v1/sync/status
-POST /api/v1/sync/push
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/health` | System health |
+| `GET/POST` | `/api/v1/memory` | Memory entries |
+| `GET` | `/api/v1/agents` | List agents |
+| `POST` | `/api/v1/agents/{id}/run` | Run agent |
+| `GET` | `/api/v1/workflows` | List workflows |
+| `POST` | `/api/v1/workflows/{id}/trigger` | Trigger workflow |
+| `GET` | `/api/v1/outputs` | List outputs |
+| `GET` | `/api/v1/sync/status` | Sync status |
+| `POST` | `/api/v1/sync/push` | Push to Supabase |
 
 ## Stack
 
-- **Backend**: Flask, waitress (Windows-compatible WSGI)
-- **Dashboard**: Streamlit
-- **AI**: Anthropic SDK, claude-sonnet-4-6
-- **Memory**: SQLite FTS5, ChromaDB, sentence-transformers
-- **Scheduler**: APScheduler
-- **Cloud**: Supabase
-- **Testing**: pytest
+| | |
+|--|--|
+| **AI** | Anthropic SDK · claude-sonnet-4-6 |
+| **Backend** | Flask · waitress (Windows WSGI) |
+| **Dashboard** | Streamlit |
+| **Memory** | SQLite FTS5 · ChromaDB · sentence-transformers |
+| **Scheduler** | APScheduler |
+| **Cloud** | Supabase |
+| **Testing** | pytest |
 
 ## Brand
 
-Primary `#407E3C` · Secondary `#FFFFFF` · Accent `#5a9e56`
+`#407E3C` green · `#FFFFFF` white · `#5a9e56` accent

@@ -1,0 +1,58 @@
+<svg width="900" height="160" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f1117;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1a2a1a;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#407E3C;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#5a9e56;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="160" rx="12" fill="url(#bg)"/>
+
+  <!-- Green accent bar -->
+  <rect x="0" y="0" width="6" height="160" rx="3" fill="url(#accent)"/>
+
+  <!-- Circuit dots -->
+  <circle cx="820" cy="30" r="2" fill="#407E3C" opacity="0.4"/>
+  <circle cx="840" cy="50" r="2" fill="#407E3C" opacity="0.4"/>
+  <circle cx="860" cy="30" r="2" fill="#407E3C" opacity="0.3"/>
+  <circle cx="880" cy="60" r="2" fill="#5a9e56" opacity="0.3"/>
+  <circle cx="850" cy="80" r="2" fill="#407E3C" opacity="0.2"/>
+  <line x1="820" y1="30" x2="840" y2="50" stroke="#407E3C" stroke-width="1" opacity="0.2"/>
+  <line x1="840" y1="50" x2="860" y2="30" stroke="#407E3C" stroke-width="1" opacity="0.2"/>
+  <line x1="860" y1="30" x2="880" y2="60" stroke="#5a9e56" stroke-width="1" opacity="0.2"/>
+  <line x1="840" y1="50" x2="850" y2="80" stroke="#407E3C" stroke-width="1" opacity="0.2"/>
+
+  <!-- Logo icon -->
+  <rect x="36" y="44" width="56" height="56" rx="10" fill="#407E3C" opacity="0.15"/>
+  <rect x="36" y="44" width="56" height="56" rx="10" fill="none" stroke="#407E3C" stroke-width="1.5" opacity="0.6"/>
+  <text x="64" y="84" font-family="monospace" font-size="28" fill="#5a9e56" text-anchor="middle" font-weight="bold">⌘</text>
+
+  <!-- Title -->
+  <text x="112" y="82" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', monospace" font-size="42" font-weight="700" fill="#ffffff" letter-spacing="-1">Claude<tspan fill="#5a9e56">OS</tspan></text>
+
+  <!-- Subtitle -->
+  <text x="113" y="108" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="15" fill="#8b9e8b" letter-spacing="0.5">AI Operating System · 7-Layer Agent Coordination Platform</text>
+
+  <!-- Version badge -->
+  <rect x="113" y="120" width="72" height="22" rx="11" fill="#407E3C" opacity="0.25"/>
+  <rect x="113" y="120" width="72" height="22" rx="11" fill="none" stroke="#407E3C" stroke-width="1" opacity="0.5"/>
+  <text x="149" y="135" font-family="monospace" font-size="11" fill="#5a9e56" text-anchor="middle">v1.0.0</text>
+
+  <!-- Stack pills -->
+  <rect x="196" y="120" width="62" height="22" rx="11" fill="#1e2a1e"/>
+  <text x="227" y="135" font-family="monospace" font-size="11" fill="#8b9e8b" text-anchor="middle">Python</text>
+
+  <rect x="268" y="120" width="70" height="22" rx="11" fill="#1e2a1e"/>
+  <text x="303" y="135" font-family="monospace" font-size="11" fill="#8b9e8b" text-anchor="middle">Streamlit</text>
+
+  <rect x="348" y="120" width="54" height="22" rx="11" fill="#1e2a1e"/>
+  <text x="375" y="135" font-family="monospace" font-size="11" fill="#8b9e8b" text-anchor="middle">Flask</text>
+
+  <rect x="412" y="120" width="76" height="22" rx="11" fill="#1e2a1e"/>
+  <text x="450" y="135" font-family="monospace" font-size="11" fill="#8b9e8b" text-anchor="middle">Supabase</text>
+</svg>
