@@ -1,4 +1,4 @@
-# ClaudeOS Startup Script — Windows PowerShell
+# ClaudeOS Startup Script - Windows PowerShell
 # Usage: .\scripts\start.ps1
 
 $ErrorActionPreference = "Stop"
@@ -6,7 +6,7 @@ $ROOT = Split-Path -Parent $PSScriptRoot
 
 Write-Host ""
 Write-Host "=====================================" -ForegroundColor Green
-Write-Host "  ClaudeOS v1.0.0 — Starting..." -ForegroundColor Green
+Write-Host "  ClaudeOS v1.0.0 - Starting..." -ForegroundColor Green
 Write-Host "=====================================" -ForegroundColor Green
 Write-Host ""
 
@@ -26,9 +26,9 @@ foreach ($port in @($FLASK_PORT, $STREAMLIT_PORT)) {
     $lines = netstat -ano 2>$null | Select-String ":$port\s"
     foreach ($line in $lines) {
         $parts = $line.ToString().Trim() -split "\s+"
-        $pid = $parts[-1]
-        if ($pid -match "^\d+$" -and $pid -ne "0") {
-            taskkill /F /PID $pid 2>$null | Out-Null
+        $procId = $parts[-1]
+        if ($procId -match "^\d+$" -and $procId -ne "0") {
+            try { taskkill /F /PID $procId 2>$null | Out-Null } catch {}
         }
     }
 }
@@ -46,21 +46,24 @@ Write-Host "Starting API on :$FLASK_PORT ..." -ForegroundColor Cyan
 $apiJob = Start-Job -ScriptBlock {
     param($root, $port)
     Set-Location $root
-    python -c "from waitress import serve; from core.api.app import create_app; serve(create_app(), host='0.0.0.0', port=$port)"
+    python scripts\serve_api.py $port
 } -ArgumentList $ROOT, $FLASK_PORT
 
-Start-Sleep 3
-
-# Verify API health
-try {
-    $health = Invoke-RestMethod -Uri "http://localhost:$FLASK_PORT/api/v1/health" -TimeoutSec 5
-    if ($health.status -eq "ok") {
-        Write-Host "  API: RUNNING on :$FLASK_PORT  (v$($health.version))" -ForegroundColor Green
-    } else {
-        Write-Host "  API: unexpected response" -ForegroundColor Yellow
-    }
-} catch {
-    Write-Host "  API: FAILED to start — check logs/api.log" -ForegroundColor Red
+# Wait for API with retries
+$apiReady = $false
+for ($i = 1; $i -le 10; $i++) {
+    Start-Sleep 2
+    try {
+        $health = Invoke-RestMethod -Uri "http://localhost:$FLASK_PORT/api/v1/health" -TimeoutSec 3
+        if ($health.status -eq "ok") {
+            Write-Host "  API: RUNNING on :$FLASK_PORT  (v$($health.version))" -ForegroundColor Green
+            $apiReady = $true
+            break
+        }
+    } catch {}
+}
+if (-not $apiReady) {
+    Write-Host "  API: FAILED to start - check logs/api.log" -ForegroundColor Red
     exit 1
 }
 
