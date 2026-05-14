@@ -34,6 +34,28 @@ def api_get(path: str, timeout: int = 3) -> dict | None:
     return None
 
 
+_READ_ONLY_PREFIXES = (
+    "/health",
+    "/system/status",
+    "/system/stats",
+    "/agents",
+    "/agents/runs",
+    "/memory/namespaces",
+)
+
+
+@st.cache_data(ttl=30)
+def _cached_api_get(path: str, timeout: int = 3) -> dict | None:
+    return api_get(path, timeout=timeout)
+
+
+def api_get_cached(path: str, timeout: int = 3) -> dict | None:
+    """api_get with 30-second cache for known read-only endpoints."""
+    if any(path == p or path.startswith(p) for p in _READ_ONLY_PREFIXES):
+        return _cached_api_get(path, timeout)
+    return api_get(path, timeout)
+
+
 def api_post(path: str, data: dict, timeout: int = 5, method: str = "POST") -> dict | None:
     try:
         fn = {"POST": requests.post, "PATCH": requests.patch, "PUT": requests.put}.get(method, requests.post)
@@ -69,7 +91,7 @@ page = st.sidebar.radio(
 theme_toggle()
 st.sidebar.markdown("---")
 
-health = api_get("/health")
+health = api_get_cached("/health")
 if health and health.get("status") == "ok":
     st.sidebar.markdown(f'<div style="color:#5a9e56;font-size:0.8rem;">● API online · v{health.get("version","?")}</div>', unsafe_allow_html=True)
 else:
@@ -80,23 +102,23 @@ st.sidebar.markdown(f'<div style="color:{TEXT_MUTED};font-size:0.75rem;margin-to
 # ─── Route to pages ─────────────────────────────────────────────────────────
 
 if page == "Overview":
-    from dashboard.pages._overview import render
-    render(api_get, api_post)
+    from dashboard._pages._overview import render
+    render(api_get_cached, api_post)
 elif page == "Agents":
-    from dashboard.pages._agents import render
+    from dashboard._pages._agents import render
     render(api_get, api_post)
 elif page == "Memory":
-    from dashboard.pages._memory import render
+    from dashboard._pages._memory import render
     render(api_get, api_post)
 elif page == "Workflows":
-    from dashboard.pages._workflows import render
+    from dashboard._pages._workflows import render
     render(api_get, api_post)
 elif page == "Projects":
-    from dashboard.pages._projects import render
+    from dashboard._pages._projects import render
     render(api_get, api_post)
 elif page == "Outputs":
-    from dashboard.pages._outputs import render
+    from dashboard._pages._outputs import render
     render(api_get, api_post)
 elif page == "Settings":
-    from dashboard.pages._settings import render
+    from dashboard._pages._settings import render
     render(api_get, api_post)

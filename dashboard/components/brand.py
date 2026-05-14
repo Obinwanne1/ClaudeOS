@@ -72,13 +72,21 @@ section[data-testid="stSidebar"] > div {{
     border-right: 1px solid {t['BORDER']}55 !important;
 }}
 
-/* ── All text ── */
-h1, h2, h3, h4, h5, h6,
-p, li, span, div, label,
-[data-testid="stText"],
-[data-testid="stMarkdownContainer"] p,
-[data-testid="stMarkdownContainer"] li {{
+/* ── Text — semantic elements only, never bare div/span ── */
+.stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6 {{
     color: {t['TEXT']} !important;
+}}
+.stApp p, .stApp li, .stApp label {{
+    color: {t['TEXT']} !important;
+}}
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] li,
+[data-testid="stMarkdownContainer"] span,
+[data-testid="stText"] {{
+    color: {t['TEXT']} !important;
+}}
+[data-testid="stCaptionContainer"] p {{
+    color: {t['TEXT_MUTED']} !important;
 }}
 
 /* ── Metric values ── */
@@ -92,18 +100,51 @@ p, li, span, div, label,
     padding: 0.8rem 1rem !important;
     border-radius: 8px !important;
 }}
+label[data-testid="stMetricLabel"],
+label[data-testid="stMetricLabel"] *,
+div[data-testid="stMetricLabel"],
+div[data-testid="stMetricLabel"] *,
+[data-testid="stMetricLabel"],
+[data-testid="stMetricLabel"] * {{
+    color: {t['TEXT']} !important;
+    opacity: 1 !important;
+    filter: none !important;
+    -webkit-text-fill-color: {t['TEXT']} !important;
+}}
+[data-testid="stMetricValue"],
+[data-testid="stMetricValue"] *,
+div[data-testid="stMetricValue"],
+div[data-testid="stMetricValue"] * {{
+    color: {t['TEXT']} !important;
+    opacity: 1 !important;
+    -webkit-text-fill-color: {t['TEXT']} !important;
+}}
+
+/* ── Input placeholders ── */
+input::placeholder, textarea::placeholder {{
+    color: {t['TEXT_MUTED']} !important;
+    opacity: 0.8 !important;
+}}
 
 /* ── Buttons ── */
 .stButton > button,
 .stButton > button:focus,
 .stButton > button:active,
 button[data-testid="baseButton-secondary"],
-button[data-testid="baseButton-primary"] {{
+button[data-testid="baseButton-primary"],
+button[kind="primary"],
+button[kind="secondary"] {{
     background-color: {t['BTN_BG']} !important;
     color: {t['BTN_TEXT']} !important;
     border: 2px solid {t['BORDER']} !important;
     border-radius: 6px !important;
     font-weight: 700 !important;
+}}
+.stButton > button p,
+.stButton > button span,
+button[data-testid="baseButton-secondary"] p,
+button[data-testid="baseButton-primary"] p {{
+    color: {t['BTN_TEXT']} !important;
 }}
 .stButton > button:hover,
 button[data-testid="baseButton-secondary"]:hover,

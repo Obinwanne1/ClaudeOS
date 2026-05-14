@@ -53,14 +53,15 @@ def status():
 
 @system_bp.get("/system/stats")
 def stats():
-    counts = {}
     tables = ["memory_entries", "agents", "agent_runs", "workflows", "workflow_runs",
               "outputs", "namespaces", "projects", "system_events"]
     try:
+        union_sql = " UNION ALL ".join(
+            f"SELECT '{t}' AS tbl, COUNT(*) AS cnt FROM {t}" for t in tables
+        )
         with get_db() as conn:
-            for table in tables:
-                row = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
-                counts[table] = row[0] if row else 0
+            rows = conn.execute(union_sql).fetchall()
+        counts = {row[0]: row[1] for row in rows}
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

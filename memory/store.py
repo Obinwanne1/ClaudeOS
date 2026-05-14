@@ -55,7 +55,21 @@ def write(entry_create: MemoryEntryCreate) -> MemoryEntry:
                     existing.id,
                 ),
             )
-        return get_by_id(existing.id)
+        return MemoryEntry(
+            id=existing.id,
+            namespace=entry_create.namespace,
+            category=entry_create.category,
+            key=entry_create.key,
+            value=entry_create.value,
+            source=entry_create.source,
+            agent_id=entry_create.agent_id,
+            session_id=entry_create.session_id,
+            tags=entry_create.tags,
+            confidence=entry_create.confidence,
+            expires_at=expires_at,
+            created_at=existing.created_at,
+            updated_at=datetime.fromisoformat(now),
+        )
 
     entry_id = new_id()
     with get_db() as conn:
@@ -80,7 +94,22 @@ def write(entry_create: MemoryEntryCreate) -> MemoryEntry:
                 now,
             ),
         )
-    return get_by_id(entry_id)
+    created_dt = datetime.fromisoformat(now)
+    return MemoryEntry(
+        id=entry_id,
+        namespace=entry_create.namespace,
+        category=entry_create.category,
+        key=entry_create.key,
+        value=entry_create.value,
+        source=entry_create.source,
+        agent_id=entry_create.agent_id,
+        session_id=entry_create.session_id,
+        tags=entry_create.tags,
+        confidence=entry_create.confidence,
+        expires_at=expires_at,
+        created_at=created_dt,
+        updated_at=created_dt,
+    )
 
 
 def get_by_id(entry_id: str) -> Optional[MemoryEntry]:

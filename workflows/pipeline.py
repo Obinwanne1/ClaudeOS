@@ -39,7 +39,8 @@ def run(
     step_logs: list[dict] = []
     step_outputs: dict[str, str] = {}   # step_id → output text
 
-    _update_run(run_id, "running", steps_log=step_logs)
+    # Write initial "running" status without steps_log (buffered until done/fail)
+    _update_run(run_id, "running")
     logger.info("Workflow %s starting (run=%s, ns=%s)", workflow.name, run_id[:8], namespace)
 
     for step in workflow.steps:
@@ -54,7 +55,7 @@ def run(
                     error=f"Dependency {dep} failed",
                 )
                 step_logs.append(log.model_dump())
-                _update_run(run_id, "running", steps_log=step_logs)
+                # Buffered — do not write to DB yet
                 continue
 
         # Resolve prompt template
@@ -76,7 +77,7 @@ def run(
             status="running",
         )
         step_logs.append(log.model_dump())
-        _update_run(run_id, "running", steps_log=step_logs)
+        # Buffered — do not write to DB mid-step
 
         try:
             agent_run_id = dispatch(step.agent_name, req, block=True)
@@ -109,7 +110,7 @@ def run(
                 log.status = "failed"
                 log.error = error
                 log.duration_ms = step_duration
-                # Update logs and mark run failed
+                # Flush buffered logs on failure
                 _sync_log(step_logs, log)
                 _update_run(run_id, "failed", steps_log=step_logs, error=f"Step {step.step_id} failed: {error}")
                 logger.error("Workflow %s failed at step %s: %s", workflow.name, step.step_id, error)
@@ -120,19 +121,20 @@ def run(
             log.status = "failed"
             log.error = str(e)
             log.duration_ms = step_duration
+            # Flush buffered logs on exception
             _sync_log(step_logs, log)
             _update_run(run_id, "failed", steps_log=step_logs, error=str(e))
             logger.exception("Workflow %s step %s exception", workflow.name, step.step_id)
             return _result(run_id, "failed", step_logs, started)
 
         _sync_log(step_logs, log)
-        _update_run(run_id, "running", steps_log=step_logs)
+        # Buffered — do not write to DB after every successful step
         logger.info(
             "Workflow %s step %s done (%dms, %d+%d tokens)",
             workflow.name, step.step_id, log.duration_ms, log.tokens_in, log.tokens_out,
         )
 
-    # All steps complete
+    # All steps complete — single flush of the full steps_log
     final_output = _compile_output(step_logs, step_outputs)
     _update_run(run_id, "done", steps_log=step_logs, output=final_output)
     _increment_run_count(workflow.name)

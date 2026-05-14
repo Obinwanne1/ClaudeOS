@@ -43,7 +43,9 @@
       "Bash(xargs -I{} taskkill /F /PID {} /T)",
       "Bash(powershell.exe -ExecutionPolicy Bypass -File scripts/start.ps1)",
       "Bash(powershell.exe:*)",
-      "Bash(xargs -r -I{} taskkill /F /PID {})"
+      "Bash(xargs -r -I{} taskkill /F /PID {})",
+      "Bash(start:*)",
+      "Bash(taskkill /F /PID 27964 /PID 9128)"
     ]
   }
 }

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -21,6 +22,7 @@ logger = logging.getLogger("claudeos.workflows.scheduler")
 
 _scheduler: Optional[BackgroundScheduler] = None
 _lock = threading.Lock()
+_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="wf-worker")
 
 
 def init_scheduler() -> BackgroundScheduler:
@@ -195,11 +197,13 @@ def _run_workflow_job(workflow_name: str, context: dict = None) -> Optional[str]
         return None
 
     run_id = pipeline.create_run_record(wf.id, "scheduler", context)
-    logger.info("Running scheduled workflow %s (run=%s)", workflow_name, run_id[:8])
+    logger.info("Dispatching scheduled workflow %s (run=%s) to thread pool", workflow_name, run_id[:8])
 
-    try:
-        result = pipeline.run(wf, run_id, context, triggered_by="scheduler")
-        return result.get("run_id")
-    except Exception as e:
-        logger.exception("Scheduled workflow %s failed: %s", workflow_name, e)
-        return None
+    def _execute():
+        try:
+            pipeline.run(wf, run_id, context, triggered_by="scheduler")
+        except Exception as e:
+            logger.exception("Scheduled workflow %s failed: %s", workflow_name, e)
+
+    _pool.submit(_execute)
+    return run_id
