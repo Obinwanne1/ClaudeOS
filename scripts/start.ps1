@@ -43,9 +43,11 @@ if ($LASTEXITCODE -ne 0) { Write-Host "Migration failed." -ForegroundColor Red; 
 
 # Start Flask API via waitress in background
 Write-Host "Starting API on :$FLASK_PORT ..." -ForegroundColor Cyan
-$apiJob = Start-Process -NoNewWindow -PassThru -FilePath "python" `
-    -ArgumentList "-c `"from waitress import serve; from core.api.app import create_app; serve(create_app(), host='0.0.0.0', port=$FLASK_PORT)`"" `
-    -WorkingDirectory $ROOT
+$apiJob = Start-Job -ScriptBlock {
+    param($root, $port)
+    Set-Location $root
+    python -c "from waitress import serve; from core.api.app import create_app; serve(create_app(), host='0.0.0.0', port=$port)"
+} -ArgumentList $ROOT, $FLASK_PORT
 
 Start-Sleep 3
 
