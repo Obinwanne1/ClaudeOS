@@ -19,6 +19,7 @@ create table if not exists memory_entries (
     tags        text default '[]',
     confidence  real default 1.0,
     expires_at  timestamptz,
+    notified_at timestamptz,
     created_at  timestamptz default now(),
     updated_at  timestamptz default now()
 );
