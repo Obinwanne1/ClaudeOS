@@ -42,7 +42,7 @@ def run() -> int:
                FROM memory_entries
                WHERE category = 'reminder'
                  AND expires_at IS NOT NULL
-                 AND expires_at <= datetime('now')
+                 AND replace(expires_at, 'T', ' ') <= datetime('now')
                  AND notified_at IS NULL""",
         ).fetchall()
 
