@@ -1,5 +1,6 @@
 """Memory page — namespace tabs, FTS+semantic search, add entry form."""
 import streamlit as st
+from dashboard.components.brand import get_theme_vars
 
 
 NAMESPACES = ["global", "reci-transport", "ivycandy-hair", "faiyke-ai", "personal"]
@@ -133,8 +134,8 @@ def _render_entry_card(e: dict):
 <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
   <span style="background:{color}33;color:{color};border:1px solid {color}55;
                padding:1px 8px;border-radius:10px;font-size:0.7rem;font-weight:600;">{cat.upper()}</span>
-  <span style="color:#9ca3af;font-size:0.8rem;">confidence: {conf:.0%}</span>
-  {' '.join(f'<span style="background:#1a1d27;color:#9ca3af;border:1px solid #2d3748;padding:1px 6px;border-radius:8px;font-size:0.7rem;">{t}</span>' for t in tags)}
+  <span style="color:{get_theme_vars()['TEXT_MUTED']};font-size:0.8rem;">confidence: {conf:.0%}</span>
+  {' '.join(f'<span class="tag-chip">{t}</span>' for t in tags)}
 </div>
 """, unsafe_allow_html=True)
         st.markdown(value_preview + ("..." if len(e.get("value","")) > 200 else ""))

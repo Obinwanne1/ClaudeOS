@@ -1,6 +1,6 @@
 """Agents page — catalog grid, dispatch modal, run history."""
 import streamlit as st
-from dashboard.components.brand import PRIMARY, PRIMARY_LIGHT, SURFACE, badge
+from dashboard.components.brand import PRIMARY, PRIMARY_LIGHT, SURFACE, badge, get_theme_vars
 
 
 CATEGORY_COLORS = {
@@ -56,17 +56,18 @@ def render(api_get, api_post):
             color = CATEGORY_COLORS.get(a["category"], PRIMARY)
             with col:
                 with st.container():
+                    tv = get_theme_vars()
                     st.markdown(f"""
 <div class="agent-card">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-    <strong style="color:#e8f5e9;">{a['display_name']}</strong>
+    <strong style="color:{tv['TEXT']};">{a['display_name']}</strong>
     <span style="background:{color}33;color:{color};border:1px solid {color}55;
                  padding:2px 8px;border-radius:12px;font-size:0.7rem;font-weight:600;">
       {a['category'].upper()}
     </span>
   </div>
-  <div style="color:#9ca3af;font-size:0.85rem;margin-bottom:8px;">{a['description']}</div>
-  <div style="font-size:0.75rem;color:#6b7280;">
+  <div style="color:{tv['TEXT_MUTED']};font-size:0.85rem;margin-bottom:8px;">{a['description']}</div>
+  <div style="font-size:0.75rem;color:{tv['TEXT_MUTED']};">
     model: <code>{a['model']}</code> · max_tokens: {a['max_tokens']}
     {f" · 🔒 {a['namespace_lock']}" if a.get('namespace_lock') else ""}
   </div>
