@@ -21,6 +21,8 @@ from sync.schemas import SyncResult, TableSyncResult
 
 logger = logging.getLogger("claudeos.sync")
 
+_migration_done = False
+
 # Tables and the timestamp column used for watermark
 _SYNC_TABLES: dict[str, str] = {
     "memory_entries": "created_at",
@@ -52,11 +54,15 @@ def _get_supabase():
 
 def _run_migration():
     """Ensure sync_state / sync_log tables exist."""
+    global _migration_done
+    if _migration_done:
+        return
     from pathlib import Path
     migration = Path(__file__).parent.parent / "memory" / "db" / "migrations" / "002_sync_state.sql"
     if migration.exists():
         from core.database import run_migration
         run_migration(migration)
+    _migration_done = True
 
 
 def get_status() -> dict:
@@ -84,9 +90,7 @@ def get_status() -> dict:
 
     last_sync_at = max(last_sync_times) if last_sync_times else None
 
-    from core.config import get_settings as gs
-    s = gs()
-    auto_interval = getattr(s, "SYNC_INTERVAL_MIN", 15)
+    auto_interval = getattr(settings, "SYNC_INTERVAL_MIN", 15)
 
     return {
         "configured": configured,

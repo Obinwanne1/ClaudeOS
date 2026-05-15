@@ -12,10 +12,11 @@ system_bp = Blueprint("system", __name__, url_prefix="/api/v1")
 
 @system_bp.get("/health")
 def health():
+    s = get_settings()
     return jsonify({
         "status": "ok",
-        "version": get_settings().CLAUDEOS_VERSION,
-        "env": get_settings().CLAUDEOS_ENV,
+        "version": s.CLAUDEOS_VERSION,
+        "env": s.CLAUDEOS_ENV,
         "timestamp": utcnow_str(),
     })
 

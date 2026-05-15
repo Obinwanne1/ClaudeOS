@@ -17,6 +17,7 @@ logger = logging.getLogger("claudeos.memory.vector")
 
 _client = None
 _ef = None   # embedding function
+_collections: dict = {}
 
 
 def _init():
@@ -39,14 +40,18 @@ def _init():
 
 
 def _collection(namespace: str):
+    if namespace in _collections:
+        return _collections[namespace]
     if not _init():
         return None
     try:
-        return _client.get_or_create_collection(
+        col = _client.get_or_create_collection(
             name=f"memory_{namespace.replace('-', '_')}",
             embedding_function=_ef,
             metadata={"hnsw:space": "cosine"},
         )
+        _collections[namespace] = col
+        return col
     except Exception as e:
         logger.warning("Could not get collection for namespace %s: %s", namespace, e)
         return None
