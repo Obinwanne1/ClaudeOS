@@ -259,7 +259,7 @@ def _update_watermark(
                ON CONFLICT(table_name) DO UPDATE SET
                    last_synced_at = excluded.last_synced_at,
                    rows_pushed = sync_state.rows_pushed + excluded.rows_pushed,
-                   rows_failed = sync_state.rows_failed + excluded.rows_failed,
+                   rows_failed = excluded.rows_failed,
                    last_error = excluded.last_error,
                    updated_at = excluded.updated_at""",
             (table, last_synced_at, rows_pushed, rows_failed, error, utcnow_str()),
