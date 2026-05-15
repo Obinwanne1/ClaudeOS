@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import streamlit as st
-from dashboard.components.brand import PRIMARY, TEXT_MUTED
+from dashboard.components.brand import PRIMARY, get_theme_vars
 
 
 def render(api_get, api_post):
@@ -48,7 +48,7 @@ def render(api_get, api_post):
     col3.metric("Auto-sync", f"Every {interval}m" if auto_enabled else "Off")
 
     if last_sync:
-        st.markdown(f'<div style="color:{TEXT_MUTED};font-size:0.8rem;">Last sync: {last_sync}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="color:{get_theme_vars()["TEXT_MUTED"]};font-size:0.8rem;">Last sync: {last_sync}</div>', unsafe_allow_html=True)
 
     st.markdown("---")
 
