@@ -105,7 +105,10 @@ def export_output(output_id: str):
             return jsonify({"error": "Output not found"}), 404
         mime = "text/markdown" if fmt == "markdown" else "text/plain"
         out = get_by_id(output_id)
-        fname = f"{out.title[:40].replace(' ','_')}.{'md' if fmt=='markdown' else 'txt'}"
+        import re as _re
+        safe = _re.sub(r"[^\w\s-]", "", out.title[:40]).strip().replace(" ", "_")
+        ext = "md" if fmt == "markdown" else "txt"
+        fname = f"{safe or output_id[:8]}.{ext}"
         return Response(
             content,
             mimetype=mime,
