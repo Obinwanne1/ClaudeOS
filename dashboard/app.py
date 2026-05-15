@@ -9,7 +9,7 @@ st.set_page_config(
     page_title="ClaudeOS",
     page_icon="🖥️",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",
 )
 
 from dashboard.components.brand import inject, sidebar_logo, theme_toggle, PRIMARY, TEXT_MUTED

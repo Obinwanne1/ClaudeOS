@@ -285,6 +285,61 @@ hr {{ border-color: {t['BORDER']} !important; }}
     font-size: 0.7rem;
     font-family: 'JetBrains Mono', monospace;
 }}
+
+/* ── Responsive — Tablet (≤900px) ── */
+@media (max-width: 900px) {{
+    /* Stack Streamlit columns vertically */
+    [data-testid="column"] {{
+        width: 100% !important;
+        min-width: 100% !important;
+        flex: 0 0 100% !important;
+    }}
+    /* Reduce main padding */
+    .block-container {{
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+        max-width: 100% !important;
+    }}
+    /* Shrink metric values */
+    .metric-value {{ font-size: 1.4rem !important; }}
+    /* Full-width buttons */
+    .stButton > button {{ width: 100% !important; }}
+    /* Full-width inputs */
+    .stTextInput, .stTextArea, .stSelectbox {{ width: 100% !important; }}
+}}
+
+/* ── Responsive — Mobile (≤600px) ── */
+@media (max-width: 600px) {{
+    /* Tighter padding */
+    .block-container {{
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+        padding-top: 1rem !important;
+    }}
+    /* Smaller headings */
+    .stApp h1 {{ font-size: 1.4rem !important; }}
+    .stApp h2 {{ font-size: 1.1rem !important; }}
+    .stApp h3 {{ font-size: 1rem !important; }}
+    /* Metric cards compact */
+    [data-testid="metric-container"] {{
+        padding: 0.5rem 0.75rem !important;
+    }}
+    .metric-value {{ font-size: 1.2rem !important; }}
+    /* Sidebar auto-collapse — handled by Streamlit config */
+    /* Expanders full-width */
+    .streamlit-expanderHeader {{ font-size: 0.85rem !important; }}
+    /* Download/action buttons touch-friendly */
+    .stButton > button {{
+        min-height: 44px !important;
+        font-size: 0.9rem !important;
+    }}
+    /* Dataframe scroll on mobile */
+    .stDataFrame {{ overflow-x: auto !important; }}
+    /* Tabs scrollable */
+    [data-testid="stHorizontalBlock"] {{
+        overflow-x: auto !important;
+    }}
+}}
 </style>
 """, unsafe_allow_html=True)
 
