@@ -88,11 +88,20 @@ def render(api_get, api_post):
         with a_col2:
             add_value = st.text_area("Value", height=150)
             add_tags = st.text_input("Tags (comma-separated)", placeholder="e.g. client, contact, email")
+            add_expires = None
+            if add_cat == "reminder":
+                import datetime as _dt
+                r_col1, r_col2 = st.columns(2)
+                with r_col1:
+                    reminder_date = st.date_input("Remind on (date)", value=_dt.date.today() + _dt.timedelta(days=1))
+                with r_col2:
+                    reminder_time = st.time_input("Time", value=_dt.time(9, 0))
+                add_expires = _dt.datetime.combine(reminder_date, reminder_time).strftime("%Y-%m-%dT%H:%M:%S")
 
         if st.button("Save to Memory", type="primary"):
             if add_key.strip() and add_value.strip():
                 tags = [t.strip() for t in add_tags.split(",") if t.strip()]
-                result = api_post("/memory", {
+                payload = {
                     "namespace": add_ns,
                     "category": add_cat,
                     "key": add_key,
@@ -100,7 +109,10 @@ def render(api_get, api_post):
                     "tags": tags,
                     "confidence": add_conf,
                     "source": "dashboard",
-                })
+                }
+                if add_expires:
+                    payload["expires_at"] = add_expires
+                result = api_post("/memory", payload)
                 if result:
                     st.success(f"Saved: `{add_key}` → `{add_value[:60]}...`" if len(add_value) > 60 else f"Saved: `{add_key}`")
                 else:
