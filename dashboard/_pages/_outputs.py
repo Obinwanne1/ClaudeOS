@@ -76,8 +76,13 @@ def _render_browse(api_get, api_post):
             with col_actions:
                 if st.button("View", key=f"view_{oid}", width='stretch'):
                     st.session_state[f"show_content_{oid}"] = True
-                export_url = f"/api/v1/outputs/{oid}/export?format=markdown"
-                st.markdown(f"[⬇ Download MD]({export_url})")
+                import requests as _req, os as _os
+                _key = _os.environ.get("CLAUDEOS_DEV_API_KEY", "")
+                _r = _req.get(f"http://localhost:5000/api/v1/outputs/{oid}/export?format=markdown",
+                              headers={"X-API-Key": _key}, timeout=5)
+                if _r.ok:
+                    fname = f"{title[:40].replace(' ','_')}.md"
+                    st.download_button("⬇ Download MD", data=_r.text, file_name=fname, mime="text/markdown", key=f"dl_{oid}")
                 if st.button("🗑 Delete", key=f"del_{oid}", width='stretch'):
                     st.session_state[f"confirm_delete_{oid}"] = True
 
