@@ -38,6 +38,13 @@ class Settings(BaseSettings):
     # RECI Transport
     RECI_DASHBOARD_DB: str = ""
 
+    # Email notifications
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    NOTIFY_EMAIL: str = ""
+
     # Logging
     LOG_LEVEL: str = "INFO"
     LOG_PATH: str = "logs"

@@ -37,6 +37,7 @@ def init_scheduler() -> BackgroundScheduler:
         _scheduler.start()
         logger.info("APScheduler started")
         _load_scheduled_workflows()
+        _register_reminder_job(_scheduler)
         _register_sync_job(_scheduler)
         return _scheduler
 
@@ -155,6 +156,28 @@ def _build_trigger(spec: dict):
             seconds=spec.get("seconds", 0),
         )
     return None
+
+
+def _register_reminder_job(sched: BackgroundScheduler) -> None:
+    """Register the email reminder polling job (every 2 minutes)."""
+    sched.add_job(
+        _run_reminder_job,
+        trigger=IntervalTrigger(minutes=2),
+        id="claudeos_reminder_notifications",
+        name="Reminder Email Notifications",
+        replace_existing=True,
+    )
+    logger.info("Reminder notification job registered (every 2 min)")
+
+
+def _run_reminder_job() -> None:
+    try:
+        from notifications.reminder_job import run
+        sent = run()
+        if sent:
+            logger.info("Reminder job: sent %d notification(s)", sent)
+    except Exception as e:
+        logger.error("Reminder job error: %s", e)
 
 
 def _register_sync_job(sched: BackgroundScheduler) -> None:

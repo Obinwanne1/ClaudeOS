@@ -112,7 +112,11 @@ def render(api_get, api_post):
                 st.write(f"{icons.get(status,'•')} Status: **{status}**")
                 if run.get("output") and run["output"].get("text"):
                     st.markdown("**Output:**")
-                    st.code(run["output"]["text"], language=None)
+                    import re as _re
+                    raw = run["output"]["text"].strip()
+                    raw = _re.sub(r"^```[a-zA-Z]*\n?", "", raw)
+                    raw = _re.sub(r"\n?```$", "", raw)
+                    st.code(raw.strip(), language="json" if raw.strip().startswith("{") else None)
                 if run.get("error"):
                     st.error(run["error"])
                 st.caption(f"Tokens: {run.get('tokens_in',0)} in + {run.get('tokens_out',0)} out · {run.get('duration_ms',0)}ms")
