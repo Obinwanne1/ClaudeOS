@@ -45,7 +45,22 @@
       "Bash(powershell.exe:*)",
       "Bash(xargs -r -I{} taskkill /F /PID {})",
       "Bash(start:*)",
-      "Bash(taskkill /F /PID 27964 /PID 9128)"
+      "Bash(taskkill /F /PID 27964 /PID 9128)",
+      "Read(//c/Users/rigwe/Desktop//**)",
+      "Read(//c/Users/rigwe/Desktop/**)",
+      "Bash(grep -rn \"BG\\\\|SURFACE\\\\|TEXT_MUTED\\\\|BORDER\\\\|#[0-9a-fA-F]\\\\{3,6\\\\}\" /c/Users/rigwe/Desktop/ClaudeOS/dashboard/_pages/)",
+      "Bash(grep:*)",
+      "Bash(findstr :5000)",
+      "Bash(findstr LISTENING)",
+      "Bash(taskkill:*)",
+      "Bash(cmd:*)",
+      "Bash(powershell:*)",
+      "Bash(findstr :8501)",
+      "Bash(ngrok version:*)",
+      "Bash(ngrok http:*)",
+      "Bash(findstr \":8501\")",
+      "Bash(findstr LISTEN)",
+      "Bash(findstr \":4040\")"
     ]
   }
 }
