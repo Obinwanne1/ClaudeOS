@@ -62,7 +62,7 @@ def render(api_get, api_post):
             selected_ns = st.selectbox("Namespace", ["global", "reci-transport", "ivycandy-hair", "faiyke-ai", "personal"], key="quick_ns")
             prompt = st.text_area("Prompt", height=100, key="quick_prompt", placeholder="What should this agent do?")
 
-            if st.button("Run Agent", use_container_width=True):
+            if st.button("Run Agent", width='stretch'):
                 if prompt.strip():
                     result = api_post(f"/agents/{selected_agent}/run", {
                         "prompt": prompt,

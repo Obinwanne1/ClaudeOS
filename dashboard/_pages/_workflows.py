@@ -71,7 +71,7 @@ def _render_workflow_list(api_get, api_post):
                     placeholder="topic=AI,date=today",
                     label_visibility="collapsed",
                 )
-                if st.button("▶ Run", key=f"run_{wf['name']}", use_container_width=True):
+                if st.button("▶ Run", key=f"run_{wf['name']}", width='stretch'):
                     ctx = {"namespace": ns}
                     if ctx_extra.strip():
                         for pair in ctx_extra.split(","):
@@ -85,7 +85,7 @@ def _render_workflow_list(api_get, api_post):
                         st.error("Dispatch failed")
 
                 toggle_label = "Disable" if enabled else "Enable"
-                if st.button(toggle_label, key=f"toggle_{wf['name']}", use_container_width=True):
+                if st.button(toggle_label, key=f"toggle_{wf['name']}", width='stretch'):
                     api_post(
                         f"/workflows/{wf['name']}",
                         {"enabled": not enabled},
@@ -99,7 +99,7 @@ def _render_run_history(api_get):
     with col1:
         st.subheader("Recent Runs")
     with col2:
-        if st.button("↻ Refresh", use_container_width=True):
+        if st.button("↻ Refresh", width='stretch'):
             st.rerun()
 
     # Fetch all runs via a generic endpoint

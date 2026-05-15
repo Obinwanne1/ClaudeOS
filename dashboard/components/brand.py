@@ -304,7 +304,7 @@ def sidebar_logo():
 def theme_toggle():
     current = get_theme()
     label = "☀️  Light mode" if current == "dark" else "🌙  Dark mode"
-    if st.sidebar.button(label, use_container_width=True):
+    if st.sidebar.button(label, width='stretch'):
         st.session_state.theme = "light" if current == "dark" else "dark"
         st.rerun()
 

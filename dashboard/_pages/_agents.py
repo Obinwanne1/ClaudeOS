@@ -86,7 +86,7 @@ def render(api_get, api_post):
         save_out = st.checkbox("Save output", value=True)
     with d_col2:
         dispatch_prompt = st.text_area("Prompt", height=150, key="dispatch_prompt")
-        if st.button("Dispatch", use_container_width=True, type="primary"):
+        if st.button("Dispatch", width='stretch', type="primary"):
             if dispatch_prompt.strip():
                 result = api_post(f"/agents/{sel_agent}/run", {
                     "prompt": dispatch_prompt,
@@ -112,7 +112,7 @@ def render(api_get, api_post):
                 st.write(f"{icons.get(status,'•')} Status: **{status}**")
                 if run.get("output") and run["output"].get("text"):
                     st.markdown("**Output:**")
-                    st.markdown(run["output"]["text"])
+                    st.code(run["output"]["text"], language=None)
                 if run.get("error"):
                     st.error(run["error"])
                 st.caption(f"Tokens: {run.get('tokens_in',0)} in + {run.get('tokens_out',0)} out · {run.get('duration_ms',0)}ms")
@@ -134,6 +134,6 @@ def render(api_get, api_post):
                 "Duration": f"{r.get('duration_ms') or 0}ms",
                 "Started": (r.get("created_at") or "")[:16],
             })
-        st.dataframe(rows, use_container_width=True)
+        st.dataframe(rows, width='stretch')
     else:
         st.caption("No runs yet.")

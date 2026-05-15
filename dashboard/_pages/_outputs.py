@@ -74,11 +74,11 @@ def _render_browse(api_get, api_post):
                     st.caption(summary)
 
             with col_actions:
-                if st.button("View", key=f"view_{oid}", use_container_width=True):
+                if st.button("View", key=f"view_{oid}", width='stretch'):
                     st.session_state[f"show_content_{oid}"] = True
                 export_url = f"/api/v1/outputs/{oid}/export?format=markdown"
                 st.markdown(f"[⬇ Download MD]({export_url})")
-                if st.button("🗑 Delete", key=f"del_{oid}", use_container_width=True):
+                if st.button("🗑 Delete", key=f"del_{oid}", width='stretch'):
                     st.session_state[f"confirm_delete_{oid}"] = True
 
             if st.session_state.get(f"confirm_delete_{oid}"):
@@ -120,7 +120,7 @@ def _render_search(api_get):
         ns_options = ["all"] + [n["slug"] for n in ns_data]
         search_ns = st.selectbox("Namespace", ns_options, key="fts_ns")
 
-    if st.button("Search", use_container_width=True) and query.strip():
+    if st.button("Search", width='stretch') and query.strip():
         url = f"/outputs/search?q={query}&limit=20"
         if search_ns != "all":
             url += f"&namespace={search_ns}"

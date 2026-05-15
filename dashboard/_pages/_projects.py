@@ -115,7 +115,7 @@ def _render_projects(api_get, api_post):
                         index=["active", "paused", "archived"].index(status),
                         key=f"status_{proj['id']}",
                     )
-                    if st.button("Update", key=f"upd_{proj['id']}", use_container_width=True):
+                    if st.button("Update", key=f"upd_{proj['id']}", width='stretch'):
                         api_post(f"/projects/{proj['id']}", {"status": new_status}, method="PATCH")
                         st.rerun()
 
@@ -152,7 +152,7 @@ def _render_context(api_get, api_post):
     filename = st.text_input("Filename", value="notes.md", key="ctx_filename")
     content = st.text_area("Content", height=150, key="ctx_content",
                            placeholder="Background info, preferences, or instructions for this namespace's agents.")
-    if st.button("Save Context File", use_container_width=True):
+    if st.button("Save Context File", width='stretch'):
         result = api_post(f"/namespaces/{slug}/context", {"filename": filename, "content": content})
         if result:
             st.success(f"Saved `{filename}` to `{slug}`")
@@ -168,7 +168,7 @@ def _new_namespace_form(api_post):
     ns_type = st.selectbox("Type", ["client", "personal", "system"], key="new_ns_type")
     color = st.color_picker("Color", value="#407E3C", key="new_ns_color")
     icon = st.text_input("Icon (emoji)", value="🏢", key="new_ns_icon")
-    if st.button("Create Namespace", use_container_width=True, key="create_ns_btn"):
+    if st.button("Create Namespace", width='stretch', key="create_ns_btn"):
         if slug and display_name:
             result = api_post("/namespaces", {
                 "slug": slug, "display_name": display_name,
@@ -199,7 +199,7 @@ def _new_project_form(api_get, api_post):
                                placeholder="Python, Flask, Streamlit")
     priority = st.selectbox("Priority", [1, 2, 3],
                              format_func=lambda x: PRIORITY_LABELS[x], key="new_proj_priority")
-    if st.button("Create Project", use_container_width=True, key="create_proj_btn"):
+    if st.button("Create Project", width='stretch', key="create_proj_btn"):
         if name and slug:
             tech_stack = [s.strip() for s in stack_raw.split(",") if s.strip()]
             result = api_post("/projects", {

@@ -56,7 +56,7 @@ def render(api_get, api_post):
     st.markdown("**Manual Controls**")
     c1, c2, c3 = st.columns(3)
 
-    if c1.button("🔄 Push All Now", use_container_width=True, type="primary"):
+    if c1.button("🔄 Push All Now", width='stretch', type="primary"):
         with st.spinner("Syncing…"):
             result = api_post("/sync/push", {})
         if result:
@@ -73,7 +73,7 @@ def render(api_get, api_post):
 
     table_options = list(table_states.keys())
     selected_table = c2.selectbox("Table", table_options, label_visibility="collapsed")
-    if c3.button("Push Table", use_container_width=True):
+    if c3.button("Push Table", width='stretch'):
         with st.spinner(f"Syncing {selected_table}…"):
             result = api_post("/sync/push", {"table": selected_table})
         if result:
@@ -95,7 +95,7 @@ def render(api_get, api_post):
             "Last Error": (ts.get("last_error") or "")[:60],
         })
     if rows:
-        st.dataframe(rows, use_container_width=True, hide_index=True)
+        st.dataframe(rows, width='stretch', hide_index=True)
 
     # ── Reset watermark ────────────────────────────────────────
     with st.expander("⚠️  Reset Watermark (re-sync all)"):
@@ -128,7 +128,7 @@ def render(api_get, api_post):
                 }
                 for r in log
             ],
-            use_container_width=True,
+            width='stretch',
             hide_index=True,
         )
     else:
