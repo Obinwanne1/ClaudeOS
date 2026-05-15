@@ -45,8 +45,16 @@ def shutdown_scheduler() -> None:
     global _scheduler
     with _lock:
         if _scheduler and _scheduler.running:
-            _scheduler.shutdown(wait=False)
-            logger.info("APScheduler stopped")
+            # Silence APScheduler's internal logger before shutdown to avoid
+            # "I/O operation on closed file" stderr noise during test teardown
+            import logging as _logging
+            aps_log = _logging.getLogger("apscheduler")
+            prev_level = aps_log.level
+            aps_log.setLevel(_logging.CRITICAL + 1)
+            try:
+                _scheduler.shutdown(wait=False)
+            finally:
+                aps_log.setLevel(prev_level)
         _scheduler = None
 
 
