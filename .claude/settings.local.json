@@ -60,7 +60,11 @@
       "Bash(ngrok http:*)",
       "Bash(findstr \":8501\")",
       "Bash(findstr LISTEN)",
-      "Bash(findstr \":4040\")"
+      "Bash(findstr \":4040\")",
+      "Bash(git commit:*)",
+      "Bash(findstr \":5000\")",
+      "Bash(npx kill-port:*)",
+      "mcp__ide__executeCode"
     ]
   }
 }
