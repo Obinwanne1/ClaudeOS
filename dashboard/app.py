@@ -18,6 +18,10 @@ inject()
 import os
 import requests
 from datetime import datetime
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 API_BASE = "http://localhost:5000/api/v1"
 _API_KEY = os.environ.get("CLAUDEOS_DEV_API_KEY", "")
