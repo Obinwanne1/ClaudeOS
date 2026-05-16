@@ -14,6 +14,7 @@ st.set_page_config(
 
 from dashboard.components.brand import inject, sidebar_logo, theme_toggle, PRIMARY, TEXT_MUTED
 inject()
+theme_toggle()  # available on all pages including login
 
 # ── Auth gate ─────────────────────────────────────────────────────────────────
 if not st.session_state.get("jwt_token"):
@@ -190,8 +191,6 @@ else:
     st.sidebar.markdown('<div style="color:#ef4444;font-size:0.8rem;">● API offline</div>', unsafe_allow_html=True)
 
 st.sidebar.markdown(f'<div style="color:{TEXT_MUTED};font-size:0.75rem;margin-top:4px;">{datetime.now().strftime("%a %d %b · %H:%M")}</div>', unsafe_allow_html=True)
-
-theme_toggle()
 
 # ── Page dispatch ─────────────────────────────────────────────────────────────
 from dashboard._pages._overview  import render as _render_overview
