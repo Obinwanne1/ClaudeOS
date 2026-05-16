@@ -64,7 +64,16 @@
       "Bash(git commit:*)",
       "Bash(findstr \":5000\")",
       "Bash(npx kill-port:*)",
-      "mcp__ide__executeCode"
+      "mcp__ide__executeCode",
+      "Bash(cmd.exe:*)",
+      "Bash(findstr \":5000 \")",
+      "Bash(findstr \"LISTENING\")",
+      "Bash(findstr \":8501 \")",
+      "Bash(Start-Sleep -Seconds 1)",
+      "Bash(Start-Process -FilePath \"powershell\" -ArgumentList \"-Command\", \"cd 'C:\\\\Users\\\\rigwe\\\\Desktop\\\\ClaudeOS'; streamlit run dashboard/app.py --server.port 8501\" -WindowStyle Hidden)",
+      "Bash(Start-Sleep -Seconds 4)",
+      "Bash(tasklist)",
+      "Bash(findstr \"16920\")"
     ]
   }
 }

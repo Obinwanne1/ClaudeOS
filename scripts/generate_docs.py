@@ -217,7 +217,7 @@ def cover_page(pdf: Doc):
     pdf.set_y(120)
     pdf.set_font('Helvetica', '', 12)
     pdf.set_text_color(*TEXT)
-    pdf.cell(0, 8, f'Version 1.0.0  -  {TODAY}', align='C', ln=True)
+    pdf.cell(0, 8, f'Version 8.0  -  {TODAY}', align='C', ln=True)
     pdf.ln(5)
 
     pdf.set_font('Helvetica', 'I', 10)
@@ -235,8 +235,10 @@ def cover_page(pdf: Doc):
     items = [
         'Step-by-step instructions for using the dashboard',
         'Full reference for all 12 AI agents and 7 automated workflows',
+        'Authentication, roles, and multi-user access control guide',
         'Client-specific sections: RECI Transport, Ivycandy Hair, Faiyke AI, Personal',
         'Memory system, outputs, and cloud sync guides',
+        'Admin Panel: user management, API keys, audit log, security settings',
         'Technical reference for administrators and troubleshooting',
     ]
     pdf.set_fill_color(*LTGREEN)
@@ -256,7 +258,7 @@ def cover_page(pdf: Doc):
     pdf.cell(0, 6, 'Confidential -- For authorised clients only', align='C', ln=True)
     pdf.set_font('Helvetica', 'B', 9)
     pdf.set_text_color(*WHITE)
-    pdf.cell(0, 6, 'Prepared by Rigwe  |  ClaudeOS v1.0.0', align='C')
+    pdf.cell(0, 6, 'Prepared by Rigwe  |  ClaudeOS v8.0', align='C')
 
 
 def toc_page(pdf: Doc, section_pages: dict, link_ids: dict):
@@ -448,11 +450,25 @@ def sec_getting_started(pdf: Doc):
         'an API status indicator (green dot = online), and the current date and time.'
     )
 
+    pdf.h2('Logging In')
+    pdf.body(
+        'ClaudeOS requires a login before you can use the dashboard. '
+        'When you open http://localhost:8501 you will see the login screen. '
+        'Enter your username and password, then click Sign In. '
+        'On first login you may be prompted to set a new password.'
+    )
+    pdf.tip(
+        'SELF-REGISTRATION',
+        'If your administrator has enabled self-registration, you will see a Register tab '
+        'on the login screen. Enter a username, password (min 10 chars, must include uppercase, '
+        'lowercase, and a digit), email, and select your namespace. Then log in separately.'
+    )
+
     pdf.h2('Dark Mode and Light Mode')
     pdf.body(
         'ClaudeOS supports both dark and light colour themes. '
-        'At the bottom of the sidebar you will see a toggle button: '
-        '"Light mode" or "Dark mode". Click it to switch. '
+        'A toggle button sits in the bottom-left corner of every page -- including the login screen. '
+        'Click it to switch between Dark and Light mode. '
         'Your preference is remembered for the session.'
     )
 
@@ -460,24 +476,142 @@ def sec_getting_started(pdf: Doc):
     pdf.body('The REST API runs separately and can be accessed directly:')
     pdf.code('http://localhost:5000/api/v1/health')
     pdf.body(
-        'All API requests require an API key header. '
-        'Your administrator sets this up in the .env file. '
-        'See Section 12 for full API reference.'
+        'All API routes (except /health) require authentication. '
+        'Use a JWT Bearer token from the login endpoint, or an X-API-Key header for legacy scripts. '
+        'See Section 10 for full API reference and auth details.'
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+
+def sec_auth_security(pdf: Doc):
+    pdf.h1('4. Authentication & Access Control')
+    pdf.body(
+        'ClaudeOS uses a secure login system to protect all data. '
+        'Every user has a role that determines what they can see and do. '
+        'All sessions are tracked and can be revoked at any time.'
+    )
+
+    pdf.h2('How to Log In')
+    pdf.numbered([
+        'Open http://localhost:8501 in your browser',
+        'Enter your username and password on the Sign In tab',
+        'Click Sign In',
+        'If prompted, enter a new password (required on first login or after admin reset)',
+        'You will land on the Overview page with a navigation sidebar matching your role',
+    ])
+    pdf.tip(
+        'SESSION DURATION',
+        'Your login session lasts 60 minutes. ClaudeOS silently refreshes it while you are active. '
+        'After 7 days of inactivity your session expires and you will need to log in again.'
+    )
+
+    pdf.h2('Self-Registration (if enabled by admin)')
+    pdf.numbered([
+        'On the login screen, click the Register tab',
+        'Enter a username (unique, no spaces)',
+        'Enter an email address',
+        'Enter a password -- must be at least 10 characters, include one uppercase letter, one lowercase letter, and one digit',
+        'Confirm your password',
+        'Select your namespace from the dropdown (client-type namespaces only)',
+        'Click Register',
+        'Go back to Sign In and log in with your new credentials',
+    ])
+
+    pdf.h2('Roles & Permissions')
+    pdf.table(
+        ['Role', 'Namespace Access', 'Read', 'Write', 'Run Agents', 'Admin Panel'],
+        [
+            ['admin', 'All namespaces', 'Yes', 'Yes', 'Yes', 'Yes'],
+            ['operator', 'All namespaces', 'Yes', 'Yes', 'Yes', 'No'],
+            ['client', 'Own namespace only', 'Yes', 'Yes', 'Yes', 'No'],
+            ['viewer', 'Own namespace only', 'Yes', 'No', 'No', 'No'],
+        ],
+        widths=[26, 42, 18, 18, 24, 28]
+    )
+    pdf.body(
+        'Clients and viewers only ever see data from their own namespace. '
+        'Even if they try to access another namespace via the API, the system blocks it automatically. '
+        'Admins and operators can see all namespaces.'
+    )
+
+    pdf.h2('Account Lockout')
+    pdf.body(
+        'After 5 consecutive failed login attempts your account is automatically locked for 15 minutes. '
+        'Both thresholds are configurable by the admin in the Admin Panel > Security tab. '
+        'While locked you will see a message with the remaining wait time.'
+    )
+    pdf.bullets([
+        'Wait for the lockout period to expire and try again',
+        'Or ask your administrator to unlock your account immediately via the Admin Panel > Users tab > Unlock',
+    ])
+
+    pdf.h2('Password Requirements')
+    pdf.bullets([
+        'Minimum 10 characters',
+        'At least one uppercase letter (A-Z)',
+        'At least one lowercase letter (a-z)',
+        'At least one digit (0-9)',
+        'Must not contain your username',
+    ])
+
+    pdf.h2('Changing Your Password')
+    pdf.numbered([
+        'Log in to the dashboard',
+        'If the system requires a password change you will be prompted automatically',
+        'Enter your current password, then your new password twice',
+        'Click Change Password',
+        'You will be returned to the dashboard immediately',
+    ])
+
+    pdf.h2('Logging Out')
+    pdf.body(
+        'Click your username in the sidebar to reveal the Logout button. '
+        'Clicking Logout immediately revokes your session on the server and returns you to the login screen. '
+        'Your data is never deleted when you log out.'
+    )
+
+    pdf.h2('API Authentication (developers)')
+    pdf.body('Two authentication methods are supported:')
+    pdf.table(
+        ['Method', 'Header', 'How to get it'],
+        [
+            ['JWT Bearer', 'Authorization: Bearer <token>', 'POST /api/v1/auth/login with username+password'],
+            ['API Key', 'X-API-Key: <key>', 'Admin Panel > API Keys tab > Create Key'],
+        ],
+        widths=[28, 80, 62]
+    )
+    pdf.code(
+        '# Login and get a token\n'
+        'curl -X POST http://localhost:5000/api/v1/auth/login \\\n'
+        '  -H "Content-Type: application/json" \\\n'
+        '  -d \'{"username":"your_user","password":"your_pass"}\'\n\n'
+        '# Use the token on any route\n'
+        'curl http://localhost:5000/api/v1/agents \\\n'
+        '  -H "Authorization: Bearer <access_token>"'
+    )
+    pdf.tip(
+        'REFRESH TOKENS',
+        'The login response includes both an access_token (60 min) and a refresh_token (7 days). '
+        'Store the refresh token securely. Use POST /api/v1/auth/refresh with the refresh token '
+        'to get a new access token without logging in again.'
     )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 
 def sec_dashboard(pdf: Doc):
-    pdf.h1('4. Dashboard Walkthrough')
+    pdf.h1('5. Dashboard Walkthrough')
     pdf.body(
-        'The ClaudeOS dashboard has 7 pages, each accessible from the sidebar. '
+        'The ClaudeOS dashboard has 8 pages, each accessible from the sidebar. '
+        'Pages visible to you depend on your role -- admin users see all pages including the Admin Panel. '
+        'Client and Viewer accounts only see pages relevant to their namespace. '
         'Click any item in the navigation list to switch pages instantly.'
     )
 
     pages = [
         (
-            '4.1  Overview Page',
+            '5.1  Overview Page',
             'Your home screen -- system health, live activity, and quick dispatch.',
             'When you open the dashboard, this is the first page you see.',
             [
@@ -495,7 +629,7 @@ def sec_dashboard(pdf: Doc):
             'Agent starts running in the background. A success message shows the Run ID.'
         ),
         (
-            '4.2  Agents Page',
+            '5.2  Agents Page',
             'Browse, search, and dispatch all 12 AI agents.',
             'Use this page when you need to run a specific agent and want to see its full details first.',
             [
@@ -514,7 +648,7 @@ def sec_dashboard(pdf: Doc):
             'A run starts in the background. The run ID appears. Use "Check run status" to see the response.'
         ),
         (
-            '4.3  Memory Page',
+            '5.3  Memory Page',
             'Search, browse, and add knowledge entries that the AI remembers.',
             'Use this page to add information about a client, search for a fact you stored, or review all saved knowledge.',
             [
@@ -532,7 +666,7 @@ def sec_dashboard(pdf: Doc):
             'Search returns matching entries with category badge, confidence score, and tags. Add Entry saves the fact immediately.'
         ),
         (
-            '4.4  Workflows Page',
+            '5.4  Workflows Page',
             'View, trigger, and manage automated multi-step pipelines.',
             'Use this page to manually trigger a workflow, enable/disable scheduled workflows, or check past run history.',
             [
@@ -549,7 +683,7 @@ def sec_dashboard(pdf: Doc):
             'Workflow starts running. A run ID is returned. Check Run History for step-by-step results and final output.'
         ),
         (
-            '4.5  Projects Page (Client Vault)',
+            '5.5  Projects Page (Client Vault)',
             'Manage client namespaces, projects, and context files.',
             'Use this page to create or view client workspaces, manage projects within them, and upload context files.',
             [
@@ -567,7 +701,7 @@ def sec_dashboard(pdf: Doc):
             'New namespaces and projects appear immediately. Context files are saved to the vault and agents will read them on next run.'
         ),
         (
-            '4.6  Outputs Page',
+            '5.6  Outputs Page',
             'Browse, search, and download all AI-generated content.',
             'Use this page to find any report, draft, or analysis the AI has produced.',
             [
@@ -586,7 +720,7 @@ def sec_dashboard(pdf: Doc):
             'Outputs display with metadata. Download delivers a .md file. Delete removes from database and file system.'
         ),
         (
-            '4.7  Settings Page',
+            '5.7  Settings Page',
             'Monitor and control Supabase cloud sync.',
             'Use this page to check whether cloud backup is configured and to manually trigger a sync.',
             [
@@ -603,6 +737,29 @@ def sec_dashboard(pdf: Doc):
                 'If not configured: follow the instructions to add SUPABASE_URL and SUPABASE_SERVICE_KEY to your .env file',
             ],
             'Push All Now syncs all tables to Supabase. Results show rows pushed and any failures.'
+        ),
+        (
+            '5.8  Admin Panel  (admin role only)',
+            'Manage users, API keys, sessions, audit events, and security settings.',
+            'Use this page to create or deactivate users, rotate API keys, review login history, and configure lockout policies. Only visible to admin accounts.',
+            [
+                'Users tab -- table of all accounts: username, role, namespace, status, last login',
+                'Create User form -- username, email, password, role dropdown, namespace dropdown',
+                'Per-user actions -- Deactivate, Unlock (clears lockout), Reset Password',
+                'API Keys tab -- masked list of all keys, create new key, revoke any key',
+                'Raw key shown once on creation -- copy it immediately, it cannot be retrieved again',
+                'Audit Log tab -- paginated event log: logins, failures, lockouts, user changes',
+                'Sessions tab -- active refresh token sessions with IP and device; revoke any session',
+                'Security tab -- sliders for lockout threshold, lockout duration, token TTLs, self-registration toggle',
+            ],
+            [
+                'To create a user: Users tab > fill in the Create User form > click Create',
+                'To unlock a locked account: find the user row > click Unlock',
+                'To force a password reset: find the user row > click Reset Password > set temp password',
+                'To revoke an API key: API Keys tab > find the key > click Revoke',
+                'To change lockout policy: Security tab > adjust Max Failed Attempts and Lockout Duration > Save',
+            ],
+            'Changes take effect immediately. Audit log records all admin actions automatically.'
         ),
     ]
 
@@ -623,7 +780,7 @@ def sec_dashboard(pdf: Doc):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def sec_agents(pdf: Doc):
-    pdf.h1('5. AI Agents Reference')
+    pdf.h1('6. AI Agents Reference')
     pdf.body(
         'ClaudeOS has 12 specialised AI agents. Each agent is built for a specific type of task. '
         'Below you will find a plain-English description of every agent, what input it needs from you, '
@@ -751,7 +908,7 @@ def sec_agents(pdf: Doc):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def sec_workflows(pdf: Doc):
-    pdf.h1('6. Workflows Reference')
+    pdf.h1('7. Workflows Reference')
     pdf.body(
         'Workflows are automated pipelines -- sequences of AI agents that run one after another. '
         'Some run automatically on a schedule. Others you trigger manually with one click.'
@@ -764,7 +921,7 @@ def sec_workflows(pdf: Doc):
 
     workflows = [
         (
-            '6.1  Morning Briefing',
+            '7.1  Morning Briefing',
             'Monday to Friday, automatically at 07:00 WAT (West Africa Time)',
             'Reads all high-confidence memory entries in the chosen namespace, reviews recent agent runs, '
             'and produces a structured daily briefing covering what needs attention today.',
@@ -773,7 +930,7 @@ def sec_workflows(pdf: Doc):
             'Appears in the Outputs page under type "report".'
         ),
         (
-            '6.2  Memory Curation',
+            '7.2  Memory Curation',
             'Automatically every Sunday at midnight WAT',
             'Reviews all memory entries for a namespace, identifies duplicates, contradictions, and stale information, '
             'and produces a set of recommendations for cleaning up the knowledge base.',
@@ -782,7 +939,7 @@ def sec_workflows(pdf: Doc):
             'The curator does not delete anything automatically -- a human reviews the recommendations.'
         ),
         (
-            '6.3  Research Digest',
+            '7.3  Research Digest',
             'Manual -- triggered by you when needed',
             'Two-step pipeline: first the Research Agent does a deep dive on your topic; '
             'then the Writing Agent condenses the findings into a concise executive summary (around 300 words).',
@@ -791,7 +948,7 @@ def sec_workflows(pdf: Doc):
             'A saved executive summary with key findings, implications, and 3 recommended next actions.'
         ),
         (
-            '6.4  Client Weekly Report',
+            '7.4  Client Weekly Report',
             'Automatically every Friday at 17:00 WAT',
             'Two-step pipeline: first the Research Agent gathers a week\'s worth of activity, decisions, '
             'and outputs for the namespace; then the Writing Agent formats a professional status report.',
@@ -800,7 +957,7 @@ def sec_workflows(pdf: Doc):
             'Saved to Outputs and ready to send to the client.'
         ),
         (
-            '6.5  Analysis Run',
+            '7.5  Analysis Run',
             'Manual -- triggered by you when needed',
             'Two-step pipeline: first the Analysis Agent produces a structured breakdown of the subject; '
             'then the Writing Agent reformats it into a clean, readable report under 500 words.',
@@ -810,7 +967,7 @@ def sec_workflows(pdf: Doc):
             'A structured analysis report with findings, patterns, risks, and ranked recommendations.'
         ),
         (
-            '6.6  QA Sweep',
+            '7.6  QA Sweep',
             'Automatically Monday to Friday at 06:00 WAT (before the morning briefing)',
             'Reviews the previous day\'s agent runs and outputs for quality issues, errors, '
             'anomalies, and anything that did not meet expected standards.',
@@ -819,7 +976,7 @@ def sec_workflows(pdf: Doc):
             'Saved to Outputs as type "report".'
         ),
         (
-            '6.7  Meta Orchestration',
+            '7.7  Meta Orchestration',
             'Manual -- triggered when you have a complex, multi-step task',
             'Three-step pipeline: the Meta Orchestrator plans the task; the Research Agent gathers context; '
             'the Writing Agent synthesises a final action brief combining the plan and research.',
@@ -842,7 +999,7 @@ def sec_workflows(pdf: Doc):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def sec_clients(pdf: Doc):
-    pdf.h1('7. Client Workspace Sections')
+    pdf.h1('8. Client Workspace Sections')
     pdf.body(
         'ClaudeOS uses namespaces to keep each client\'s data completely separate. '
         'Below is a guide for each client workspace -- which agents are most relevant, '
@@ -850,7 +1007,7 @@ def sec_clients(pdf: Doc):
     )
 
     # RECI Transport
-    pdf.h2('7.1  RECI Transport  (reci-transport)')
+    pdf.h2('8.1  RECI Transport  (reci-transport)')
     pdf.body(
         'RECI Transport Ltd is a fleet and logistics client. '
         'ClaudeOS manages operational analysis, booking intelligence, fleet reporting, '
@@ -884,7 +1041,7 @@ def sec_clients(pdf: Doc):
     pdf.divider()
 
     # Ivycandy Hair
-    pdf.h2('7.2  Ivycandy Hair  (ivycandy-hair)')
+    pdf.h2('8.2  Ivycandy Hair  (ivycandy-hair)')
     pdf.body(
         'Ivycandy Hair is a luxury wig and hair brand. '
         'ClaudeOS supports brand communications, content creation, client engagement, '
@@ -920,7 +1077,7 @@ def sec_clients(pdf: Doc):
     pdf.divider()
 
     # Faiyke AI
-    pdf.h2('7.3  Faiyke AI  (faiyke-ai)')
+    pdf.h2('8.3  Faiyke AI  (faiyke-ai)')
     pdf.body(
         'Faiyke AI is an AI SaaS client. '
         'ClaudeOS supports research, technical writing, product strategy, '
@@ -941,7 +1098,7 @@ def sec_clients(pdf: Doc):
     pdf.divider()
 
     # Personal / General
-    pdf.h2('7.4  Personal & General  (personal / global)')
+    pdf.h2('8.4  Personal & General  (personal / global)')
     pdf.body(
         'The "personal" and "global" namespaces are for internal use and general tasks not tied to a specific client. '
         'Use "global" for system-wide shared information. Use "personal" for your own scheduling, reminders, and research.'
@@ -960,7 +1117,7 @@ def sec_clients(pdf: Doc):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def sec_memory(pdf: Doc):
-    pdf.h1('8. Memory System Guide')
+    pdf.h1('9. Memory System Guide')
 
     pdf.body(
         'ClaudeOS memory is like a smart filing cabinet. '
@@ -1049,7 +1206,7 @@ def sec_memory(pdf: Doc):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def sec_outputs(pdf: Doc):
-    pdf.h1('9. Outputs Guide')
+    pdf.h1('10. Outputs Guide')
 
     pdf.body(
         'Every time an AI agent or workflow produces a document, report, draft, or analysis, '
@@ -1130,7 +1287,7 @@ def sec_outputs(pdf: Doc):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def sec_technical(pdf: Doc):
-    pdf.h1('10. Technical Reference  (Administrators)')
+    pdf.h1('11. Technical Reference  (Administrators)')
     pdf.body(
         'This section is for the person who installs, configures, and maintains ClaudeOS. '
         'End users do not need to read this section.'
@@ -1179,6 +1336,19 @@ def sec_technical(pdf: Doc):
         widths=[60, 110]
     )
 
+    pdf.h2('Auth & Security Database Tables')
+    pdf.table(
+        ['Table', 'Purpose'],
+        [
+            ['users', 'User accounts: username, password_hash (bcrypt), role, namespace, lockout state'],
+            ['user_sessions', 'Refresh token store (stored as SHA-256 hash, never plaintext)'],
+            ['auth_events', 'Full audit log: every login, failure, lockout, user action with IP and timestamp'],
+            ['system_config', 'Runtime security settings: lockout threshold, token TTLs, self-register toggle'],
+            ['api_keys', 'API keys for legacy/script access (stored as SHA-256 hash)'],
+        ],
+        widths=[40, 130]
+    )
+
     pdf.h2('First-Time Setup Commands')
     pdf.body('Run these once after cloning the project:')
     pdf.code(
@@ -1186,14 +1356,36 @@ def sec_technical(pdf: Doc):
         'python scripts/migrate.py\n'
         'python scripts/seed_agents.py\n'
         'python scripts/seed_workflows.py\n'
-        'python scripts/seed_namespaces.py'
+        'python scripts/seed_namespaces.py\n'
+        'python scripts/create_admin.py --username admin --password Admin123!'
+    )
+    pdf.tip(
+        'FIRST ADMIN',
+        'The create_admin.py script creates the first admin account. '
+        'Run it exactly once after migration. '
+        'It will refuse to run if an admin already exists. '
+        'Choose a strong password -- this account has full system access.'
     )
 
     pdf.h2('API Quick Reference')
+    pdf.body('Auth endpoints (no token required):')
     pdf.table(
         ['Method', 'Endpoint', 'Description'],
         [
-            ['GET', '/api/v1/health', 'Check API is running'],
+            ['GET', '/api/v1/health', 'Public health check (no auth)'],
+            ['POST', '/api/v1/auth/login', 'Login -- returns access + refresh tokens'],
+            ['POST', '/api/v1/auth/register', 'Self-register (if allow_self_register=1)'],
+            ['POST', '/api/v1/auth/refresh', 'Renew access token using refresh token'],
+            ['POST', '/api/v1/auth/logout', 'Revoke current session'],
+            ['GET', '/api/v1/auth/me', 'Current user info'],
+            ['POST', '/api/v1/auth/change-password', 'Change own password'],
+        ],
+        widths=[20, 75, 75]
+    )
+    pdf.body('All routes below require Authorization: Bearer <token> or X-API-Key header:')
+    pdf.table(
+        ['Method', 'Endpoint', 'Description'],
+        [
             ['GET', '/api/v1/system/status', 'Full system health check'],
             ['GET', '/api/v1/agents', 'List all agents'],
             ['POST', '/api/v1/agents/{name}/run', 'Run an agent (returns run_id)'],
@@ -1207,6 +1399,20 @@ def sec_technical(pdf: Doc):
             ['POST', '/api/v1/sync/push', 'Push data to Supabase'],
         ],
         widths=[20, 75, 75]
+    )
+    pdf.body('Admin-only routes (admin role required):')
+    pdf.table(
+        ['Method', 'Endpoint', 'Description'],
+        [
+            ['GET/POST', '/api/v1/admin/users', 'List or create users'],
+            ['PATCH/DELETE', '/api/v1/admin/users/{id}', 'Update or deactivate user'],
+            ['POST', '/api/v1/admin/users/{id}/unlock', 'Clear lockout on user'],
+            ['GET', '/api/v1/admin/audit', 'Paginated auth event log'],
+            ['GET/DELETE', '/api/v1/admin/sessions', 'List or revoke sessions'],
+            ['GET/POST', '/api/v1/admin/api-keys', 'List or create API keys'],
+            ['GET/PATCH', '/api/v1/admin/security-settings', 'Read or update security config'],
+        ],
+        widths=[25, 80, 65]
     )
 
     pdf.h2('Supabase Cloud Sync Setup')
@@ -1224,9 +1430,79 @@ def sec_technical(pdf: Doc):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def sec_troubleshooting(pdf: Doc):
-    pdf.h1('11. Troubleshooting')
+    pdf.h1('12. Troubleshooting')
 
     issues = [
+        (
+            'Login screen does not appear -- dashboard loads directly',
+            [
+                'JWT token still in browser session from a previous login',
+                'theme_toggle() or inject() not called before auth gate in app.py',
+            ],
+            [
+                'Close and reopen the browser tab to force a new session',
+                'If persistent: check dashboard/app.py that theme_toggle() and inject() are called BEFORE the jwt_token check',
+            ]
+        ),
+        (
+            'Login fails with "Invalid username or password"',
+            [
+                'Username or password typed incorrectly',
+                'Account does not exist (admin has not created it yet)',
+                'Account is deactivated',
+            ],
+            [
+                'Double-check username and password (case-sensitive)',
+                'Ask your administrator to confirm your account exists and is active',
+                'If self-registration is enabled, try the Register tab to create a new account',
+            ]
+        ),
+        (
+            'Login fails with "Account locked" or "retry_after_seconds"',
+            [
+                '5 or more consecutive failed login attempts triggered automatic lockout',
+            ],
+            [
+                'Wait for the lockout period to expire (default: 15 minutes)',
+                'Or ask your administrator to unlock your account: Admin Panel > Users > Unlock',
+                'After unlocking you can log in immediately',
+            ]
+        ),
+        (
+            '"Must change password" prompt appears on login',
+            [
+                'Administrator has flagged your account to require a password change',
+                'This also occurs on first login if admin set must_change_password=1',
+            ],
+            [
+                'Enter your current (temporary) password in the first field',
+                'Enter your new password twice (min 10 chars, upper + lower + digit)',
+                'Click Change Password -- you will be taken to the dashboard immediately',
+            ]
+        ),
+        (
+            'API returns 401 on every request',
+            [
+                'Access token has expired (default: 60 minutes)',
+                'Wrong or missing Authorization header',
+                'CLAUDEOS_SECRET_KEY changed since token was issued',
+            ],
+            [
+                'Log out of the dashboard and log back in to get a fresh token',
+                'For API scripts: re-call POST /auth/login to get a new token',
+                'Verify the Authorization header is exactly: "Bearer <token>" (with the word Bearer)',
+                'If secret key changed: all existing tokens are invalid -- all users must re-login',
+            ]
+        ),
+        (
+            'Self-registration tab is missing on login screen',
+            [
+                'allow_self_register is set to 0 in system_config',
+            ],
+            [
+                'Ask your administrator to enable self-registration: Admin Panel > Security > Self-Registration toggle',
+            ]
+        ),
         (
             'API shows red dot (offline) in sidebar',
             [
@@ -1329,23 +1605,33 @@ def sec_troubleshooting(pdf: Doc):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def sec_glossary(pdf: Doc):
-    pdf.h1('12. Glossary')
+    pdf.h1('13. Glossary')
     pdf.body('Key terms used in this guide, explained in plain English.')
 
     terms = [
+        ('Access Token', 'A short-lived JWT (60 minutes by default) sent in the Authorization header of every API request. Proves your identity without sharing your password.'),
+        ('Admin Panel', 'A dashboard page visible only to admin-role users. Manages users, API keys, sessions, audit log, and security settings.'),
         ('Agent', 'A specialised AI worker with a specific job. ClaudeOS has 12 agents, each designed for a different task type.'),
         ('API', 'Application Programming Interface. The behind-the-scenes engine that the dashboard talks to. Runs on port 5000.'),
         ('APScheduler', 'The scheduling engine that runs workflows automatically at the right time. Starts with the server.'),
+        ('Audit Log', 'A permanent record of every security-relevant action: logins, failures, logouts, user creation, lockout events, and password changes. Stored in the auth_events table.'),
+        ('bcrypt', 'The password hashing algorithm used by ClaudeOS. 12 rounds of hashing means even if the database were stolen, passwords cannot be recovered. Never stored as plaintext.'),
+        ('Bearer Token', 'The format for sending a JWT in an API request: Authorization: Bearer <token>. The word "Bearer" must be included exactly.'),
         ('ChromaDB', 'The vector database that powers semantic (meaning-based) memory search.'),
         ('Confidence Score', 'A number from 0.0 to 1.0 indicating how reliable a memory entry is. Agents only read entries above 0.8 by default.'),
         ('Dispatch', 'The action of sending a task to an AI agent. You dispatch an agent by writing a prompt and clicking Run.'),
         ('FTS5', 'Full-Text Search version 5. The SQLite keyword search engine used for memory and output text search.'),
+        ('JWT', 'JSON Web Token. A digitally signed token that proves who you are. ClaudeOS issues JWTs on login and validates them on every API request.'),
+        ('Lockout', 'An automatic security measure that temporarily blocks login after too many failed attempts. Default: 5 failures triggers a 15-minute lockout. Admin can unlock accounts early.'),
         ('Namespace', 'A private workspace for a specific client or project. Data does not cross between namespaces.'),
         ('Memory Entry', 'A saved piece of knowledge with a key, value, category, and confidence score. Agents read these automatically.'),
         ('Output', 'Any document, report, draft, or analysis produced by an AI agent and saved by ClaudeOS.'),
         ('PowerShell', 'The Windows command-line tool used to start ClaudeOS. Run it by right-clicking and selecting "Run as administrator".'),
+        ('Refresh Token', 'A long-lived (7 days) opaque token used to get a new access token without logging in again. Stored as a secure hash. Keep it secret -- it cannot be recovered if lost.'),
+        ('Role', 'The permission level assigned to a user account: admin, operator, client, or viewer. Determines which pages and data the user can access.'),
         ('Run ID', 'A unique identifier assigned to each agent or workflow run. Use it to check the status and results.'),
         ('Semantic Search', 'Searching by meaning rather than exact words. Finds relevant results even when you phrase things differently.'),
+        ('Session', 'A login session stored in the user_sessions table. Contains the hashed refresh token, IP address, and device info. Admins can revoke sessions from the Admin Panel.'),
         ('SQLite', 'The local database file (claudeos.db) where all data is stored on disk.'),
         ('Streamlit', 'The Python framework that powers the ClaudeOS web dashboard. Runs on port 8501.'),
         ('Supabase', 'A cloud database service used for optional backup and sync. Configured in Settings page.'),
@@ -1353,6 +1639,7 @@ def sec_glossary(pdf: Doc):
         ('Waitress', 'The Windows-compatible web server that hosts the Flask API. Starts automatically via start.ps1.'),
         ('Watermark', 'The last-synced timestamp used by Supabase sync to only push new data, not re-send everything.'),
         ('Workflow', 'An automated pipeline of one or more AI agents that run in sequence. Can be scheduled or manually triggered.'),
+        ('X-API-Key', 'A legacy authentication header for scripts and tools. Sent as X-API-Key: <key>. Keys are created in the Admin Panel and stored as SHA-256 hashes.'),
     ]
 
     for term, definition in terms:
@@ -1380,6 +1667,7 @@ def build(toc_offset: int = 0, page_map: dict = None, link_ids: dict = None) -> 
     sec_introduction(pdf)
     sec_design_principles(pdf)
     sec_getting_started(pdf)
+    sec_auth_security(pdf)
     sec_dashboard(pdf)
     sec_agents(pdf)
     sec_workflows(pdf)
@@ -1424,6 +1712,7 @@ def main():
     sec_introduction(pdf2)
     sec_design_principles(pdf2)
     sec_getting_started(pdf2)
+    sec_auth_security(pdf2)
     sec_dashboard(pdf2)
     sec_agents(pdf2)
     sec_workflows(pdf2)
