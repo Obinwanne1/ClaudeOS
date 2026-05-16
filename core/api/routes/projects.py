@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request
 
-from core.api.auth import require_api_key
+from core.auth import require_auth, effective_namespace
+require_api_key = require_auth  # alias — all existing @require_api_key decorators now use require_auth
 
 projects_bp = Blueprint("projects", __name__, url_prefix="/api/v1")
 

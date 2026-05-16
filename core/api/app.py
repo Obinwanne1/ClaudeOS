@@ -22,11 +22,24 @@ def create_app() -> Flask:
     # Logging
     _setup_logging(settings)
 
+    # Rate limiter
+    from core.api.limiter import limiter
+    limiter.init_app(app)
+
     # Middleware
     register_middleware(app)
 
+    # Run DB migrations (idempotent — CREATE IF NOT EXISTS)
+    _run_migrations()
+
     # Routes — Phase 1
     app.register_blueprint(system_bp)
+
+    # Auth + Admin blueprints
+    from core.api.routes.auth_routes import auth_bp
+    from core.api.routes.admin_routes import admin_bp
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(admin_bp)
 
     # Routes — Phase 2+ (registered lazily when modules exist)
     _register_optional_blueprints(app)
@@ -35,6 +48,19 @@ def create_app() -> Flask:
     _start_scheduler(app)
 
     return app
+
+
+def _run_migrations():
+    """Apply all SQL migrations in order (idempotent)."""
+    migrations_dir = Path(__file__).parent.parent.parent / "memory" / "db" / "migrations"
+    if not migrations_dir.exists():
+        return
+    from core.database import run_migration
+    for sql_file in sorted(migrations_dir.glob("*.sql")):
+        try:
+            run_migration(sql_file)
+        except Exception as e:
+            logging.getLogger("claudeos.api").warning("Migration %s failed: %s", sql_file.name, e)
 
 
 def _register_optional_blueprints(app: Flask):

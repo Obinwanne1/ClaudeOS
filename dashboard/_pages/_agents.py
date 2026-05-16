@@ -82,7 +82,10 @@ def render(api_get, api_post):
     with d_col1:
         agent_names = [a["name"] for a in agents]
         sel_agent = st.selectbox("Agent", agent_names, key="dispatch_agent")
-        sel_ns = st.selectbox("Namespace", ["global", "reci-transport", "ivycandy-hair", "faiyke-ai", "personal"], key="dispatch_ns")
+        _role = st.session_state.get("user_role", "admin")
+        _user_ns = st.session_state.get("user_namespace")
+        _ns_opts = [_user_ns] if _role in ("client", "viewer") and _user_ns else ["global", "reci-transport", "ivycandy-hair", "faiyke-ai", "personal"]
+        sel_ns = st.selectbox("Namespace", _ns_opts, key="dispatch_ns")
         save_out = st.checkbox("Save output", value=True)
     with d_col2:
         dispatch_prompt = st.text_area("Prompt", height=150, key="dispatch_prompt")

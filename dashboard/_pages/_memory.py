@@ -7,17 +7,29 @@ NAMESPACES = ["global", "reci-transport", "ivycandy-hair", "faiyke-ai", "persona
 CATEGORIES = ["fact", "decision", "context", "preference", "reminder", "insight"]
 
 
+def _available_namespaces() -> list[str]:
+    """Return namespace list based on current user role."""
+    role = st.session_state.get("user_role", "admin")
+    user_ns = st.session_state.get("user_namespace")
+    if role in ("client", "viewer") and user_ns:
+        return [user_ns]
+    return NAMESPACES
+
+
 def render(api_get, api_post):
     st.title("🧠 Memory")
+
+    role = st.session_state.get("user_role", "admin")
+    available_ns = _available_namespaces()
 
     # Stats bar
     ns_data = api_get("/memory/namespaces")
     counts = ns_data.get("namespaces", {}) if ns_data else {}
-    total = sum(counts.values())
-    st.markdown(f"**{total} total entries** across {len(counts)} namespaces")
+    total = sum(counts.get(ns, 0) for ns in available_ns)
+    st.markdown(f"**{total} total entries** across {len(available_ns)} namespace(s)")
 
-    col1, col2, col3, col4, col5 = st.columns(5)
-    for col, ns in zip([col1, col2, col3, col4, col5], NAMESPACES):
+    cols = st.columns(len(available_ns))
+    for col, ns in zip(cols, available_ns):
         col.metric(ns, counts.get(ns, 0))
 
     st.markdown("---")
@@ -32,7 +44,7 @@ def render(api_get, api_post):
         with s_col2:
             mode = st.selectbox("Mode", ["text", "semantic", "both"], label_visibility="collapsed")
         with s_col3:
-            search_ns = st.selectbox("Namespace", ["(any)"] + NAMESPACES, label_visibility="collapsed")
+            search_ns = st.selectbox("Namespace", ["(any)"] + available_ns, label_visibility="collapsed")
 
         if query.strip():
             payload = {
@@ -56,7 +68,7 @@ def render(api_get, api_post):
     with tab_browse:
         b_col1, b_col2, b_col3 = st.columns(3)
         with b_col1:
-            browse_ns = st.selectbox("Namespace", ["(all)"] + NAMESPACES, key="browse_ns")
+            browse_ns = st.selectbox("Namespace", ["(all)"] + available_ns, key="browse_ns")
         with b_col2:
             browse_cat = st.selectbox("Category", ["(all)"] + CATEGORIES, key="browse_cat")
         with b_col3:
@@ -81,7 +93,7 @@ def render(api_get, api_post):
     with tab_add:
         a_col1, a_col2 = st.columns(2)
         with a_col1:
-            add_ns = st.selectbox("Namespace", NAMESPACES, key="add_ns")
+            add_ns = st.selectbox("Namespace", available_ns, key="add_ns")
             add_cat = st.selectbox("Category", CATEGORIES, key="add_cat")
             add_key = st.text_input("Key", placeholder="e.g. client.contact_email")
             add_conf = st.slider("Confidence", 0.0, 1.0, 1.0, 0.05)

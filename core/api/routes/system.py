@@ -6,6 +6,7 @@ from flask import Blueprint, jsonify, request
 from core.config import get_settings
 from core.database import get_db
 from core.utils import utcnow_str
+from core.auth import require_auth
 
 system_bp = Blueprint("system", __name__, url_prefix="/api/v1")
 
@@ -22,6 +23,7 @@ def health():
 
 
 @system_bp.get("/system/status")
+@require_auth
 def status():
     settings = get_settings()
     db_ok = False
@@ -53,6 +55,7 @@ def status():
 
 
 @system_bp.get("/system/stats")
+@require_auth
 def stats():
     tables = ["memory_entries", "agents", "agent_runs", "workflows", "workflow_runs",
               "outputs", "namespaces", "projects", "system_events"]
@@ -70,6 +73,7 @@ def stats():
 
 
 @system_bp.get("/system/events")
+@require_auth
 def events():
     limit = min(int(request.args.get("limit", 50)), 200)
     severity = request.args.get("severity")

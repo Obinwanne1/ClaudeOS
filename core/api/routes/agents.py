@@ -1,9 +1,10 @@
 """Agent API routes — /api/v1/agents/*"""
 import json
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, g
 
 from agents import registry, dispatcher
 from agents.schemas import AgentDispatchRequest
+from core.auth import require_auth, effective_namespace
 from core.utils import utcnow_str
 
 agents_bp = Blueprint("agents", __name__, url_prefix="/api/v1/agents")
@@ -28,6 +29,7 @@ def _agent_dict(a) -> dict:
 
 
 @agents_bp.get("")
+@require_auth
 def list_agents():
     category = request.args.get("category")
     enabled_only = request.args.get("enabled_only", "true").lower() == "true"
@@ -36,6 +38,7 @@ def list_agents():
 
 
 @agents_bp.get("/<agent_id>")
+@require_auth
 def get_agent(agent_id: str):
     agent = registry.get_by_id(agent_id) or registry.get_by_name(agent_id)
     if not agent:
@@ -44,6 +47,7 @@ def get_agent(agent_id: str):
 
 
 @agents_bp.post("/<agent_name>/run")
+@require_auth
 def run_agent(agent_name: str):
     data = request.get_json(silent=True)
     if not data:
@@ -71,6 +75,7 @@ def run_agent(agent_name: str):
 
 
 @agents_bp.get("/runs/<run_id>")
+@require_auth
 def get_run(run_id: str):
     run = dispatcher.get_run(run_id)
     if not run:
@@ -79,6 +84,7 @@ def get_run(run_id: str):
 
 
 @agents_bp.get("/<agent_id>/runs")
+@require_auth
 def list_agent_runs(agent_id: str):
     agent = registry.get_by_id(agent_id) or registry.get_by_name(agent_id)
     if not agent:
@@ -89,6 +95,7 @@ def list_agent_runs(agent_id: str):
 
 
 @agents_bp.post("/runs/<run_id>/cancel")
+@require_auth
 def cancel_run(run_id: str):
     cancelled = dispatcher.cancel_run(run_id)
     if not cancelled:
@@ -97,6 +104,7 @@ def cancel_run(run_id: str):
 
 
 @agents_bp.get("/runs")
+@require_auth
 def list_runs():
     namespace = request.args.get("namespace")
     status = request.args.get("status")

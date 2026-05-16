@@ -1,5 +1,5 @@
 """Memory API routes — /api/v1/memory/*"""
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, g
 
 from memory import engine
 from memory.schemas import (
@@ -7,6 +7,7 @@ from memory.schemas import (
     MemoryEntryUpdate,
     MemorySearchRequest,
 )
+from core.auth import require_auth, effective_namespace
 from core.utils import utcnow_str
 
 memory_bp = Blueprint("memory", __name__, url_prefix="/api/v1/memory")
@@ -31,8 +32,9 @@ def _entry_dict(e) -> dict:
 
 
 @memory_bp.get("")
+@require_auth
 def list_memory():
-    namespace = request.args.get("namespace")
+    namespace = effective_namespace(request.args.get("namespace"))
     category = request.args.get("category")
     min_confidence = float(request.args.get("min_confidence", 0.0))
     limit = min(int(request.args.get("limit", 100)), 500)
@@ -47,10 +49,16 @@ def list_memory():
 
 
 @memory_bp.post("")
+@require_auth
 def write_memory():
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "JSON body required"}), 400
+
+    # Enforce namespace for client/viewer roles
+    forced_ns = effective_namespace(data.get("namespace"))
+    if forced_ns:
+        data["namespace"] = forced_ns
 
     try:
         entry_create = MemoryEntryCreate(**data)
@@ -73,6 +81,7 @@ def write_memory():
 
 
 @memory_bp.get("/<entry_id>")
+@require_auth
 def get_memory(entry_id: str):
     entry = engine.get_by_id(entry_id)
     if not entry:
@@ -81,6 +90,7 @@ def get_memory(entry_id: str):
 
 
 @memory_bp.put("/<entry_id>")
+@require_auth
 def update_memory(entry_id: str):
     data = request.get_json(silent=True)
     if not data:
@@ -98,6 +108,7 @@ def update_memory(entry_id: str):
 
 
 @memory_bp.delete("/<entry_id>")
+@require_auth
 def delete_memory(entry_id: str):
     deleted = engine.delete(entry_id)
     if not deleted:
@@ -106,10 +117,16 @@ def delete_memory(entry_id: str):
 
 
 @memory_bp.post("/search")
+@require_auth
 def search_memory():
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "JSON body required"}), 400
+
+    # Enforce namespace for client/viewer
+    forced_ns = effective_namespace(data.get("namespace"))
+    if forced_ns:
+        data["namespace"] = forced_ns
 
     try:
         req = MemorySearchRequest(**data)
@@ -127,6 +144,7 @@ def search_memory():
 
 
 @memory_bp.post("/import")
+@require_auth
 def import_memory():
     from pathlib import Path
     from core.config import get_settings
@@ -150,18 +168,21 @@ def import_memory():
 
 
 @memory_bp.get("/namespaces")
+@require_auth
 def list_namespaces():
     counts = engine.namespace_counts()
     return jsonify({"namespaces": counts})
 
 
 @memory_bp.delete("/expire")
+@require_auth
 def expire_memory():
     count = engine.expire_stale()
     return jsonify({"expired": count, "timestamp": utcnow_str()})
 
 
 @memory_bp.get("/context/<namespace>")
+@require_auth
 def agent_context(namespace: str):
     min_confidence = float(request.args.get("min_confidence", 0.8))
     context_str = engine.get_agent_context(namespace, min_confidence)

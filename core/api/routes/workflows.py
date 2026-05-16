@@ -4,7 +4,8 @@ from __future__ import annotations
 import threading
 from flask import Blueprint, jsonify, request
 
-from core.api.auth import require_api_key
+from core.auth import require_auth, effective_namespace
+require_api_key = require_auth  # alias
 from core.utils import utcnow_str
 
 workflows_bp = Blueprint("workflows", __name__, url_prefix="/api/v1/workflows")

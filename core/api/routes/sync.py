@@ -4,7 +4,8 @@ from __future__ import annotations
 import logging
 from flask import Blueprint, jsonify, request
 
-from core.api.auth import require_api_key
+from core.auth import require_auth
+require_api_key = require_auth  # alias
 
 logger = logging.getLogger("claudeos.api.sync")
 sync_bp = Blueprint("sync", __name__, url_prefix="/api/v1/sync")

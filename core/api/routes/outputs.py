@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request, Response
 
-from core.api.auth import require_api_key
+from core.auth import require_auth
+require_api_key = require_auth  # alias
 
 outputs_bp = Blueprint("outputs", __name__, url_prefix="/api/v1/outputs")
 

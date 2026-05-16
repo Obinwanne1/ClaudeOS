@@ -22,13 +22,21 @@ def render(api_get, api_post):
 
 
 def _render_namespaces(api_get, api_post):
+    role = st.session_state.get("user_role", "admin")
+    user_ns = st.session_state.get("user_namespace")
+
     col1, col2 = st.columns([3, 1])
     with col1:
         st.subheader("Namespaces")
     with col2:
-        show_all = st.toggle("Show disabled", value=False)
+        show_all = st.toggle("Show disabled", value=False) if role in ("admin", "operator") else False
 
-    namespaces = api_get(f"/namespaces?enabled={'false' if show_all else 'true'}") or []
+    all_namespaces = api_get(f"/namespaces?enabled={'false' if show_all else 'true'}") or []
+    # Clients see only their namespace
+    if role in ("client", "viewer") and user_ns:
+        namespaces = [ns for ns in all_namespaces if ns.get("slug") == user_ns]
+    else:
+        namespaces = all_namespaces
 
     if not namespaces:
         st.info("No namespaces found. Run `python scripts/seed_namespaces.py`")
@@ -60,8 +68,9 @@ def _render_namespaces(api_get, api_post):
                     st.metric("Projects", len(projects))
 
     st.markdown("---")
-    with st.expander("➕ New Namespace"):
-        _new_namespace_form(api_post)
+    if role in ("admin", "operator"):
+        with st.expander("➕ New Namespace"):
+            _new_namespace_form(api_post)
 
 
 def _render_projects(api_get, api_post):
