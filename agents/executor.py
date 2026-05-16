@@ -15,8 +15,6 @@ import time
 from datetime import datetime, timezone
 from typing import Optional
 
-import anthropic
-
 from core.config import get_settings
 from core.database import get_db
 from core.utils import new_id, utcnow_str
@@ -24,12 +22,13 @@ from memory import engine as memory_engine
 
 logger = logging.getLogger("claudeos.agents.executor")
 
-_client: Optional[anthropic.Anthropic] = None
+_client = None  # anthropic.Anthropic — lazy, avoids 4s import at startup
 
 
-def _get_client() -> anthropic.Anthropic:
+def _get_client():
     global _client
     if _client is None:
+        import anthropic  # deferred: ~4s import only on first agent call
         _client = anthropic.Anthropic(api_key=get_settings().ANTHROPIC_API_KEY)
     return _client
 
@@ -61,6 +60,7 @@ def execute(
     start = time.monotonic()
 
     try:
+        import anthropic  # already cached after first call; re-import is instant
         client = _get_client()
         last_exc: Exception = RuntimeError("no attempts made")
         for attempt in range(3):

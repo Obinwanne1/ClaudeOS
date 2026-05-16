@@ -528,6 +528,7 @@ def sidebar_logo():
 
 
 def theme_toggle():
+    """Sidebar theme toggle — kept for backward compat but hidden when topbar toggle active."""
     current = get_theme()
     is_light = current == "light"
     icon  = "☀️" if is_light else "🌙"
@@ -536,6 +537,84 @@ def theme_toggle():
     if switched != is_light:
         st.session_state.theme = "light" if switched else "dark"
         st.rerun()
+
+
+def theme_toggle_topbar() -> None:
+    """Fixed-position Dark/Light toggle injected into the parent document via JS.
+
+    st.markdown cannot place elements above Streamlit's own header (z-index ~999999).
+    st.components.v1.html() runs inside an iframe that CAN access window.parent,
+    allowing us to append a real DOM element to the top-level document body.
+    """
+    import streamlit.components.v1 as _components
+
+    # Handle the flip — query param set by the injected button click
+    if st.query_params.get("_theme_flip"):
+        current = get_theme()
+        st.session_state.theme = "dark" if current == "light" else "light"
+        st.query_params.clear()
+        st.rerun()
+
+    current  = get_theme()
+    t        = THEMES[current]
+    is_dark  = current == "dark"
+    icon     = "🌙" if is_dark else "☀️"
+    label    = "Dark" if is_dark else "Light"
+    track_bg = "#407E3C" if is_dark else "#d1d5db"
+    thumb_l  = "14px"   if is_dark else "2px"
+
+    # Styles as single-line strings (no newlines inside JS template literals)
+    btn_css = (
+        f"position:fixed;top:64px;right:16px;z-index:2147483647;"
+        f"display:inline-flex;align-items:center;gap:7px;"
+        f"background:{t['SURFACE']};border:1px solid {t['BORDER']};"
+        f"border-radius:999px;color:{t['TEXT']};"
+        f"font-size:0.76rem;font-family:Poppins,sans-serif;font-weight:600;"
+        f"padding:5px 14px 5px 10px;text-decoration:none;"
+        f"white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.22);"
+        f"cursor:pointer;letter-spacing:.02em;"
+    )
+    track_css = (
+        f"display:inline-flex;align-items:center;width:28px;height:16px;"
+        f"background:{track_bg};border-radius:999px;position:relative;flex-shrink:0;"
+    )
+    thumb_css = (
+        f"position:absolute;width:12px;height:12px;background:#fff;"
+        f"border-radius:50%;top:2px;left:{thumb_l};"
+        f"box-shadow:0 1px 3px rgba(0,0,0,.3);"
+    )
+
+    _components.html(f"""
+<script>
+(function() {{
+  var doc = window.parent.document;
+
+  // Remove any previous instance so re-renders stay fresh
+  var old = doc.getElementById('cos-theme-btn');
+  if (old) old.remove();
+
+  var a = doc.createElement('a');
+  a.id = 'cos-theme-btn';
+  a.title = 'Toggle dark / light mode';
+  // target="_parent" makes the link navigate the top-level frame
+  a.target = '_parent';
+  a.href = '?_theme_flip=1';
+  a.style.cssText = '{btn_css}';
+
+  var track = doc.createElement('span');
+  track.style.cssText = '{track_css}';
+
+  var thumb = doc.createElement('span');
+  thumb.style.cssText = '{thumb_css}';
+
+  track.appendChild(thumb);
+  a.appendChild(track);
+  a.appendChild(doc.createTextNode('\u00a0{icon} {label}'));
+
+  doc.body.appendChild(a);
+}})();
+</script>
+""", height=0, scrolling=False)
 
 
 def badge(text: str, kind: str = "ok") -> str:

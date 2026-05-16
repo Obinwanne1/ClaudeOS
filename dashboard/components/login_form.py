@@ -9,57 +9,133 @@ _API_BASE = "http://localhost:5000/api/v1"
 
 
 def render_login() -> None:
-    """Render centered login/register card. On success populates session state and reruns."""
-    from dashboard.components.brand import aurora_hero, get_theme_vars, PRIMARY
+    """Render a single unified login card (brand header + form in one box)."""
+    from dashboard.components.brand import get_theme_vars, PRIMARY, get_theme
+
     t = get_theme_vars()
+    is_dark = get_theme() == "dark"
 
-    # Centre the form
-    _, col, _ = st.columns([1, 1.6, 1])
+    # ── Wrapper CSS: hide Streamlit padding, centre card ────────────────────
+    st.markdown(f"""
+<style>
+/* Full-bleed layout reset for login page */
+.main .block-container {{
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    max-width: 100% !important;
+}}
+/* Card shell */
+.cos-login-card {{
+    background: {t['SURFACE']};
+    border: 1px solid {t['BORDER']};
+    border-radius: 16px;
+    padding: 40px 44px 36px;
+    box-shadow: 0 4px 32px rgba(0,0,0,{'.45' if is_dark else '.10'});
+    margin-top: 60px;
+}}
+/* Brand block inside card */
+.cos-brand-pill {{
+    display: inline-block;
+    background: transparent;
+    border: 1px solid {PRIMARY};
+    color: {PRIMARY};
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 3px 12px;
+    letter-spacing: 0.06em;
+    margin-bottom: 18px;
+}}
+.cos-brand-title {{
+    font-size: 2rem;
+    font-weight: 800;
+    color: {t['TEXT']};
+    letter-spacing: 1px;
+    line-height: 1.1;
+    margin-bottom: 6px;
+}}
+.cos-brand-sub {{
+    font-size: 0.9rem;
+    color: {t['TEXT_MUTED']};
+    margin-bottom: 28px;
+}}
+.cos-divider {{
+    border: none;
+    border-top: 1px solid {t['BORDER']};
+    margin: 0 0 24px;
+}}
+.cos-footer {{
+    text-align: center;
+    font-size: 0.72rem;
+    color: {t['TEXT_MUTED']};
+    margin-top: 20px;
+}}
+</style>
+""", unsafe_allow_html=True)
+
+    # ── Centred column ───────────────────────────────────────────────────────
+    _, col, _ = st.columns([1, 1.4, 1])
     with col:
-        aurora_hero("ClaudeOS", subtitle="AI Operating System", pill="Sign in to continue")
-        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+        # Open card
+        st.markdown(f"""
+<div class="cos-login-card">
+  <div class="cos-brand-pill">Sign in to continue</div>
+  <div class="cos-brand-title">ClaudeOS</div>
+  <div class="cos-brand-sub">AI Operating System</div>
+  <hr class="cos-divider">
+</div>
+""", unsafe_allow_html=True)
 
-        tab_login, tab_register = st.tabs(["Sign In", "Register"])
+        # Streamlit tabs + form rendered inside same visual column
+        # (card background bleeds through via same column; we use CSS padding match)
+        with st.container():
+            st.markdown(f"""
+<style>
+/* Give the tab+form area the card look so it merges visually */
+section[data-testid="stVerticalBlock"] > div:last-child {{
+    background: {t['SURFACE']};
+    border: 1px solid {t['BORDER']};
+    border-top: none;
+    border-radius: 0 0 16px 16px;
+    padding: 0 44px 36px;
+    margin-top: -18px;
+    box-shadow: 0 4px 32px rgba(0,0,0,{'.45' if is_dark else '.10'});
+}}
+</style>
+""", unsafe_allow_html=True)
 
-        with tab_login:
-            username = st.text_input("Username", key="li_username", placeholder="your username")
-            password = st.text_input("Password", type="password", key="li_password")
-            if st.button("Sign In", type="primary", use_container_width=True, key="li_btn"):
-                _do_login(username.strip(), password)
+            tab_login, tab_register = st.tabs(["Sign In", "Register"])
 
-        with tab_register:
-            st.caption("Create a client account for your namespace.")
-            r_username  = st.text_input("Username", key="reg_username")
-            r_email     = st.text_input("Email (optional)", key="reg_email")
-            r_password  = st.text_input("Password", type="password", key="reg_password")
-            r_password2 = st.text_input("Confirm password", type="password", key="reg_password2")
+            with tab_login:
+                st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+                username = st.text_input("Username", key="li_username", placeholder="your username")
+                password = st.text_input("Password", type="password", key="li_password")
+                st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+                if st.button("Sign In", type="primary", use_container_width=True, key="li_btn"):
+                    _do_login(username.strip(), password)
 
-            # Fetch client namespaces for the dropdown
-            try:
-                ns_resp = requests.get(f"{_API_BASE}/health", timeout=2)
-                _api_up = ns_resp.ok
-            except Exception:
-                _api_up = False
+            with tab_register:
+                st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+                st.caption("Create a client account for your namespace.")
+                r_username  = st.text_input("Username", key="reg_username")
+                r_email     = st.text_input("Email (optional)", key="reg_email")
+                r_password  = st.text_input("Password", type="password", key="reg_password")
+                r_password2 = st.text_input("Confirm password", type="password", key="reg_password2")
 
-            if _api_up:
-                try:
-                    ns_resp = requests.get(f"{_API_BASE}/namespaces?type=client", timeout=3)
-                    ns_list = [n["slug"] for n in ns_resp.json()] if ns_resp.ok else []
-                except Exception:
-                    ns_list = []
-            else:
-                ns_list = []
+                # /namespaces requires auth — use text input instead of dropdown
+                r_namespace = st.text_input(
+                    "Namespace slug (ask your admin)",
+                    key="reg_ns",
+                    placeholder="e.g. reci-transport",
+                )
+                st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+                if st.button("Create Account", use_container_width=True, key="reg_btn"):
+                    _do_register(r_username.strip(), r_email.strip(), r_password, r_password2, r_namespace)
 
-            r_namespace = st.selectbox("Your namespace (client)", ns_list or ["— API offline —"], key="reg_ns")
-
-            if st.button("Create Account", use_container_width=True, key="reg_btn"):
-                _do_register(r_username.strip(), r_email.strip(), r_password, r_password2, r_namespace)
-
-        st.markdown(
-            f"<div style='text-align:center;font-size:0.75rem;color:{t['TEXT_MUTED']};margin-top:16px;'>"
-            "ClaudeOS · Secure access</div>",
-            unsafe_allow_html=True,
-        )
+            st.markdown(
+                f"<div class='cos-footer'>ClaudeOS · Secure access</div>",
+                unsafe_allow_html=True,
+            )
 
 
 # ── Internal ─────────────────────────────────────────────────────────────────
@@ -90,12 +166,13 @@ def _do_login(username: str, password: str) -> None:
     elif r.ok:
         data = r.json()
         user = data["user"]
-        st.session_state["jwt_token"]      = data["access_token"]
-        st.session_state["refresh_token"]  = data["refresh_token"]
-        st.session_state["user_id"]        = user["id"]
-        st.session_state["username"]       = user["username"]
-        st.session_state["user_role"]      = user["role"]
-        st.session_state["user_namespace"] = user.get("namespace")
+        st.session_state["jwt_token"]           = data["access_token"]
+        st.session_state["refresh_token"]       = data["refresh_token"]
+        st.session_state["user_id"]             = user["id"]
+        st.session_state["username"]            = user["username"]
+        st.session_state["user_role"]           = user["role"]
+        st.session_state["user_namespace"]      = user.get("namespace")
+        st.session_state["must_change_password"] = data.get("must_change_password", False)
         st.rerun()
     else:
         st.error(f"Login failed ({r.status_code}).")
@@ -131,3 +208,73 @@ def _do_register(username: str, email: str, password: str, password2: str, names
         st.error(r.json().get("error", "Validation failed."))
     else:
         st.error(f"Registration failed ({r.status_code}).")
+
+
+# ── Force password change screen ──────────────────────────────────────────────
+
+def render_change_password() -> None:
+    """Shown immediately after login when must_change_password=True."""
+    from dashboard.components.brand import get_theme_vars, PRIMARY, get_theme
+    t = get_theme_vars()
+    is_dark = get_theme() == "dark"
+
+    st.markdown(f"""
+<style>
+.main .block-container {{ padding-top: 0 !important; max-width: 100% !important; }}
+.cos-chpw-card {{
+    background: {t['SURFACE']}; border: 1px solid {t['BORDER']};
+    border-radius: 16px; padding: 40px 44px 36px;
+    box-shadow: 0 4px 32px rgba(0,0,0,{'.45' if is_dark else '.10'});
+    margin-top: 80px;
+}}
+.cos-chpw-title {{ font-size:1.5rem; font-weight:800; color:{t['TEXT']}; margin-bottom:6px; }}
+.cos-chpw-sub   {{ font-size:0.9rem; color:{t['TEXT_MUTED']}; margin-bottom:24px; }}
+</style>
+""", unsafe_allow_html=True)
+
+    _, col, _ = st.columns([1, 1.4, 1])
+    with col:
+        st.markdown(f"""
+<div class="cos-chpw-card">
+  <div class="cos-chpw-title">Change Password Required</div>
+  <div class="cos-chpw-sub">
+    You must set a new password before continuing.
+    Logged in as <strong>{st.session_state.get('username','')}</strong>.
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+        current_pw = st.text_input("Current (temporary) password", type="password", key="chpw_cur")
+        new_pw     = st.text_input("New password", type="password", key="chpw_new",
+                                   help="Min 10 chars · upper + lower + digit")
+        new_pw2    = st.text_input("Confirm new password", type="password", key="chpw_new2")
+
+        if st.button("Set New Password", type="primary", use_container_width=True, key="chpw_btn"):
+            if not current_pw or not new_pw:
+                st.warning("All fields required.")
+            elif new_pw != new_pw2:
+                st.error("Passwords do not match.")
+            else:
+                try:
+                    r = requests.post(
+                        f"{_API_BASE}/auth/change-password",
+                        json={"current_password": current_pw, "new_password": new_pw},
+                        headers={"Authorization": f"Bearer {st.session_state.get('jwt_token','')}"},
+                        timeout=5,
+                    )
+                    if r.ok:
+                        st.session_state["must_change_password"] = False
+                        st.success("Password updated. Loading dashboard…")
+                        st.rerun()
+                    elif r.status_code == 401:
+                        st.error("Current password incorrect.")
+                    elif r.status_code == 422:
+                        st.error(r.json().get("error", "Password too weak."))
+                    else:
+                        st.error(f"Failed ({r.status_code}).")
+                except Exception:
+                    st.error("Cannot reach API server.")
+
+        if st.button("Logout instead", key="chpw_logout", use_container_width=False):
+            st.session_state.clear()
+            st.rerun()

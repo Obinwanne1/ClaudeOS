@@ -12,13 +12,20 @@ st.set_page_config(
     initial_sidebar_state="auto",
 )
 
-from dashboard.components.brand import inject, sidebar_logo, theme_toggle, PRIMARY, TEXT_MUTED
+from dashboard.components.brand import inject, sidebar_logo, theme_toggle, theme_toggle_topbar, PRIMARY, TEXT_MUTED
 inject()
+theme_toggle_topbar()  # fixed-position top-right toggle, visible on all pages
 
 # ── Auth gate ─────────────────────────────────────────────────────────────────
 if not st.session_state.get("jwt_token"):
     from dashboard.components.login_form import render_login
     render_login()
+    st.stop()
+
+# ── Force password change gate ────────────────────────────────────────────────
+if st.session_state.get("must_change_password"):
+    from dashboard.components.login_form import render_change_password
+    render_change_password()
     st.stop()
 
 import os
@@ -154,7 +161,6 @@ page = st.sidebar.radio(
     label_visibility="collapsed",
 )
 
-theme_toggle()
 st.sidebar.markdown("---")
 
 # User info + logout

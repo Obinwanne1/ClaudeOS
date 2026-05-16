@@ -220,13 +220,15 @@ def get_user_by_id(user_id: str) -> Optional[dict]:
 
 
 def create_user(username: str, password: str, role: str = "viewer",
-                namespace: Optional[str] = None, email: Optional[str] = None) -> dict:
+                namespace: Optional[str] = None, email: Optional[str] = None,
+                must_change_password: bool = False) -> dict:
     user_id = new_id()
     pw_hash = hash_password(password)
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO users(id, username, email, password_hash, role, namespace) VALUES (?,?,?,?,?,?)",
-            (user_id, username, email, pw_hash, role, namespace),
+            "INSERT INTO users(id, username, email, password_hash, role, namespace, must_change_password) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (user_id, username, email, pw_hash, role, namespace, int(must_change_password)),
         )
     user = get_user_by_id(user_id)
     audit_log("user_created", user_id=user_id, username=username, namespace=namespace)

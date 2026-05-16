@@ -33,11 +33,12 @@ def list_users():
 @require_role("admin")
 def create_user_admin():
     body = request.get_json(silent=True) or {}
-    username  = (body.get("username") or "").strip()
-    password  = body.get("password") or ""
-    role      = body.get("role", "viewer")
-    namespace = body.get("namespace") or None
-    email     = body.get("email") or None
+    username             = (body.get("username") or "").strip()
+    password             = body.get("password") or ""
+    role                 = body.get("role", "viewer")
+    namespace            = body.get("namespace") or None
+    email                = body.get("email") or None
+    must_change_password = bool(body.get("must_change_password", False))
 
     if not username or not password:
         return jsonify({"error": "username and password required"}), 400
@@ -49,7 +50,8 @@ def create_user_admin():
         return jsonify({"error": err}), 422
 
     try:
-        user = create_user(username, password, role=role, namespace=namespace, email=email)
+        user = create_user(username, password, role=role, namespace=namespace,
+                           email=email, must_change_password=must_change_password)
     except Exception as e:
         return jsonify({"error": str(e)}), 409
 

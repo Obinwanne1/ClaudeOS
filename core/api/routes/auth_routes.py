@@ -66,6 +66,7 @@ def login():
         "access_token": access_token,
         "refresh_token": raw_refresh,
         "expires_in": 3600,
+        "must_change_password": bool(user.get("must_change_password")),
         "user": _user_public(user),
     })
 
@@ -211,8 +212,10 @@ def change_password():
 
     new_hash = hash_password(new_pw)
     with get_db() as conn:
-        conn.execute("UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                     (new_hash, user["id"]))
+        conn.execute(
+            "UPDATE users SET password_hash = ?, must_change_password = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (new_hash, user["id"]),
+        )
 
     audit_log("password_change", user_id=user["id"], username=user["username"], ip=_ip(), ua=_ua())
     return jsonify({"message": "Password updated"})
@@ -228,6 +231,7 @@ def _user_public(user: dict) -> dict:
         "role": user["role"],
         "namespace": user.get("namespace"),
         "is_active": bool(user["is_active"]),
+        "must_change_password": bool(user.get("must_change_password")),
         "last_login_at": user.get("last_login_at"),
         "created_at": user.get("created_at"),
     }
