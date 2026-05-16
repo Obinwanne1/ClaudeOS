@@ -565,7 +565,7 @@ def theme_toggle_topbar() -> None:
 
     # Styles as single-line strings (no newlines inside JS template literals)
     btn_css = (
-        f"position:fixed;top:64px;right:16px;z-index:2147483647;"
+        f"position:fixed;bottom:24px;left:16px;z-index:2147483647;"
         f"display:inline-flex;align-items:center;gap:7px;"
         f"background:{t['SURFACE']};border:1px solid {t['BORDER']};"
         f"border-radius:999px;color:{t['TEXT']};"
