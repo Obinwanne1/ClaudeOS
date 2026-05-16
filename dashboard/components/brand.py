@@ -93,11 +93,21 @@ html, body, .stApp, [class*="css"] {{
     background-color: {t['BG']} !important;
 }}
 
+
 /* ── Sidebar ── */
 section[data-testid="stSidebar"],
 section[data-testid="stSidebar"] > div {{
     background-color: {t['SURFACE2']} !important;
     border-right: 1px solid {t['BORDER']} !important;
+}}
+
+/* ── Sidebar collapse icon — color only, no layout changes ── */
+button[data-testid="stBaseButton-header"] svg *,
+[data-testid="stSidebarCollapsedControl"] svg *,
+[data-testid="stSidebarCollapseButton"] svg *,
+[data-testid="collapsedControl"] svg * {{
+    fill: {t['TEXT']} !important;
+    stroke: {t['TEXT']} !important;
 }}
 
 /* ── Text — semantic elements ── */
@@ -223,6 +233,137 @@ hr {{ border-color: {t['BORDER']} !important; }}
 ::-webkit-scrollbar {{ width: 6px; }}
 ::-webkit-scrollbar-track {{ background: {t['BG']}; }}
 ::-webkit-scrollbar-thumb {{ background: {t['BORDER']}; border-radius: 3px; }}
+
+/* ── Aurora Background Animation ── */
+@keyframes aurora {{
+    from {{ background-position: 50% 50%, 50% 50%; }}
+    to   {{ background-position: 350% 50%, 350% 50%; }}
+}}
+
+.aurora-wrapper {{
+    position: relative;
+    overflow: hidden;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+    min-height: 140px;
+    background-color: {t['BG']};
+}}
+
+.aurora-layer,
+.aurora-layer-after {{
+    position: absolute;
+    inset: -10px;
+    pointer-events: none;
+    will-change: transform;
+    background-size: 300%, 200%;
+    background-position: 50% 50%, 50% 50%;
+}}
+
+/* Primary aurora sweep — green palette */
+.aurora-layer {{
+    background-image:
+        repeating-linear-gradient(100deg,
+            {'#0A1F0A' if get_theme()=='dark' else '#ffffff'} 0%,
+            {'#0A1F0A' if get_theme()=='dark' else '#ffffff'} 7%,
+            transparent 10%,
+            transparent 12%,
+            {'#0A1F0A' if get_theme()=='dark' else '#ffffff'} 16%
+        ),
+        repeating-linear-gradient(100deg,
+            {PRIMARY}    10%,
+            {ACCENT}     15%,
+            {PRIMARY_LT} 20%,
+            #E8F5E8      25%,
+            {PRIMARY_DK} 30%
+        );
+    filter: blur(10px) {'invert(0)' if get_theme()=='dark' else 'invert(1)'};
+    opacity: 0.55;
+    animation: aurora 60s linear infinite;
+    -webkit-mask-image: radial-gradient(ellipse at 100% 0%, black 10%, transparent 70%);
+    mask-image: radial-gradient(ellipse at 100% 0%, black 10%, transparent 70%);
+}}
+
+/* Secondary aurora layer — mix-blend shimmer */
+.aurora-layer-after {{
+    background-image:
+        repeating-linear-gradient(100deg,
+            {'#0A1F0A' if get_theme()=='dark' else '#ffffff'} 0%,
+            {'#0A1F0A' if get_theme()=='dark' else '#ffffff'} 7%,
+            transparent 10%,
+            transparent 12%,
+            {'#0A1F0A' if get_theme()=='dark' else '#ffffff'} 16%
+        ),
+        repeating-linear-gradient(100deg,
+            {PRIMARY}    10%,
+            {ACCENT}     15%,
+            {PRIMARY_LT} 20%,
+            #E8F5E8      25%,
+            {PRIMARY_DK} 30%
+        );
+    background-size: 200%, 100%;
+    background-attachment: fixed;
+    animation: aurora 60s linear infinite reverse;
+    mix-blend-mode: {'difference' if get_theme()=='dark' else 'overlay'};
+    opacity: 0.3;
+    filter: blur(6px);
+}}
+
+.aurora-content {{
+    position: relative;
+    z-index: 1;
+    padding: 2rem 2rem 1.5rem;
+}}
+
+/* ── Theme Toggle Switch (V1.0.1) — single pill ── */
+div[data-testid="stToggle"] {{
+    background: {t['SURFACE']} !important;
+    border: 1px solid {t['BORDER']} !important;
+    border-radius: 50px !important;
+    padding: 0.42rem 0.75rem !important;
+    margin: 0.4rem 0 0 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    min-height: unset !important;
+    transition: border-color 0.2s, background 0.2s !important;
+}}
+div[data-testid="stToggle"]:hover {{
+    border-color: {PRIMARY} !important;
+    background: {t['SURFACE2']} !important;
+}}
+/* Label row: icon+text left, slider right */
+div[data-testid="stToggle"] > label {{
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    gap: 0.5rem !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+}}
+/* Label text */
+div[data-testid="stToggle"] p {{
+    display: block !important;
+    font-size: 0.78rem !important;
+    font-weight: 600 !important;
+    color: {t['TEXT_MUTED']} !important;
+    margin: 0 !important;
+    font-family: 'Poppins', sans-serif !important;
+    flex: 1 !important;
+    line-height: 1.2 !important;
+}}
+/* Slider track — OFF (dark mode) */
+div[data-testid="stToggle"] span[data-testid="stToggleSlider"] {{
+    background-color: {t['BORDER']} !important;
+    border: 1.5px solid {t['BORDER']} !important;
+    transition: background-color 0.25s ease !important;
+    flex-shrink: 0 !important;
+}}
+/* Slider track — ON (light mode) */
+div[data-testid="stToggle"] input:checked + span[data-testid="stToggleSlider"] {{
+    background-color: {PRIMARY} !important;
+    border-color: {PRIMARY} !important;
+}}
 
 /* ── Status badges ── */
 .status-badge {{
@@ -358,11 +499,50 @@ def sidebar_logo():
 
 def theme_toggle():
     current = get_theme()
-    label = "☀️  Light mode" if current == "dark" else "🌙  Dark mode"
-    if st.sidebar.button(label, width='stretch'):
-        st.session_state.theme = "light" if current == "dark" else "dark"
+    is_light = current == "light"
+    icon  = "☀️" if is_light else "🌙"
+    label = f"{icon}  {'Light Mode' if is_light else 'Dark Mode'}"
+    switched = st.sidebar.toggle(label, value=is_light, key="theme_toggle_v101")
+    if switched != is_light:
+        st.session_state.theme = "light" if switched else "dark"
         st.rerun()
 
 
 def badge(text: str, kind: str = "ok") -> str:
     return f'<span class="status-badge badge-{kind}">{text}</span>'
+
+
+def aurora_hero(title: str, subtitle: str = "", pill: str = "") -> None:
+    """Render an animated aurora banner using brand green/white palette.
+
+    Args:
+        title:    Large heading text.
+        subtitle: Optional smaller description line.
+        pill:     Optional small label badge (e.g. "v7.0 · All Systems Go").
+    """
+    t = THEMES[get_theme()]
+    pill_html = (
+        f'<span style="display:inline-block;background:{PRIMARY}33;color:{ACCENT};'
+        f'border:1px solid {PRIMARY}55;border-radius:20px;padding:2px 12px;'
+        f'font-size:0.72rem;font-weight:600;letter-spacing:0.05em;margin-bottom:0.75rem;">'
+        f'{pill}</span>'
+    ) if pill else ""
+    sub_html = (
+        f'<p style="color:{t["TEXT_MUTED"]};margin:0.4rem 0 0;font-size:0.95rem;font-weight:400;">'
+        f'{subtitle}</p>'
+    ) if subtitle else ""
+
+    st.markdown(f"""
+<div class="aurora-wrapper">
+  <div class="aurora-layer"></div>
+  <div class="aurora-layer-after"></div>
+  <div class="aurora-content">
+    {pill_html}
+    <h1 style="margin:0;font-size:2rem;font-weight:800;color:{t['TEXT']};
+               font-family:'Poppins',sans-serif;line-height:1.2;">
+      {title}
+    </h1>
+    {sub_html}
+  </div>
+</div>
+""", unsafe_allow_html=True)

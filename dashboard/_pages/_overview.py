@@ -1,10 +1,15 @@
 """Overview page — OS health, KPIs, live event feed, quick dispatch."""
 import streamlit as st
 from datetime import datetime
+from dashboard.components.brand import aurora_hero
 
 
 def render(api_get, api_post):
-    st.title("ClaudeOS Overview")
+    aurora_hero(
+        title="ClaudeOS",
+        subtitle="AI Operating System — coordination layer for all agents, memory, and workflows.",
+        pill="v7.0 · All Systems",
+    )
 
     status = api_get("/system/status")
     stats = api_get("/system/stats")
