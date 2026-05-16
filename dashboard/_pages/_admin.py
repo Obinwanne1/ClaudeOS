@@ -45,6 +45,7 @@ def _render_users(api_get, api_post):
                 "Role": u.get("role", ""),
                 "Namespace": u.get("namespace") or "—",
                 "Active": "✅" if u.get("is_active") else "❌",
+                "Pwd Change": "⚠️ Required" if u.get("must_change_password") else "✅ Set",
                 "Locked": "🔒" if u.get("locked_until") else "—",
                 "Last Login": (u.get("last_login_at") or "Never")[:16],
                 "Created": (u.get("created_at") or "")[:10],
@@ -100,16 +101,21 @@ def _render_users(api_get, api_post):
 
 
 def _create_user_form(api_get, api_post):
+    import requests as _req
+
+    st.caption(
+        "Password rules: **min 10 chars · uppercase · lowercase · digit**. "
+        "User will be forced to change password on first login."
+    )
     col1, col2 = st.columns(2)
     with col1:
         new_username = st.text_input("Username", key="nu_username")
         new_email    = st.text_input("Email (optional)", key="nu_email")
-        new_role     = st.selectbox("Role", ["viewer", "client", "operator", "admin"], key="nu_role")
+        new_role     = st.selectbox("Role", ["operator", "viewer", "client", "admin"], key="nu_role")
     with col2:
-        new_password  = st.text_input("Password", type="password", key="nu_pw")
+        new_password  = st.text_input("Temporary password", type="password", key="nu_pw",
+                                      help="Min 10 chars · upper + lower + digit")
         new_password2 = st.text_input("Confirm password", type="password", key="nu_pw2")
-
-        # Namespace selector (required for client/viewer)
         ns_data = api_get("/namespaces") or []
         ns_opts = ["(none)"] + [n["slug"] for n in ns_data]
         new_ns = st.selectbox("Namespace", ns_opts, key="nu_ns")
@@ -126,13 +132,23 @@ def _create_user_form(api_get, api_post):
                 "role": new_role,
                 "email": new_email or None,
                 "namespace": None if new_ns == "(none)" else new_ns,
+                "must_change_password": True,  # always forced for admin-created accounts
             }
-            r = api_post("/admin/users", payload)
-            if r:
-                st.success(f"User `{new_username}` created.")
-                st.rerun()
-            else:
-                st.error("Create failed — username may already exist or password too weak.")
+            try:
+                r = _req.post(
+                    "http://localhost:5000/api/v1/admin/users",
+                    json=payload,
+                    headers={"Authorization": f"Bearer {st.session_state.get('jwt_token','')}"},
+                    timeout=5,
+                )
+                if r.status_code == 201:
+                    st.success(f"User `{new_username}` created. They must change password on first login.")
+                    st.rerun()
+                else:
+                    err = r.json().get("error", f"HTTP {r.status_code}")
+                    st.error(f"Failed: {err}")
+            except Exception as e:
+                st.error(f"Cannot reach API: {e}")
 
 
 # ── API Keys ──────────────────────────────────────────────────────────────────

@@ -221,6 +221,97 @@ def change_password():
     return jsonify({"message": "Password updated"})
 
 
+# ── POST /auth/forgot-password ────────────────────────────────────────────────
+
+@auth_bp.post("/forgot-password")
+@limiter.limit("5/hour")
+def forgot_password():
+    """Generate a password-reset token.
+
+    No email server is configured — token is returned directly in the response
+    so the admin can relay it to the user out-of-band.  When an email integration
+    is added later, send the token there instead.
+    """
+    import hashlib, secrets as _sec
+    body = request.get_json(silent=True) or {}
+    username = (body.get("username") or "").strip()
+    if not username:
+        return jsonify({"error": "username required"}), 400
+
+    user = get_user_by_username(username)
+    # Always respond 200 — don't reveal whether username exists
+    if not user or not user["is_active"]:
+        return jsonify({"message": "If that account exists a reset token has been issued."}), 200
+
+    raw_token = _sec.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    from core.utils import utcnow_str
+    import datetime
+    expires = (datetime.datetime.utcnow() + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
+
+    with get_db() as conn:
+        # Reuse user_sessions table with a special user_agent marker
+        conn.execute(
+            "INSERT INTO user_sessions(id, user_id, token_hash, user_agent, ip_address, expires_at) "
+            "VALUES (?,?,?,'password_reset',?,?)",
+            (new_id(), user["id"], token_hash, _ip(), expires),
+        )
+
+    audit_log("password_reset_request", user_id=user["id"], username=username, ip=_ip(), ua=_ua())
+    # Return token directly (admin-relay model — swap for email send when SMTP is configured)
+    return jsonify({
+        "message": "Reset token issued. Share with the user securely.",
+        "reset_token": raw_token,
+        "expires_in_hours": 1,
+        "username": username,
+    })
+
+
+# ── POST /auth/reset-password ─────────────────────────────────────────────────
+
+@auth_bp.post("/reset-password")
+@limiter.limit("10/hour")
+def reset_password():
+    """Consume a reset token and set a new password."""
+    import hashlib
+    body = request.get_json(silent=True) or {}
+    raw_token   = body.get("reset_token") or ""
+    new_password = body.get("new_password") or ""
+
+    if not raw_token or not new_password:
+        return jsonify({"error": "reset_token and new_password required"}), 400
+
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    with get_db() as conn:
+        session = conn.execute(
+            "SELECT * FROM user_sessions WHERE token_hash=? AND user_agent='password_reset' "
+            "AND revoked=0 AND expires_at > datetime('now')",
+            (token_hash,),
+        ).fetchone()
+
+    if not session:
+        return jsonify({"error": "Invalid or expired reset token"}), 401
+
+    user = get_user_by_id(session["user_id"])
+    if not user or not user["is_active"]:
+        return jsonify({"error": "User not found or disabled"}), 401
+
+    err = validate_password_strength(new_password, user["username"])
+    if err:
+        return jsonify({"error": err}), 422
+
+    new_hash = hash_password(new_password)
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE users SET password_hash=?, must_change_password=0, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (new_hash, user["id"]),
+        )
+        conn.execute("UPDATE user_sessions SET revoked=1 WHERE token_hash=?", (token_hash,))
+
+    audit_log("password_reset", user_id=user["id"], username=user["username"], ip=_ip(), ua=_ua())
+    return jsonify({"message": "Password reset successful. You can now sign in."})
+
+
 # ── Helper ────────────────────────────────────────────────────────────────────
 
 def _user_public(user: dict) -> dict:

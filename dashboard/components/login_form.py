@@ -104,7 +104,7 @@ section[data-testid="stVerticalBlock"] > div:last-child {{
 </style>
 """, unsafe_allow_html=True)
 
-            tab_login, tab_register = st.tabs(["Sign In", "Register"])
+            tab_login, tab_register, tab_reset = st.tabs(["Sign In", "Register", "Forgot Password"])
 
             with tab_login:
                 st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
@@ -132,6 +132,22 @@ section[data-testid="stVerticalBlock"] > div:last-child {{
                 if st.button("Create Account", use_container_width=True, key="reg_btn"):
                     _do_register(r_username.strip(), r_email.strip(), r_password, r_password2, r_namespace)
 
+            with tab_reset:
+                st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+                st.caption("Step 1 — Request a reset token (admin relays it to you securely).")
+                fp_username = st.text_input("Username", key="fp_username")
+                if st.button("Request Reset Token", use_container_width=True, key="fp_req_btn"):
+                    _do_forgot_password(fp_username.strip())
+
+                st.markdown("---")
+                st.caption("Step 2 — Enter the token your admin gave you + your new password.")
+                fp_token  = st.text_input("Reset token", key="fp_token")
+                fp_newpw  = st.text_input("New password", type="password", key="fp_newpw",
+                                          help="Min 10 chars · upper + lower + digit")
+                fp_newpw2 = st.text_input("Confirm new password", type="password", key="fp_newpw2")
+                if st.button("Reset Password", type="primary", use_container_width=True, key="fp_reset_btn"):
+                    _do_reset_password(fp_token.strip(), fp_newpw, fp_newpw2)
+
             st.markdown(
                 f"<div class='cos-footer'>ClaudeOS · Secure access</div>",
                 unsafe_allow_html=True,
@@ -139,6 +155,52 @@ section[data-testid="stVerticalBlock"] > div:last-child {{
 
 
 # ── Internal ─────────────────────────────────────────────────────────────────
+
+def _do_forgot_password(username: str) -> None:
+    if not username:
+        st.warning("Enter your username.")
+        return
+    try:
+        r = requests.post(f"{_API_BASE}/auth/forgot-password", json={"username": username}, timeout=5)
+        if r.ok:
+            data = r.json()
+            token = data.get("reset_token")
+            if token:
+                st.success("Reset token generated. Copy it and use Step 2:")
+                st.code(token, language=None)
+                st.caption("Token valid for 1 hour. Keep it secure.")
+            else:
+                st.info(data.get("message", "Request submitted."))
+        else:
+            st.error(r.json().get("error", f"Failed ({r.status_code})."))
+    except Exception:
+        st.error("Cannot reach API server.")
+
+
+def _do_reset_password(token: str, new_pw: str, new_pw2: str) -> None:
+    if not token or not new_pw:
+        st.warning("Token and new password required.")
+        return
+    if new_pw != new_pw2:
+        st.error("Passwords do not match.")
+        return
+    try:
+        r = requests.post(
+            f"{_API_BASE}/auth/reset-password",
+            json={"reset_token": token, "new_password": new_pw},
+            timeout=5,
+        )
+        if r.ok:
+            st.success("Password reset! Go to Sign In to log in.")
+        elif r.status_code == 401:
+            st.error("Invalid or expired reset token.")
+        elif r.status_code == 422:
+            st.error(r.json().get("error", "Password too weak."))
+        else:
+            st.error(r.json().get("error", f"Failed ({r.status_code})."))
+    except Exception:
+        st.error("Cannot reach API server.")
+
 
 def _do_login(username: str, password: str) -> None:
     if not username or not password:
