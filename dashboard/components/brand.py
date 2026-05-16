@@ -542,17 +542,16 @@ def theme_toggle():
 def theme_toggle_topbar() -> None:
     """Fixed-position Dark/Light toggle injected into the parent document via JS.
 
-    st.markdown cannot place elements above Streamlit's own header (z-index ~999999).
-    st.components.v1.html() runs inside an iframe that CAN access window.parent,
-    allowing us to append a real DOM element to the top-level document body.
+    Uses a hidden Streamlit button as the real trigger so session state is preserved
+    across clicks (URL navigation resets the session; button click does not).
     """
     import streamlit.components.v1 as _components
 
-    # Handle the flip — query param set by the injected button click
-    if st.query_params.get("_theme_flip"):
+    # Hidden trigger — JS will find and click this button
+    _MARKER = "__cos_theme_flip__"
+    if st.button(_MARKER, key="_cos_theme_flip_btn", label_visibility="collapsed"):
         current = get_theme()
         st.session_state.theme = "dark" if current == "light" else "light"
-        st.query_params.clear()
         st.rerun()
 
     current  = get_theme()
@@ -593,13 +592,35 @@ def theme_toggle_topbar() -> None:
   var old = doc.getElementById('cos-theme-btn');
   if (old) old.remove();
 
-  var a = doc.createElement('a');
-  a.id = 'cos-theme-btn';
-  a.title = 'Toggle dark / light mode';
-  // target="_parent" makes the link navigate the top-level frame
-  a.target = '_parent';
-  a.href = '?_theme_flip=1';
-  a.style.cssText = '{btn_css}';
+  var btn = doc.createElement('button');
+  btn.id = 'cos-theme-btn';
+  btn.title = 'Toggle dark / light mode';
+  btn.type = 'button';
+  btn.style.cssText = '{btn_css}';
+
+  function findTrigger() {{
+    var all = doc.querySelectorAll('button');
+    for (var i = 0; i < all.length; i++) {{
+      if (all[i].innerText && all[i].innerText.indexOf('{_MARKER}') !== -1) {{
+        return all[i];
+      }}
+    }}
+    return null;
+  }}
+
+  btn.onclick = function() {{
+    var t = findTrigger();
+    if (t) t.click();
+  }};
+
+  // Hide the Streamlit trigger button container from the visible layout
+  setTimeout(function() {{
+    var t = findTrigger();
+    if (t) {{
+      var wrap = t.closest('[data-testid="stButton"]') || t.parentElement;
+      if (wrap) wrap.style.cssText = 'display:none!important;height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;';
+    }}
+  }}, 300);
 
   var track = doc.createElement('span');
   track.style.cssText = '{track_css}';
@@ -608,10 +629,10 @@ def theme_toggle_topbar() -> None:
   thumb.style.cssText = '{thumb_css}';
 
   track.appendChild(thumb);
-  a.appendChild(track);
-  a.appendChild(doc.createTextNode('\u00a0{icon} {label}'));
+  btn.appendChild(track);
+  btn.appendChild(doc.createTextNode('\u00a0{icon} {label}'));
 
-  doc.body.appendChild(a);
+  doc.body.appendChild(btn);
 }})();
 </script>
 """, height=0, scrolling=False)
