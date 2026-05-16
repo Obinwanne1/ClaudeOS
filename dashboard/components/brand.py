@@ -548,8 +548,9 @@ def theme_toggle_topbar() -> None:
     import streamlit.components.v1 as _components
 
     # Hidden trigger — JS will find and click this button
-    _MARKER = "__cos_theme_flip__"
-    if st.button(_MARKER, key="_cos_theme_flip_btn", label_visibility="collapsed"):
+    # Plain text marker (no underscores — Streamlit renders __ as bold, stripping them)
+    _MARKER = "COS-THEME-FLIP-TRIGGER"
+    if st.button(_MARKER, key="_cos_theme_flip_btn"):
         current = get_theme()
         st.session_state.theme = "dark" if current == "light" else "light"
         st.rerun()
@@ -598,14 +599,25 @@ def theme_toggle_topbar() -> None:
   btn.type = 'button';
   btn.style.cssText = '{btn_css}';
 
+  var MARKER = '{_MARKER}';
+
   function findTrigger() {{
     var all = doc.querySelectorAll('button');
     for (var i = 0; i < all.length; i++) {{
-      if (all[i].innerText && all[i].innerText.indexOf('{_MARKER}') !== -1) {{
-        return all[i];
-      }}
+      var txt = (all[i].innerText || all[i].textContent || '');
+      if (txt.indexOf(MARKER) !== -1) return all[i];
     }}
     return null;
+  }}
+
+  function hideTrigger() {{
+    var t = findTrigger();
+    if (t) {{
+      var wrap = t.closest('[data-testid="stButton"]') || t.parentElement;
+      if (wrap) wrap.style.cssText = 'display:none!important;height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;';
+      return true;
+    }}
+    return false;
   }}
 
   btn.onclick = function() {{
@@ -613,14 +625,13 @@ def theme_toggle_topbar() -> None:
     if (t) t.click();
   }};
 
-  // Hide the Streamlit trigger button container from the visible layout
-  setTimeout(function() {{
-    var t = findTrigger();
-    if (t) {{
-      var wrap = t.closest('[data-testid="stButton"]') || t.parentElement;
-      if (wrap) wrap.style.cssText = 'display:none!important;height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;';
-    }}
-  }}, 300);
+  // Hide immediately, then watch DOM for late renders
+  hideTrigger();
+  setTimeout(hideTrigger, 100);
+  setTimeout(hideTrigger, 500);
+  var obs = new MutationObserver(function() {{ if (hideTrigger()) obs.disconnect(); }});
+  obs.observe(doc.body, {{childList: true, subtree: true}});
+  setTimeout(function() {{ obs.disconnect(); }}, 5000);
 
   var track = doc.createElement('span');
   track.style.cssText = '{track_css}';

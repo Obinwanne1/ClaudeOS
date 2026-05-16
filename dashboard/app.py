@@ -12,9 +12,8 @@ st.set_page_config(
     initial_sidebar_state="auto",
 )
 
-from dashboard.components.brand import inject, sidebar_logo, theme_toggle, theme_toggle_topbar, PRIMARY, TEXT_MUTED
+from dashboard.components.brand import inject, sidebar_logo, theme_toggle, PRIMARY, TEXT_MUTED
 inject()
-theme_toggle_topbar()  # fixed-position top-right toggle, visible on all pages
 
 # ── Auth gate ─────────────────────────────────────────────────────────────────
 if not st.session_state.get("jwt_token"):
@@ -191,6 +190,8 @@ else:
     st.sidebar.markdown('<div style="color:#ef4444;font-size:0.8rem;">● API offline</div>', unsafe_allow_html=True)
 
 st.sidebar.markdown(f'<div style="color:{TEXT_MUTED};font-size:0.75rem;margin-top:4px;">{datetime.now().strftime("%a %d %b · %H:%M")}</div>', unsafe_allow_html=True)
+
+theme_toggle()
 
 # ── Page dispatch ─────────────────────────────────────────────────────────────
 from dashboard._pages._overview  import render as _render_overview
