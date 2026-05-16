@@ -198,14 +198,24 @@ def search(req: MemorySearchRequest) -> list[MemoryEntry]:
 
 
 def expire_stale() -> int:
-    """Delete expired entries from SQLite and ChromaDB."""
-    # Get expired IDs before deletion for ChromaDB cleanup
+    """Delete expired entries from SQLite and ChromaDB (bulk ChromaDB delete)."""
     with get_db() as conn:
         expired_rows = conn.execute(
             "SELECT id, namespace FROM memory_entries WHERE expires_at IS NOT NULL AND expires_at <= CURRENT_TIMESTAMP"
         ).fetchall()
-    for row in expired_rows:
-        vector_store.delete(row["id"], row["namespace"])
+
+    if expired_rows:
+        # Group by namespace — one ChromaDB collection.delete() call per namespace
+        from collections import defaultdict
+        by_ns: dict[str, list[str]] = defaultdict(list)
+        for row in expired_rows:
+            by_ns[row["namespace"]].append(row["id"])
+        for ns, ids in by_ns.items():
+            try:
+                vector_store.delete_bulk(ids, ns)
+            except Exception as e:
+                logger.warning("Bulk ChromaDB delete failed for %s: %s", ns, e)
+
     count = store.expire_stale()
     logger.info("Expired %d stale memory entries", count)
     return count

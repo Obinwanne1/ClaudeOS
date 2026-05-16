@@ -59,6 +59,14 @@ def search_outputs():
     return jsonify([r.model_dump() for r in results])
 
 
+@outputs_bp.get("/stats/all")
+@require_api_key
+def output_stats_all():
+    """Aggregated stats (global + by_namespace + by_type) in one call."""
+    from outputs.manager import get_stats_all
+    return jsonify(get_stats_all())
+
+
 @outputs_bp.get("/stats")
 @require_api_key
 def output_stats():

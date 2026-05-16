@@ -42,9 +42,12 @@ _READ_ONLY_PREFIXES = (
     "/health",
     "/system/status",
     "/system/stats",
+    "/system/events",
     "/agents",
     "/agents/runs",
     "/memory/namespaces",
+    "/outputs/stats",
+    "/namespaces",
 )
 
 
@@ -103,26 +106,24 @@ else:
 
 st.sidebar.markdown(f'<div style="color:{TEXT_MUTED};font-size:0.75rem;margin-top:4px;">{datetime.now().strftime("%a %d %b · %H:%M")}</div>', unsafe_allow_html=True)
 
-# ─── Route to pages ─────────────────────────────────────────────────────────
+# ─── Page dispatch (imports at module level — not per-render) ────────────────
+from dashboard._pages._overview  import render as _render_overview
+from dashboard._pages._agents    import render as _render_agents
+from dashboard._pages._memory    import render as _render_memory
+from dashboard._pages._workflows import render as _render_workflows
+from dashboard._pages._projects  import render as _render_projects
+from dashboard._pages._outputs   import render as _render_outputs
+from dashboard._pages._settings  import render as _render_settings
 
-if page == "Overview":
-    from dashboard._pages._overview import render
-    render(api_get_cached, api_post)
-elif page == "Agents":
-    from dashboard._pages._agents import render
-    render(api_get, api_post)
-elif page == "Memory":
-    from dashboard._pages._memory import render
-    render(api_get, api_post)
-elif page == "Workflows":
-    from dashboard._pages._workflows import render
-    render(api_get, api_post)
-elif page == "Projects":
-    from dashboard._pages._projects import render
-    render(api_get, api_post)
-elif page == "Outputs":
-    from dashboard._pages._outputs import render
-    render(api_get, api_post)
-elif page == "Settings":
-    from dashboard._pages._settings import render
-    render(api_get, api_post)
+_PAGE_DISPATCH = {
+    "Overview":  (_render_overview,  api_get_cached),
+    "Agents":    (_render_agents,    api_get),
+    "Memory":    (_render_memory,    api_get),
+    "Workflows": (_render_workflows, api_get),
+    "Projects":  (_render_projects,  api_get),
+    "Outputs":   (_render_outputs,   api_get_cached),
+    "Settings":  (_render_settings,  api_get),
+}
+
+_render_fn, _getter = _PAGE_DISPATCH[page]
+_render_fn(_getter, api_post)

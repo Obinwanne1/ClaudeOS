@@ -106,14 +106,15 @@ def render(api_get, api_post):
         import time as _time
         import re as _re
         run_id = st.session_state["last_run_id"]
+        # Use uncached api_get so status is always fresh
         run = api_get(f"/agents/runs/{run_id}")
         if run:
             status = run.get("status", "?")
             icons = {"done": "✅", "failed": "❌", "running": "⏳", "pending": "⏸️"}
             st.write(f"{icons.get(status, '•')} Status: **{status}**")
             if status in ("running", "pending"):
-                st.info("Agent running… auto-refreshing every 3s")
-                _time.sleep(3)
+                st.info("Agent running… auto-refreshing every 5s")
+                _time.sleep(5)
                 st.rerun()
             if run.get("output") and run["output"].get("text"):
                 st.markdown("**Output:**")

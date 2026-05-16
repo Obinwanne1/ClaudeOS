@@ -1,5 +1,6 @@
 """Overview page — OS health, KPIs, live event feed, quick dispatch."""
 import streamlit as st
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from dashboard.components.brand import aurora_hero
 
@@ -11,9 +12,23 @@ def render(api_get, api_post):
         pill="v7.0 · All Systems",
     )
 
-    status = api_get("/system/status")
-    stats = api_get("/system/stats")
-    agents_data = api_get("/agents")
+    # Fetch all data in parallel — eliminates up to 15s sequential latency
+    _calls = {
+        "status": "/system/status",
+        "stats":  "/system/stats",
+        "agents": "/agents",
+        "runs":   "/agents/runs?limit=10",
+    }
+    results: dict = {}
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        futures = {ex.submit(api_get, path): key for key, path in _calls.items()}
+        for f in as_completed(futures):
+            results[futures[f]] = f.result()
+
+    status      = results.get("status")
+    stats       = results.get("stats")
+    agents_data = results.get("agents")
+    runs_data   = results.get("runs")
     counts = stats.get("counts", {}) if stats else {}
 
     # KPI row
@@ -44,11 +59,8 @@ def render(api_get, api_post):
             st.error("API unreachable — run `start.ps1`")
             st.code(".\\scripts\\start.ps1", language="powershell")
 
-        # Live event feed
+        # Live event feed (pre-fetched above in parallel)
         st.subheader("Recent Events")
-        events_data = api_get("/system/events") if hasattr(api_get, "__call__") else None
-        # Fallback: show recent agent runs as events
-        runs_data = api_get("/agents/runs?limit=10")
         if runs_data and runs_data.get("runs"):
             for run in runs_data["runs"][:8]:
                 status_icon = {"done": "✅", "failed": "❌", "running": "⏳", "pending": "⏸️"}.get(run.get("status", ""), "•")

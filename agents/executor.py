@@ -62,13 +62,32 @@ def execute(
 
     try:
         client = _get_client()
-        response = client.messages.create(
-            model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            system=system,
-            messages=[{"role": "user", "content": prompt}],
-        )
+        last_exc: Exception = RuntimeError("no attempts made")
+        for attempt in range(3):
+            try:
+                response = client.messages.create(
+                    model=model,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    system=system,
+                    messages=[{"role": "user", "content": prompt}],
+                    timeout=120.0,
+                )
+                break
+            except anthropic.APIStatusError as exc:
+                last_exc = exc
+                if exc.status_code == 529 and attempt < 2:
+                    time.sleep(2 ** attempt)
+                    continue
+                raise
+            except anthropic.APITimeoutError as exc:
+                last_exc = exc
+                if attempt < 2:
+                    time.sleep(2 ** attempt)
+                    continue
+                raise
+        else:
+            raise last_exc
 
         duration_ms = int((time.monotonic() - start) * 1000)
         output_text = response.content[0].text if response.content else ""

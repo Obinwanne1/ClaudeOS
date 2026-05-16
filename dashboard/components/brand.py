@@ -69,14 +69,12 @@ def get_theme_vars() -> dict:
     return THEMES[get_theme()]
 
 
-def inject():
-    global TEXT_MUTED, _CURRENT_THEME, SURFACE
-    t = THEMES[get_theme()]
-    TEXT_MUTED = t["TEXT_MUTED"]
-    _CURRENT_THEME = t
-    SURFACE = t["SURFACE"]
-
-    st.markdown(f"""
+@st.cache_data(max_entries=2)
+def _build_css(theme_key: str) -> str:
+    t = THEMES[theme_key]
+    invert  = "invert(0)" if theme_key == "dark" else "invert(1)"
+    blend   = "difference" if theme_key == "dark" else "overlay"
+    return f"""
 <style>
 /* ── Fonts ── */
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap');
@@ -240,34 +238,33 @@ hr {{ border-color: {t['BORDER']} !important; }}
     to   {{ background-position: 350% 50%, 350% 50%; }}
 }}
 
-.aurora-wrapper {{
-    position: relative;
+/* Full-page aurora canvas — fixed behind all content */
+#aurora-canvas {{
+    position: fixed;
+    inset: -10px;
+    z-index: 0;
+    pointer-events: none;
     overflow: hidden;
-    border-radius: 12px;
-    margin-bottom: 1.5rem;
-    min-height: 140px;
-    background-color: {t['BG']};
 }}
 
-.aurora-layer,
-.aurora-layer-after {{
+#aurora-canvas .aurora-layer,
+#aurora-canvas .aurora-layer-after {{
     position: absolute;
-    inset: -10px;
-    pointer-events: none;
-    will-change: transform;
+    inset: 0;
     background-size: 300%, 200%;
     background-position: 50% 50%, 50% 50%;
+    will-change: transform;
 }}
 
-/* Primary aurora sweep — green palette */
-.aurora-layer {{
+/* Primary sweep */
+#aurora-canvas .aurora-layer {{
     background-image:
         repeating-linear-gradient(100deg,
-            {'#0A1F0A' if get_theme()=='dark' else '#ffffff'} 0%,
-            {'#0A1F0A' if get_theme()=='dark' else '#ffffff'} 7%,
+            {t['BG']} 0%,
+            {t['BG']} 7%,
             transparent 10%,
             transparent 12%,
-            {'#0A1F0A' if get_theme()=='dark' else '#ffffff'} 16%
+            {t['BG']} 16%
         ),
         repeating-linear-gradient(100deg,
             {PRIMARY}    10%,
@@ -276,22 +273,22 @@ hr {{ border-color: {t['BORDER']} !important; }}
             #E8F5E8      25%,
             {PRIMARY_DK} 30%
         );
-    filter: blur(10px) {'invert(0)' if get_theme()=='dark' else 'invert(1)'};
-    opacity: 0.55;
+    filter: blur(10px) {invert};
+    opacity: 0.45;
     animation: aurora 60s linear infinite;
     -webkit-mask-image: radial-gradient(ellipse at 100% 0%, black 10%, transparent 70%);
     mask-image: radial-gradient(ellipse at 100% 0%, black 10%, transparent 70%);
 }}
 
-/* Secondary aurora layer — mix-blend shimmer */
-.aurora-layer-after {{
+/* Secondary shimmer sweep */
+#aurora-canvas .aurora-layer-after {{
     background-image:
         repeating-linear-gradient(100deg,
-            {'#0A1F0A' if get_theme()=='dark' else '#ffffff'} 0%,
-            {'#0A1F0A' if get_theme()=='dark' else '#ffffff'} 7%,
+            {t['BG']} 0%,
+            {t['BG']} 7%,
             transparent 10%,
             transparent 12%,
-            {'#0A1F0A' if get_theme()=='dark' else '#ffffff'} 16%
+            {t['BG']} 16%
         ),
         repeating-linear-gradient(100deg,
             {PRIMARY}    10%,
@@ -303,12 +300,31 @@ hr {{ border-color: {t['BORDER']} !important; }}
     background-size: 200%, 100%;
     background-attachment: fixed;
     animation: aurora 60s linear infinite reverse;
-    mix-blend-mode: {'difference' if get_theme()=='dark' else 'overlay'};
-    opacity: 0.3;
+    mix-blend-mode: {blend};
+    opacity: 0.25;
     filter: blur(6px);
 }}
 
-.aurora-content {{
+/* Ensure all Streamlit content stacks above the aurora canvas */
+[data-testid="stAppViewContainer"],
+[data-testid="stAppViewBlockContainer"],
+section[data-testid="stSidebar"] {{
+    position: relative;
+    z-index: 1;
+}}
+
+/* ── aurora_hero() card (optional, used per-page) ── */
+.aurora-hero-card {{
+    position: relative;
+    overflow: hidden;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+    border: 1px solid {t['BORDER']};
+    background: {t['BG']}cc;
+    backdrop-filter: blur(4px);
+}}
+
+.aurora-hero-content {{
     position: relative;
     z-index: 1;
     padding: 2rem 2rem 1.5rem;
@@ -482,7 +498,21 @@ div[data-testid="stToggle"] input:checked + span[data-testid="stToggleSlider"] {
     }}
 }}
 </style>
-""", unsafe_allow_html=True)
+<div id="aurora-canvas">
+  <div class="aurora-layer"></div>
+  <div class="aurora-layer-after"></div>
+</div>
+"""
+
+
+def inject():
+    global TEXT_MUTED, _CURRENT_THEME, SURFACE
+    theme_key = get_theme()
+    t = THEMES[theme_key]
+    TEXT_MUTED = t["TEXT_MUTED"]
+    _CURRENT_THEME = t
+    SURFACE = t["SURFACE"]
+    st.markdown(_build_css(theme_key), unsafe_allow_html=True)
 
 
 def sidebar_logo():
@@ -533,10 +563,8 @@ def aurora_hero(title: str, subtitle: str = "", pill: str = "") -> None:
     ) if subtitle else ""
 
     st.markdown(f"""
-<div class="aurora-wrapper">
-  <div class="aurora-layer"></div>
-  <div class="aurora-layer-after"></div>
-  <div class="aurora-content">
+<div class="aurora-hero-card">
+  <div class="aurora-hero-content">
     {pill_html}
     <h1 style="margin:0;font-size:2rem;font-weight:800;color:{t['TEXT']};
                font-family:'Poppins',sans-serif;line-height:1.2;">

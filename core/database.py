@@ -25,6 +25,7 @@ def _get_connection() -> sqlite3.Connection:
         conn.execute("PRAGMA cache_size=-32000")
         conn.execute("PRAGMA temp_store=MEMORY")
         conn.execute("PRAGMA mmap_size=268435456")
+        conn.execute("PRAGMA busy_timeout=5000")
         _local.conn = conn
     return _local.conn
 

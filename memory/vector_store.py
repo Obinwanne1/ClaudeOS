@@ -85,6 +85,19 @@ def delete(memory_id: str, namespace: str) -> None:
         logger.warning("ChromaDB delete failed for %s: %s", memory_id, e)
 
 
+def delete_bulk(memory_ids: list[str], namespace: str) -> None:
+    """Delete multiple entries in a single ChromaDB call."""
+    if not memory_ids:
+        return
+    col = _collection(namespace)
+    if col is None:
+        return
+    try:
+        col.delete(ids=[f"mem_{mid}" for mid in memory_ids])
+    except Exception as e:
+        logger.warning("ChromaDB bulk delete failed for namespace %s: %s", namespace, e)
+
+
 def search(
     query: str,
     namespace: str,

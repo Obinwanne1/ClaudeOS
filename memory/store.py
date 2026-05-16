@@ -23,9 +23,7 @@ def _row_to_entry(row) -> MemoryEntry:
 
 
 def write(entry_create: MemoryEntryCreate) -> MemoryEntry:
-    """Insert or replace a memory entry. If same namespace+key exists, update it."""
-    existing = get_by_key(entry_create.namespace, entry_create.key)
-
+    """Insert or update a memory entry in a single round-trip via UPSERT."""
     expires_at = entry_create.expires_at
     if expires_at is None:
         ttl_days = CATEGORY_TTL.get(entry_create.category)
@@ -34,50 +32,25 @@ def write(entry_create: MemoryEntryCreate) -> MemoryEntry:
 
     now = utcnow_str()
     expires_str = _dt_to_sqlite(expires_at) if expires_at else None
-
-    if existing:
-        with get_db() as conn:
-            conn.execute(
-                """UPDATE memory_entries
-                   SET value=?, category=?, source=?, agent_id=?, session_id=?,
-                       tags=?, confidence=?, expires_at=?, updated_at=?
-                   WHERE id=?""",
-                (
-                    entry_create.value,
-                    entry_create.category,
-                    entry_create.source,
-                    entry_create.agent_id,
-                    entry_create.session_id,
-                    json.dumps(entry_create.tags),
-                    entry_create.confidence,
-                    expires_str,
-                    now,
-                    existing.id,
-                ),
-            )
-        return MemoryEntry(
-            id=existing.id,
-            namespace=entry_create.namespace,
-            category=entry_create.category,
-            key=entry_create.key,
-            value=entry_create.value,
-            source=entry_create.source,
-            agent_id=entry_create.agent_id,
-            session_id=entry_create.session_id,
-            tags=entry_create.tags,
-            confidence=entry_create.confidence,
-            expires_at=expires_at,
-            created_at=existing.created_at,
-            updated_at=datetime.fromisoformat(now),
-        )
-
     entry_id = new_id()
+    tags_json = json.dumps(entry_create.tags)
+
     with get_db() as conn:
         conn.execute(
             """INSERT INTO memory_entries
                (id, namespace, category, key, value, source, agent_id, session_id,
                 tags, confidence, expires_at, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(namespace, key) DO UPDATE SET
+                   value      = excluded.value,
+                   category   = excluded.category,
+                   source     = excluded.source,
+                   agent_id   = excluded.agent_id,
+                   session_id = excluded.session_id,
+                   tags       = excluded.tags,
+                   confidence = excluded.confidence,
+                   expires_at = excluded.expires_at,
+                   updated_at = excluded.updated_at""",
             (
                 entry_id,
                 entry_create.namespace,
@@ -87,29 +60,20 @@ def write(entry_create: MemoryEntryCreate) -> MemoryEntry:
                 entry_create.source,
                 entry_create.agent_id,
                 entry_create.session_id,
-                json.dumps(entry_create.tags),
+                tags_json,
                 entry_create.confidence,
                 expires_str,
                 now,
                 now,
             ),
         )
-    created_dt = datetime.fromisoformat(now)
-    return MemoryEntry(
-        id=entry_id,
-        namespace=entry_create.namespace,
-        category=entry_create.category,
-        key=entry_create.key,
-        value=entry_create.value,
-        source=entry_create.source,
-        agent_id=entry_create.agent_id,
-        session_id=entry_create.session_id,
-        tags=entry_create.tags,
-        confidence=entry_create.confidence,
-        expires_at=expires_at,
-        created_at=created_dt,
-        updated_at=created_dt,
-    )
+        # Fetch the persisted row to get the actual id (may differ on conflict)
+        row = conn.execute(
+            "SELECT * FROM memory_entries WHERE namespace = ? AND key = ?",
+            (entry_create.namespace, entry_create.key),
+        ).fetchone()
+
+    return _row_to_entry(row)
 
 
 def get_by_id(entry_id: str) -> Optional[MemoryEntry]:

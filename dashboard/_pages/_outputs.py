@@ -1,5 +1,9 @@
 """Outputs page — browse, search, and export agent/workflow outputs."""
+import os
+import requests
 import streamlit as st
+
+_API_BASE = "http://localhost:5000/api/v1"
 
 TYPE_ICONS = {
     "report": "📄",
@@ -76,13 +80,17 @@ def _render_browse(api_get, api_post):
             with col_actions:
                 if st.button("View", key=f"view_{oid}", width='stretch'):
                     st.session_state[f"show_content_{oid}"] = True
-                import requests as _req, os as _os
-                _key = _os.environ.get("CLAUDEOS_DEV_API_KEY", "")
-                _r = _req.get(f"http://localhost:5000/api/v1/outputs/{oid}/export?format=markdown",
-                              headers={"X-API-Key": _key}, timeout=5)
-                if _r.ok:
-                    fname = f"{title[:40].replace(' ','_')}.md"
-                    st.download_button("⬇ Download MD", data=_r.text, file_name=fname, mime="text/markdown", key=f"dl_{oid}")
+                # Fetch export only on demand — avoids N HTTP calls per render
+                if st.button("⬇ Download MD", key=f"dl_btn_{oid}", width='stretch'):
+                    _key = os.environ.get("CLAUDEOS_DEV_API_KEY", "")
+                    _r = requests.get(
+                        f"{_API_BASE}/outputs/{oid}/export?format=markdown",
+                        headers={"X-API-Key": _key}, timeout=5,
+                    )
+                    if _r.ok:
+                        fname = f"{title[:40].replace(' ','_')}.md"
+                        st.download_button("Save", data=_r.text, file_name=fname,
+                                           mime="text/markdown", key=f"dl_{oid}")
                 if st.button("🗑 Delete", key=f"del_{oid}", width='stretch'):
                     st.session_state[f"confirm_delete_{oid}"] = True
 
@@ -90,12 +98,9 @@ def _render_browse(api_get, api_post):
                 st.warning("Confirm delete?")
                 c1, c2 = st.columns(2)
                 if c1.button("Yes, delete", key=f"yes_del_{oid}"):
-                    r = api_get(f"/outputs/{oid}")  # just to check exists
-                    # Use requests directly for DELETE
-                    import requests, os
                     key = os.environ.get("CLAUDEOS_DEV_API_KEY", "")
                     requests.delete(
-                        f"http://localhost:5000/api/v1/outputs/{oid}",
+                        f"{_API_BASE}/outputs/{oid}",
                         headers={"X-API-Key": key},
                         timeout=5,
                     )
@@ -167,13 +172,13 @@ def _render_stats(api_get):
                 st.markdown(f"{icon} `{otype}` — {info['count']} outputs · {round(info['total_bytes']/1024,1)} KB")
 
     with col2:
-        ns_data = api_get("/namespaces") or []
-        if ns_data:
+        # Single aggregated call — avoids N per-namespace HTTP round-trips
+        all_stats = api_get("/outputs/stats/all") or {}
+        by_ns = all_stats.get("by_namespace", {})
+        if by_ns:
             st.markdown("**By Namespace:**")
-            for ns in ns_data:
-                slug = ns["slug"]
-                ns_stats = api_get(f"/outputs/stats?namespace={slug}") or {}
-                count = ns_stats.get("total_count", 0)
+            for slug, info in sorted(by_ns.items()):
+                count = info.get("total_count", 0)
                 if count > 0:
-                    kb = round(ns_stats.get("total_bytes", 0) / 1024, 1)
+                    kb = round(info.get("total_bytes", 0) / 1024, 1)
                     st.markdown(f"`{slug}` — {count} outputs · {kb} KB")

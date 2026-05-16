@@ -206,6 +206,32 @@ def get_stats(namespace: Optional[str] = None) -> dict:
     }
 
 
+def get_stats_all() -> dict:
+    """Return global stats + per-namespace breakdown in a single query."""
+    with get_db() as conn:
+        ns_rows = conn.execute(
+            "SELECT namespace, COUNT(*) as total_count, SUM(size_bytes) as total_bytes FROM outputs GROUP BY namespace"
+        ).fetchall()
+        total = conn.execute(
+            "SELECT COUNT(*), SUM(size_bytes) FROM outputs"
+        ).fetchone()
+        type_rows = conn.execute(
+            "SELECT type, COUNT(*) as count, SUM(size_bytes) as total_bytes FROM outputs GROUP BY type"
+        ).fetchall()
+
+    by_namespace = {
+        r["namespace"]: {"total_count": r["total_count"], "total_bytes": r["total_bytes"] or 0}
+        for r in ns_rows
+    }
+    by_type = {r["type"]: {"count": r["count"], "total_bytes": r["total_bytes"] or 0} for r in type_rows}
+    return {
+        "total_count": total[0] or 0,
+        "total_bytes": total[1] or 0,
+        "by_namespace": by_namespace,
+        "by_type": by_type,
+    }
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _write_file(output_id: str, namespace: str, output_type: str, format: str, content: str) -> Path:
