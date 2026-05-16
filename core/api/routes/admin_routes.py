@@ -23,7 +23,7 @@ admin_bp = Blueprint("admin", __name__, url_prefix="/api/v1/admin")
 def list_users():
     with get_db() as conn:
         rows = conn.execute(
-            "SELECT id, username, email, role, namespace, is_active, failed_attempts, locked_until, last_login_at, created_at, updated_at FROM users ORDER BY created_at DESC"
+            "SELECT id, username, email, role, namespace, is_active, must_change_password, failed_attempts, locked_until, last_login_at, created_at, updated_at FROM users ORDER BY created_at DESC"
         ).fetchall()
     return jsonify([_user_dict(r) for r in rows])
 
