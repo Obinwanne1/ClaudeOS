@@ -1,5 +1,6 @@
 """Client Vault page — namespaces, projects, workspace stats."""
 import streamlit as st
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 PRIORITY_LABELS = {1: "🔴 High", 2: "🟡 Medium", 3: "🟢 Low"}
@@ -41,6 +42,19 @@ def _render_namespaces(api_get, api_post):
     if not namespaces:
         st.info("No namespaces found. Run `python scripts/seed_namespaces.py`")
     else:
+        # Fetch workspace stats + projects for all namespaces in parallel
+        slugs = [ns["slug"] for ns in namespaces]
+        ws_results: dict = {}
+        proj_results: dict = {}
+        if slugs:
+            with ThreadPoolExecutor(max_workers=min(len(slugs) * 2, 10)) as ex:
+                ws_futs   = {ex.submit(api_get, f"/namespaces/{s}/workspace"): s for s in slugs}
+                proj_futs = {ex.submit(api_get, f"/projects?namespace={s}"): s for s in slugs}
+                for f in as_completed(ws_futs):
+                    ws_results[ws_futs[f]] = f.result()
+                for f in as_completed(proj_futs):
+                    proj_results[proj_futs[f]] = f.result()
+
         for ns in namespaces:
             color = ns.get("color", "#407E3C")
             icon = ns.get("icon", "🏢")
@@ -56,7 +70,7 @@ def _render_namespaces(api_get, api_post):
                     st.markdown(f"**Color:** `{color}`")
 
                 with col_stats:
-                    ws = api_get(f"/namespaces/{ns['slug']}/workspace")
+                    ws = ws_results.get(ns["slug"])
                     if ws and ws.get("workspace"):
                         for subdir, stat in ws["workspace"].items():
                             fc = stat.get("file_count", 0)
@@ -64,7 +78,7 @@ def _render_namespaces(api_get, api_post):
                             st.markdown(f"**{subdir}:** {fc} files · {kb} KB")
 
                 with col_actions:
-                    projects = api_get(f"/projects?namespace={ns['slug']}") or []
+                    projects = proj_results.get(ns["slug"]) or []
                     st.metric("Projects", len(projects))
 
     st.markdown("---")

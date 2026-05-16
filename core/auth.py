@@ -22,13 +22,22 @@ logger = logging.getLogger("claudeos.auth")
 
 # ── Config helpers ─────────────────────────────────────────────────────────────
 
+_cfg_cache: dict[str, tuple[str, float]] = {}
+_CFG_TTL = 60.0  # seconds
+
+
 def _cfg(key: str, default: str) -> str:
+    now = time.monotonic()
+    if key in _cfg_cache and now < _cfg_cache[key][1]:
+        return _cfg_cache[key][0]
     try:
         with get_db() as conn:
             row = conn.execute("SELECT value FROM system_config WHERE key = ?", (key,)).fetchone()
-        return row["value"] if row else default
+        val = row["value"] if row else default
     except Exception:
-        return default
+        val = default
+    _cfg_cache[key] = (val, now + _CFG_TTL)
+    return val
 
 
 def _cfg_int(key: str, default: int) -> int:
@@ -260,9 +269,8 @@ def _validate_api_key_header(raw_key: str) -> bool:
             "SELECT id, name, permissions, namespace FROM api_keys WHERE key_hash = ? AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)",
             (key_hash,),
         ).fetchone()
-    if not row:
-        return False
-    with get_db() as conn:
+        if not row:
+            return False
         conn.execute("UPDATE api_keys SET last_used = CURRENT_TIMESTAMP WHERE id = ?", (row["id"],))
     g.user_id = f"apikey:{row['id']}"
     g.username = row["name"]

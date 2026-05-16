@@ -128,10 +128,6 @@ def list_entries(
 
 
 def update(entry_id: str, update_data: MemoryEntryUpdate) -> Optional[MemoryEntry]:
-    entry = get_by_id(entry_id)
-    if not entry:
-        return None
-
     fields: list[str] = []
     params: list = []
 
@@ -149,17 +145,19 @@ def update(entry_id: str, update_data: MemoryEntryUpdate) -> Optional[MemoryEntr
         params.append(_dt_to_sqlite(update_data.expires_at))
 
     if not fields:
-        return entry
+        return get_by_id(entry_id)
 
     fields.append("updated_at = ?")
     params.append(utcnow_str())
     params.append(entry_id)
 
     with get_db() as conn:
-        conn.execute(
+        cursor = conn.execute(
             f"UPDATE memory_entries SET {', '.join(fields)} WHERE id = ?",
             params,
         )
+    if cursor.rowcount == 0:
+        return None
     return get_by_id(entry_id)
 
 

@@ -14,13 +14,14 @@ def render(api_get, api_post):
 
     # Fetch all data in parallel — eliminates up to 15s sequential latency
     _calls = {
-        "status": "/system/status",
-        "stats":  "/system/stats",
-        "agents": "/agents",
-        "runs":   "/agents/runs?limit=10",
+        "status":     "/system/status",
+        "stats":      "/system/stats",
+        "agents":     "/agents",
+        "runs":       "/agents/runs?limit=10",
+        "namespaces": "/memory/namespaces",
     }
     results: dict = {}
-    with ThreadPoolExecutor(max_workers=4) as ex:
+    with ThreadPoolExecutor(max_workers=5) as ex:
         futures = {ex.submit(api_get, path): key for key, path in _calls.items()}
         for f in as_completed(futures):
             results[futures[f]] = f.result()
@@ -93,8 +94,8 @@ def render(api_get, api_post):
                 else:
                     st.warning("Enter a prompt first")
 
-        # Namespace counts from memory
-        ns_data = api_get("/memory/namespaces")
+        # Namespace counts from memory (pre-fetched in parallel above)
+        ns_data = results.get("namespaces")
         if ns_data and ns_data.get("namespaces"):
             st.subheader("Memory by Namespace")
             for ns, cnt in sorted(ns_data["namespaces"].items(), key=lambda x: -x[1]):
