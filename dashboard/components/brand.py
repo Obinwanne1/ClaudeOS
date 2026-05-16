@@ -189,19 +189,24 @@ button[data-testid="baseButton-primary"]:hover {{
     color: {t['BTN_TEXT']} !important;
 }}
 
-/* ── Password eye toggle — must not inherit green btn styles ── */
-button[data-testid="stPasswordFieldVisibilityToggle"],
-button[data-testid="stPasswordFieldVisibilityToggle"]:hover,
-button[data-testid="stPasswordFieldVisibilityToggle"]:focus {{
+/* ── Password eye toggle — target by input container, not brittle testid ── */
+[data-testid="stTextInput"] button,
+[data-testid="stTextInput"] button:hover,
+[data-testid="stTextInput"] button:focus,
+[data-testid="stTextInput"] button:active {{
     background-color: transparent !important;
+    background: transparent !important;
     border: none !important;
     box-shadow: none !important;
-    color: {t['TEXT']} !important;
+    padding: 0 4px !important;
 }}
-button[data-testid="stPasswordFieldVisibilityToggle"] svg,
-button[data-testid="stPasswordFieldVisibilityToggle"] svg * {{
+[data-testid="stTextInput"] button svg path,
+[data-testid="stTextInput"] button svg rect,
+[data-testid="stTextInput"] button svg circle,
+[data-testid="stTextInput"] button svg * {{
     fill: {t['TEXT']} !important;
     stroke: {t['TEXT']} !important;
+    color: {t['TEXT']} !important;
 }}
 
 /* ── Inputs / selects / textareas ── */
