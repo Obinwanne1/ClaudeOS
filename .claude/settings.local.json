@@ -73,7 +73,15 @@
       "Bash(Start-Process -FilePath \"powershell\" -ArgumentList \"-Command\", \"cd 'C:\\\\Users\\\\rigwe\\\\Desktop\\\\ClaudeOS'; streamlit run dashboard/app.py --server.port 8501\" -WindowStyle Hidden)",
       "Bash(Start-Sleep -Seconds 4)",
       "Bash(tasklist)",
-      "Bash(findstr \"16920\")"
+      "Bash(findstr \"16920\")",
+      "Bash(dir C:\\\\Users\\\\rigwe\\\\Desktop:*)",
+      "Bash(python3:*)",
+      "Read(//usr/**)",
+      "Read(//c/Users/rigwe/.local/bin/**)",
+      "Read(//mnt/c/Users/rigwe/AppData/Local/Programs/**)",
+      "Read(//mnt/**)",
+      "Read(//mnt/c/Users/**)",
+      "Skill(startserver)"
     ]
   }
 }
