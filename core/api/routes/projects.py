@@ -14,10 +14,15 @@ projects_bp = Blueprint("projects", __name__, url_prefix="/api/v1")
 @projects_bp.get("/namespaces")
 @require_api_key
 def list_namespaces():
-    from vault.manager import list_namespaces as _list
+    from vault.manager import list_namespaces as _list, get_namespace_by_slug
     ns_type = request.args.get("type")
     enabled_only = request.args.get("enabled", "true").lower() == "true"
-    namespaces = _list(ns_type=ns_type, enabled_only=enabled_only)
+    scoped_ns = effective_namespace()  # None for admin/operator, slug for client/viewer
+    if scoped_ns:
+        ns = get_namespace_by_slug(scoped_ns)
+        namespaces = [ns] if ns else []
+    else:
+        namespaces = _list(ns_type=ns_type, enabled_only=enabled_only)
     return jsonify([_ns_dict(n) for n in namespaces])
 
 
@@ -115,7 +120,7 @@ def write_context(slug: str):
 @require_api_key
 def list_projects():
     from vault.manager import list_projects as _list, get_namespace_by_slug
-    namespace_slug = request.args.get("namespace")
+    namespace_slug = effective_namespace(request.args.get("namespace"))  # clients always scoped
     status = request.args.get("status")
     namespace_id = None
     if namespace_slug:

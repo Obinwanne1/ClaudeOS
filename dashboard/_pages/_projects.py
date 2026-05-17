@@ -101,8 +101,17 @@ def _render_namespaces(api_get, api_post, namespaces: list):
 def _render_projects(api_get, api_post, namespaces: list):
     st.subheader("Projects")
 
+    role = st.session_state.get("user_role", "admin")
+    user_ns = st.session_state.get("user_namespace")
+
+    # Clients/viewers see only their namespace — no cross-namespace access
+    if role in ("client", "viewer") and user_ns:
+        namespaces = [ns for ns in namespaces if ns.get("slug") == user_ns]
+
     ns_options = {ns["display_name"]: ns["slug"] for ns in namespaces}
-    ns_options = {"All": None, **ns_options}
+    # Only admins/operators get "All" option
+    if role in ("admin", "operator"):
+        ns_options = {"All": None, **ns_options}
 
     col1, col2 = st.columns(2)
     with col1:
@@ -163,6 +172,11 @@ def _render_projects(api_get, api_post, namespaces: list):
 def _render_context(api_get, api_post, namespaces: list):
     st.subheader("Context Files")
     st.caption("Per-namespace context injected into agent prompts.")
+
+    role = st.session_state.get("user_role", "admin")
+    user_ns = st.session_state.get("user_namespace")
+    if role in ("client", "viewer") and user_ns:
+        namespaces = [ns for ns in namespaces if ns.get("slug") == user_ns]
 
     if not namespaces:
         st.info("No namespaces.")
