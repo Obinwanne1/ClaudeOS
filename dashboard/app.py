@@ -165,12 +165,7 @@ st.sidebar.markdown("---")
 
 # User info + logout
 _tv = get_theme_vars()
-st.sidebar.markdown(
-    f'<div style="font-size:0.8rem;margin-bottom:4px;color:{_tv["TEXT"]};">'
-    f'<strong style="color:{_tv["TEXT"]};">{username}</strong>'
-    f' <span style="color:{_tv["TEXT_MUTED"]};">({role})</span></div>',
-    unsafe_allow_html=True,
-)
+st.sidebar.markdown(f"**{username}** ({role})")
 if st.sidebar.button("Logout", use_container_width=True):
     try:
         requests.post(

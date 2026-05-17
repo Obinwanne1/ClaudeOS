@@ -99,13 +99,21 @@ section[data-testid="stSidebar"] > div {{
     border-right: 1px solid {t['BORDER']} !important;
 }}
 
-/* ── Sidebar text — force theme color on all inline HTML markdown ── */
+/* ── Sidebar text — force theme color, cover webkit override ── */
+section[data-testid="stSidebar"],
+section[data-testid="stSidebar"] *:not(button):not(button *):not(svg):not(svg *) {{
+    color: {t['TEXT']} !important;
+    -webkit-text-fill-color: {t['TEXT']} !important;
+}}
 section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
 section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] *,
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
 section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] div,
 section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] strong,
 section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] span {{
     color: {t['TEXT']} !important;
+    -webkit-text-fill-color: {t['TEXT']} !important;
+    opacity: 1 !important;
 }}
 
 /* ── Sidebar collapse icon — broad selector sweep ── */
