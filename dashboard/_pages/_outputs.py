@@ -31,11 +31,18 @@ def render(api_get, api_post):
 
 
 def _render_browse(api_get, api_post):
+    role = st.session_state.get("user_role", "admin")
+    user_ns = st.session_state.get("user_namespace")
+
     col1, col2, col3 = st.columns(3)
     with col1:
-        ns_data = api_get("/namespaces") or []
-        ns_options = ["all"] + [n["slug"] for n in ns_data]
-        ns_filter = st.selectbox("Namespace", ns_options, key="out_ns_filter")
+        if role in ("client", "viewer") and user_ns:
+            ns_filter = user_ns
+            st.selectbox("Namespace", [user_ns], key="out_ns_filter", disabled=True)
+        else:
+            ns_data = api_get("/namespaces") or []
+            ns_options = ["all"] + [n["slug"] for n in ns_data]
+            ns_filter = st.selectbox("Namespace", ns_options, key="out_ns_filter")
     with col2:
         type_options = ["all", "report", "draft", "analysis", "code", "note", "archive"]
         type_filter = st.selectbox("Type", type_options, key="out_type_filter")
@@ -122,13 +129,20 @@ def _render_browse(api_get, api_post):
 
 def _render_search(api_get):
     st.subheader("Full-Text Search")
+    role = st.session_state.get("user_role", "admin")
+    user_ns = st.session_state.get("user_namespace")
+
     col1, col2 = st.columns([3, 1])
     with col1:
         query = st.text_input("Search query", key="fts_query", placeholder="morning briefing, client report, ...")
     with col2:
-        ns_data = api_get("/namespaces") or []
-        ns_options = ["all"] + [n["slug"] for n in ns_data]
-        search_ns = st.selectbox("Namespace", ns_options, key="fts_ns")
+        if role in ("client", "viewer") and user_ns:
+            search_ns = user_ns
+            st.selectbox("Namespace", [user_ns], key="fts_ns", disabled=True)
+        else:
+            ns_data = api_get("/namespaces") or []
+            ns_options = ["all"] + [n["slug"] for n in ns_data]
+            search_ns = st.selectbox("Namespace", ns_options, key="fts_ns")
 
     if st.button("Search", width='stretch') and query.strip():
         url = f"/outputs/search?q={query}&limit=20"
@@ -154,11 +168,16 @@ def _render_search(api_get):
 
 def _render_stats(api_get):
     st.subheader("Output Statistics")
+    role = st.session_state.get("user_role", "admin")
+    user_ns = st.session_state.get("user_namespace")
+    is_scoped = role in ("client", "viewer") and user_ns
 
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("**Global**")
-        stats = api_get("/outputs/stats") or {}
+        label = f"Namespace: `{user_ns}`" if is_scoped else "Global"
+        st.markdown(f"**{label}**")
+        stats_url = f"/outputs/stats?namespace={user_ns}" if is_scoped else "/outputs/stats"
+        stats = api_get(stats_url) or {}
         total = stats.get("total_count", 0)
         total_kb = round(stats.get("total_bytes", 0) / 1024, 1)
         st.metric("Total Outputs", total)
@@ -172,13 +191,14 @@ def _render_stats(api_get):
                 st.markdown(f"{icon} `{otype}` — {info['count']} outputs · {round(info['total_bytes']/1024,1)} KB")
 
     with col2:
-        # Single aggregated call — avoids N per-namespace HTTP round-trips
-        all_stats = api_get("/outputs/stats/all") or {}
-        by_ns = all_stats.get("by_namespace", {})
-        if by_ns:
-            st.markdown("**By Namespace:**")
-            for slug, info in sorted(by_ns.items()):
-                count = info.get("total_count", 0)
-                if count > 0:
-                    kb = round(info.get("total_bytes", 0) / 1024, 1)
-                    st.markdown(f"`{slug}` — {count} outputs · {kb} KB")
+        if not is_scoped:
+            # Single aggregated call — avoids N per-namespace HTTP round-trips
+            all_stats = api_get("/outputs/stats/all") or {}
+            by_ns = all_stats.get("by_namespace", {})
+            if by_ns:
+                st.markdown("**By Namespace:**")
+                for slug, info in sorted(by_ns.items()):
+                    count = info.get("total_count", 0)
+                    if count > 0:
+                        kb = round(info.get("total_bytes", 0) / 1024, 1)
+                        st.markdown(f"`{slug}` — {count} outputs · {kb} KB")

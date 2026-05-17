@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request, Response
 
-from core.auth import require_auth
+from core.auth import require_auth, effective_namespace
 require_api_key = require_auth  # alias
 
 outputs_bp = Blueprint("outputs", __name__, url_prefix="/api/v1/outputs")
@@ -13,7 +13,7 @@ outputs_bp = Blueprint("outputs", __name__, url_prefix="/api/v1/outputs")
 @require_api_key
 def list_outputs():
     from outputs.manager import list_outputs as _list
-    namespace = request.args.get("namespace")
+    namespace = effective_namespace(request.args.get("namespace"))
     output_type = request.args.get("type")
     tags = request.args.getlist("tag")
     limit = min(int(request.args.get("limit", 50)), 200)
@@ -52,7 +52,7 @@ def save_output():
 def search_outputs():
     from outputs.manager import search
     query = request.args.get("q", "")
-    namespace = request.args.get("namespace")
+    namespace = effective_namespace(request.args.get("namespace"))
     limit = min(int(request.args.get("limit", 20)), 100)
     if not query:
         return jsonify({"error": "q parameter required"}), 400
@@ -72,7 +72,7 @@ def output_stats_all():
 @require_api_key
 def output_stats():
     from outputs.manager import get_stats
-    namespace = request.args.get("namespace")
+    namespace = effective_namespace(request.args.get("namespace"))
     return jsonify(get_stats(namespace=namespace))
 
 
