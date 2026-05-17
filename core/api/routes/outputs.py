@@ -100,26 +100,21 @@ def get_content(output_id: str):
 @outputs_bp.get("/<output_id>/export")
 @require_api_key
 def export_output(output_id: str):
-    from outputs.manager import get_by_id, export_json
+    import re as _re
+    from outputs.manager import get_by_id
+    out = get_by_id(output_id)
+    if not out:
+        return jsonify({"error": "Output not found"}), 404
     fmt = request.args.get("format", "json")
     if fmt == "json":
-        data = export_json(output_id)
-        if not data:
-            return jsonify({"error": "Output not found"}), 404
-        return jsonify(data)
+        return jsonify(out.model_dump())
     elif fmt in ("markdown", "text"):
-        from outputs.manager import export_text
-        content = export_text(output_id)
-        if content is None:
-            return jsonify({"error": "Output not found"}), 404
-        mime = "text/markdown" if fmt == "markdown" else "text/plain"
-        out = get_by_id(output_id)
-        import re as _re
         safe = _re.sub(r"[^\w\s-]", "", out.title[:40]).strip().replace(" ", "_")
         ext = "md" if fmt == "markdown" else "txt"
         fname = f"{safe or output_id[:8]}.{ext}"
+        mime = "text/markdown" if fmt == "markdown" else "text/plain"
         return Response(
-            content,
+            out.content,
             mimetype=mime,
             headers={"Content-Disposition": f'attachment; filename="{fname}"'},
         )

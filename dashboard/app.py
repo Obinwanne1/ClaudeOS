@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import jwt as _jwt
 import streamlit as st
 
 st.set_page_config(
@@ -63,7 +64,6 @@ def _maybe_refresh_token() -> None:
     if not token or not refresh:
         return
     try:
-        import jwt as _jwt
         payload = _jwt.decode(token, options={"verify_signature": False})
         exp = payload.get("exp", 0)
         if exp - now < 300:  # < 5 minutes to expiry

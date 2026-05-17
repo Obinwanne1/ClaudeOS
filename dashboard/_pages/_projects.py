@@ -163,10 +163,10 @@ def _render_projects(api_get, api_post, namespaces: list):
 
     st.markdown("---")
     with st.expander("➕ New Project"):
-        _new_project_form(api_get, api_post)
+        _new_project_form(api_post, namespaces)
 
     with st.expander("📂 Attach Existing Project"):
-        _attach_project_form(api_get, api_post)
+        _attach_project_form(api_post, namespaces)
 
 
 def _render_context(api_get, api_post, namespaces: list):
@@ -389,8 +389,7 @@ def _scan_directory(path_str: str) -> dict:
 
 # ── Forms ─────────────────────────────────────────────────────────────────────
 
-def _attach_project_form(api_get, api_post):
-    namespaces = api_get("/namespaces") or []
+def _attach_project_form(api_post, namespaces: list):
     ns_map = {ns["display_name"]: ns["id"] for ns in namespaces}
     if not ns_map:
         st.info("Create a namespace first.")
@@ -500,8 +499,7 @@ def _new_namespace_form(api_post):
             st.warning("Slug and display name required")
 
 
-def _new_project_form(api_get, api_post):
-    namespaces = api_get("/namespaces") or []
+def _new_project_form(api_post, namespaces: list):
     ns_map = {ns["display_name"]: ns["id"] for ns in namespaces}
     if not ns_map:
         st.info("Create a namespace first.")

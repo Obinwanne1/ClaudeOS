@@ -7,7 +7,7 @@ from flask import Blueprint, jsonify, request, g
 from core.auth import (
     audit_log, clear_failed_attempts, create_access_token, create_user,
     get_user_by_id, hash_password, require_auth, require_role,
-    revoke_session, validate_password_strength,
+    revoke_session, validate_password_strength, _cfg_cache,
 )
 from core.database import get_db
 from core.utils import new_id
@@ -241,9 +241,8 @@ def create_api_key():
 def revoke_api_key(key_id: str):
     with get_db() as conn:
         row = conn.execute("SELECT id, name FROM api_keys WHERE id = ?", (key_id,)).fetchone()
-    if not row:
-        return jsonify({"error": "API key not found"}), 404
-    with get_db() as conn:
+        if not row:
+            return jsonify({"error": "API key not found"}), 404
         conn.execute("DELETE FROM api_keys WHERE id = ?", (key_id,))
     audit_log("api_key_revoked", user_id=g.user_id, username=g.username, detail={"key_id": key_id, "name": row["name"]})
     return jsonify({"revoked": key_id})
@@ -274,6 +273,10 @@ def update_security_settings():
     with get_db() as conn:
         for k, v in updates.items():
             conn.execute("INSERT OR REPLACE INTO system_config(key, value) VALUES (?, ?)", (k, v))
+
+    # Invalidate TTL cache so new settings take effect immediately
+    for k in updates:
+        _cfg_cache.pop(k, None)
 
     audit_log("security_settings_updated", user_id=g.user_id, username=g.username, detail={"keys": list(updates.keys())})
     return jsonify({"updated": list(updates.keys())})

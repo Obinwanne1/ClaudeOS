@@ -1,9 +1,13 @@
 """Outputs page — browse, search, and export agent/workflow outputs."""
-import os
 import requests
 import streamlit as st
 
 _API_BASE = "http://localhost:5000/api/v1"
+
+
+def _auth_headers() -> dict:
+    token = st.session_state.get("jwt_token", "")
+    return {"Authorization": f"Bearer {token}"} if token else {}
 
 TYPE_ICONS = {
     "report": "📄",
@@ -18,19 +22,27 @@ TYPE_ICONS = {
 def render(api_get, api_post):
     st.title("Output Manager")
 
+    role = st.session_state.get("user_role", "admin")
+    user_ns = st.session_state.get("user_namespace")
+    # Fetch namespace list once — passed to browse + search to avoid redundant calls
+    if role in ("client", "viewer") and user_ns:
+        ns_data = []  # clients don't need the list — they're locked to their namespace
+    else:
+        ns_data = api_get("/namespaces") or []
+
     tab_browse, tab_search, tab_stats = st.tabs(["Browse", "Search", "Stats"])
 
     with tab_browse:
-        _render_browse(api_get, api_post)
+        _render_browse(api_get, api_post, ns_data)
 
     with tab_search:
-        _render_search(api_get)
+        _render_search(api_get, ns_data)
 
     with tab_stats:
         _render_stats(api_get)
 
 
-def _render_browse(api_get, api_post):
+def _render_browse(api_get, api_post, ns_data: list):
     role = st.session_state.get("user_role", "admin")
     user_ns = st.session_state.get("user_namespace")
 
@@ -40,7 +52,6 @@ def _render_browse(api_get, api_post):
             ns_filter = user_ns
             st.selectbox("Namespace", [user_ns], key="out_ns_filter", disabled=True)
         else:
-            ns_data = api_get("/namespaces") or []
             ns_options = ["all"] + [n["slug"] for n in ns_data]
             ns_filter = st.selectbox("Namespace", ns_options, key="out_ns_filter")
     with col2:
@@ -89,10 +100,9 @@ def _render_browse(api_get, api_post):
                     st.session_state[f"show_content_{oid}"] = True
                 # Fetch export only on demand — avoids N HTTP calls per render
                 if st.button("⬇ Download MD", key=f"dl_btn_{oid}", width='stretch'):
-                    _key = os.environ.get("CLAUDEOS_DEV_API_KEY", "")
                     _r = requests.get(
                         f"{_API_BASE}/outputs/{oid}/export?format=markdown",
-                        headers={"X-API-Key": _key}, timeout=5,
+                        headers=_auth_headers(), timeout=5,
                     )
                     if _r.ok:
                         fname = f"{title[:40].replace(' ','_')}.md"
@@ -105,10 +115,9 @@ def _render_browse(api_get, api_post):
                 st.warning("Confirm delete?")
                 c1, c2 = st.columns(2)
                 if c1.button("Yes, delete", key=f"yes_del_{oid}"):
-                    key = os.environ.get("CLAUDEOS_DEV_API_KEY", "")
                     requests.delete(
                         f"{_API_BASE}/outputs/{oid}",
-                        headers={"X-API-Key": key},
+                        headers=_auth_headers(),
                         timeout=5,
                     )
                     st.session_state.pop(f"confirm_delete_{oid}", None)
@@ -127,7 +136,7 @@ def _render_browse(api_get, api_post):
                     st.rerun()
 
 
-def _render_search(api_get):
+def _render_search(api_get, ns_data: list):
     st.subheader("Full-Text Search")
     role = st.session_state.get("user_role", "admin")
     user_ns = st.session_state.get("user_namespace")
@@ -140,7 +149,6 @@ def _render_search(api_get):
             search_ns = user_ns
             st.selectbox("Namespace", [user_ns], key="fts_ns", disabled=True)
         else:
-            ns_data = api_get("/namespaces") or []
             ns_options = ["all"] + [n["slug"] for n in ns_data]
             search_ns = st.selectbox("Namespace", ns_options, key="fts_ns")
 

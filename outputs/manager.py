@@ -82,7 +82,23 @@ def save(
         )
 
     logger.info("Saved output %s (%s, %d bytes, ns=%s)", output_id[:8], output_type, size_bytes, namespace)
-    return get_by_id(output_id)
+    return Output(
+        id=output_id,
+        namespace=namespace,
+        project_id=project_id,
+        agent_run_id=agent_run_id,
+        workflow_run_id=workflow_run_id,
+        output_type=output_type,
+        title=title,
+        content=content,
+        format=format,
+        tags=all_tags,
+        file_path=str(file_path),
+        size_bytes=size_bytes,
+        summary=summary,
+        created_at=now,
+        updated_at=now,
+    )
 
 
 def get_by_id(output_id: str) -> Optional[Output]:
@@ -156,17 +172,17 @@ def search(query: str, namespace: Optional[str] = None, limit: int = 20) -> list
 
 
 def delete(output_id: str) -> bool:
-    out = get_by_id(output_id)
-    if not out:
+    with get_db() as conn:
+        row = conn.execute(
+            "DELETE FROM outputs WHERE id = ? RETURNING file_path", (output_id,)
+        ).fetchone()
+    if not row:
         return False
-    # Remove file
-    if out.file_path:
+    if row["file_path"]:
         try:
-            Path(out.file_path).unlink(missing_ok=True)
+            Path(row["file_path"]).unlink(missing_ok=True)
         except Exception:
             pass
-    with get_db() as conn:
-        conn.execute("DELETE FROM outputs WHERE id = ?", (output_id,))
     return True
 
 
@@ -195,13 +211,12 @@ def get_stats(namespace: Optional[str] = None) -> dict:
             f"SELECT type, COUNT(*) as count, SUM(size_bytes) as total_bytes FROM outputs {where} GROUP BY type",
             params,
         ).fetchall()
-        total = conn.execute(
-            f"SELECT COUNT(*), SUM(size_bytes) FROM outputs {where}", params
-        ).fetchone()
     by_type = {r["type"]: {"count": r["count"], "total_bytes": r["total_bytes"] or 0} for r in rows}
+    total_count = sum(v["count"] for v in by_type.values())
+    total_bytes = sum(v["total_bytes"] for v in by_type.values())
     return {
-        "total_count": total[0] or 0,
-        "total_bytes": total[1] or 0,
+        "total_count": total_count,
+        "total_bytes": total_bytes,
         "by_type": by_type,
     }
 

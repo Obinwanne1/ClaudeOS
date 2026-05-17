@@ -44,7 +44,6 @@ def list_memory():
     return jsonify({
         "entries": [_entry_dict(e) for e in entries],
         "count": len(entries),
-        "namespace_counts": engine.namespace_counts(),
     })
 
 
