@@ -184,10 +184,14 @@ def search(req: MemorySearchRequest) -> list[MemoryEntry]:
     if req.mode == "semantic":
         ns = req.namespace or "global"
         return search_semantic(req.query, ns, req.top_k, req.min_confidence)
-    # "both" — merge, dedupe by id
-    text_results = search_text(req.query, req.namespace, req.category, req.top_k)
+    # "both" — run FTS5 + ChromaDB concurrently, merge, dedupe by id
+    from concurrent.futures import ThreadPoolExecutor
     sem_ns = req.namespace or "global"
-    sem_results = search_semantic(req.query, sem_ns, req.top_k, req.min_confidence)
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        t_fut = ex.submit(search_text, req.query, req.namespace, req.category, req.top_k)
+        s_fut = ex.submit(search_semantic, req.query, sem_ns, req.top_k, req.min_confidence)
+        text_results = t_fut.result()
+        sem_results = s_fut.result()
     seen: set[str] = set()
     merged: list[MemoryEntry] = []
     for e in text_results + sem_results:

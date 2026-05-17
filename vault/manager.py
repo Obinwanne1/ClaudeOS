@@ -204,14 +204,13 @@ def list_context_files(slug: str) -> list[str]:
 
 
 def get_workspace_stats(slug: str) -> dict:
-    """Return file counts and sizes for a namespace workspace."""
+    """Return file counts and sizes for a namespace workspace (shallow scan)."""
     _validate_slug(slug)
     stats = {}
     for subdir in WORKSPACE_SUBDIRS:
         d = workspace_path(slug, subdir)
         if d.exists():
-            files = list(d.rglob("*"))
-            file_list = [f for f in files if f.is_file()]
+            file_list = [f for f in d.iterdir() if f.is_file()]
             stats[subdir] = {
                 "file_count": len(file_list),
                 "size_bytes": sum(f.stat().st_size for f in file_list),

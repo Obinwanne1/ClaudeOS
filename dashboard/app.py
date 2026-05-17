@@ -49,8 +49,15 @@ def _get_headers() -> dict:
 
 
 def _maybe_refresh_token() -> None:
-    """Silently refresh the access token if it expires within 5 minutes."""
+    """Silently refresh the access token if it expires within 5 minutes.
+    Throttled to run at most once per 60 seconds to avoid JWT decode on every rerender.
+    """
     import time as _time
+    now = _time.time()
+    if now - st.session_state.get("_refresh_checked_at", 0) < 60:
+        return
+    st.session_state["_refresh_checked_at"] = now
+
     token = st.session_state.get("jwt_token", "")
     refresh = st.session_state.get("refresh_token", "")
     if not token or not refresh:
@@ -59,7 +66,7 @@ def _maybe_refresh_token() -> None:
         import jwt as _jwt
         payload = _jwt.decode(token, options={"verify_signature": False})
         exp = payload.get("exp", 0)
-        if exp - _time.time() < 300:  # < 5 minutes
+        if exp - now < 300:  # < 5 minutes to expiry
             r = requests.post(
                 f"{API_BASE}/auth/refresh",
                 json={"refresh_token": refresh},

@@ -14,19 +14,22 @@ STATUS_ICONS = {"active": "🟢", "paused": "⏸️", "archived": "📦"}
 def render(api_get, api_post):
     st.title("Client Vault")
 
+    # Fetch namespaces once — shared across all three tabs
+    namespaces = api_get("/namespaces") or []
+
     tab_ns, tab_proj, tab_ctx = st.tabs(["Namespaces", "Projects", "Context Files"])
 
     with tab_ns:
-        _render_namespaces(api_get, api_post)
+        _render_namespaces(api_get, api_post, namespaces)
 
     with tab_proj:
-        _render_projects(api_get, api_post)
+        _render_projects(api_get, api_post, namespaces)
 
     with tab_ctx:
-        _render_context(api_get, api_post)
+        _render_context(api_get, api_post, namespaces)
 
 
-def _render_namespaces(api_get, api_post):
+def _render_namespaces(api_get, api_post, namespaces: list):
     role = st.session_state.get("user_role", "admin")
     user_ns = st.session_state.get("user_namespace")
 
@@ -36,7 +39,11 @@ def _render_namespaces(api_get, api_post):
     with col2:
         show_all = st.toggle("Show disabled", value=False) if role in ("admin", "operator") else False
 
-    all_namespaces = api_get(f"/namespaces?enabled={'false' if show_all else 'true'}") or []
+    # Use pre-fetched list; re-fetch only if user toggled "show disabled"
+    if show_all:
+        all_namespaces = api_get("/namespaces?enabled=false") or []
+    else:
+        all_namespaces = namespaces
     # Clients see only their namespace
     if role in ("client", "viewer") and user_ns:
         namespaces = [ns for ns in all_namespaces if ns.get("slug") == user_ns]
@@ -91,10 +98,9 @@ def _render_namespaces(api_get, api_post):
             _new_namespace_form(api_post)
 
 
-def _render_projects(api_get, api_post):
+def _render_projects(api_get, api_post, namespaces: list):
     st.subheader("Projects")
 
-    namespaces = api_get("/namespaces") or []
     ns_options = {ns["display_name"]: ns["slug"] for ns in namespaces}
     ns_options = {"All": None, **ns_options}
 
@@ -154,11 +160,10 @@ def _render_projects(api_get, api_post):
         _attach_project_form(api_get, api_post)
 
 
-def _render_context(api_get, api_post):
+def _render_context(api_get, api_post, namespaces: list):
     st.subheader("Context Files")
     st.caption("Per-namespace context injected into agent prompts.")
 
-    namespaces = api_get("/namespaces") or []
     if not namespaces:
         st.info("No namespaces.")
         return

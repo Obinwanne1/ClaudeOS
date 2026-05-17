@@ -36,7 +36,7 @@ def write(entry_create: MemoryEntryCreate) -> MemoryEntry:
     tags_json = json.dumps(entry_create.tags)
 
     with get_db() as conn:
-        conn.execute(
+        row = conn.execute(
             """INSERT INTO memory_entries
                (id, namespace, category, key, value, source, agent_id, session_id,
                 tags, confidence, expires_at, created_at, updated_at)
@@ -50,7 +50,8 @@ def write(entry_create: MemoryEntryCreate) -> MemoryEntry:
                    tags       = excluded.tags,
                    confidence = excluded.confidence,
                    expires_at = excluded.expires_at,
-                   updated_at = excluded.updated_at""",
+                   updated_at = excluded.updated_at
+               RETURNING *""",
             (
                 entry_id,
                 entry_create.namespace,
@@ -66,11 +67,6 @@ def write(entry_create: MemoryEntryCreate) -> MemoryEntry:
                 now,
                 now,
             ),
-        )
-        # Fetch the persisted row to get the actual id (may differ on conflict)
-        row = conn.execute(
-            "SELECT * FROM memory_entries WHERE namespace = ? AND key = ?",
-            (entry_create.namespace, entry_create.key),
         ).fetchone()
 
     return _row_to_entry(row)

@@ -262,6 +262,11 @@ def _client_ua() -> str:
 
 # ── API key fallback (re-uses existing api_keys table) ────────────────────────
 
+# Debounce last_used writes: only hit DB once per 60s per key id
+_api_key_last_updated: dict[str, float] = {}
+_API_KEY_UPDATE_INTERVAL = 60.0
+
+
 def _validate_api_key_header(raw_key: str) -> bool:
     key_hash = hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
     with get_db() as conn:
@@ -271,7 +276,10 @@ def _validate_api_key_header(raw_key: str) -> bool:
         ).fetchone()
         if not row:
             return False
-        conn.execute("UPDATE api_keys SET last_used = CURRENT_TIMESTAMP WHERE id = ?", (row["id"],))
+        now = time.monotonic()
+        if now - _api_key_last_updated.get(row["id"], 0) >= _API_KEY_UPDATE_INTERVAL:
+            conn.execute("UPDATE api_keys SET last_used = CURRENT_TIMESTAMP WHERE id = ?", (row["id"],))
+            _api_key_last_updated[row["id"]] = now
     g.user_id = f"apikey:{row['id']}"
     g.username = row["name"]
     g.user_role = "operator"
