@@ -99,13 +99,33 @@ section[data-testid="stSidebar"] > div {{
     border-right: 1px solid {t['BORDER']} !important;
 }}
 
-/* ── Sidebar collapse icon — color only, no layout changes ── */
+/* ── Sidebar text — force theme color on all inline HTML markdown ── */
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] *,
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] div,
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] strong,
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] span {{
+    color: {t['TEXT']} !important;
+}}
+
+/* ── Sidebar collapse icon — broad selector sweep ── */
+button[data-testid="stBaseButton-header"] svg,
 button[data-testid="stBaseButton-header"] svg *,
+[data-testid="stSidebarCollapsedControl"] svg,
 [data-testid="stSidebarCollapsedControl"] svg *,
+[data-testid="stSidebarCollapsedControl"] button svg,
+[data-testid="stSidebarCollapsedControl"] button svg *,
+[data-testid="stSidebarCollapseButton"] svg,
 [data-testid="stSidebarCollapseButton"] svg *,
-[data-testid="collapsedControl"] svg * {{
+[data-testid="collapsedControl"] svg,
+[data-testid="collapsedControl"] svg *,
+[data-testid="stSidebarNavCollapseButton"] svg,
+[data-testid="stSidebarNavCollapseButton"] svg *,
+section[data-testid="stSidebar"] > div > div > button svg,
+section[data-testid="stSidebar"] > div > div > button svg * {{
     fill: {t['TEXT']} !important;
     stroke: {t['TEXT']} !important;
+    color: {t['TEXT']} !important;
 }}
 
 /* ── Text — semantic elements ── */

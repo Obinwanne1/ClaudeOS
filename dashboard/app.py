@@ -12,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="auto",
 )
 
-from dashboard.components.brand import inject, sidebar_logo, theme_toggle, PRIMARY, TEXT_MUTED
+from dashboard.components.brand import inject, sidebar_logo, theme_toggle, PRIMARY, get_theme_vars
 inject()
 theme_toggle()  # available on all pages including login
 
@@ -164,9 +164,11 @@ page = st.sidebar.radio(
 st.sidebar.markdown("---")
 
 # User info + logout
+_tv = get_theme_vars()
 st.sidebar.markdown(
-    f'<div style="font-size:0.8rem;margin-bottom:4px;">'
-    f'<strong>{username}</strong> <span style="opacity:0.6;">({role})</span></div>',
+    f'<div style="font-size:0.8rem;margin-bottom:4px;color:{_tv["TEXT"]};">'
+    f'<strong style="color:{_tv["TEXT"]};">{username}</strong>'
+    f' <span style="color:{_tv["TEXT_MUTED"]};">({role})</span></div>',
     unsafe_allow_html=True,
 )
 if st.sidebar.button("Logout", use_container_width=True):
@@ -190,7 +192,7 @@ if health and health.get("status") == "ok":
 else:
     st.sidebar.markdown('<div style="color:#ef4444;font-size:0.8rem;">● API offline</div>', unsafe_allow_html=True)
 
-st.sidebar.markdown(f'<div style="color:{TEXT_MUTED};font-size:0.75rem;margin-top:4px;">{datetime.now().strftime("%a %d %b · %H:%M")}</div>', unsafe_allow_html=True)
+st.sidebar.markdown(f'<div style="color:{_tv["TEXT_MUTED"]};font-size:0.75rem;margin-top:4px;">{datetime.now().strftime("%a %d %b · %H:%M")}</div>', unsafe_allow_html=True)
 
 # ── Page dispatch ─────────────────────────────────────────────────────────────
 from dashboard._pages._overview  import render as _render_overview
