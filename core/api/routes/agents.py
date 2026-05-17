@@ -106,7 +106,7 @@ def cancel_run(run_id: str):
 @agents_bp.get("/runs")
 @require_auth
 def list_runs():
-    namespace = request.args.get("namespace")
+    namespace = effective_namespace(request.args.get("namespace"))  # clients always scoped
     status = request.args.get("status")
     limit = min(int(request.args.get("limit", 50)), 200)
     runs = dispatcher.list_runs(namespace=namespace, status=status, limit=limit)

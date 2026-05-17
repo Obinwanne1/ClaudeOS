@@ -136,7 +136,10 @@ def render(api_get, api_post):
 
     # Recent runs table
     st.subheader("Recent Runs")
-    runs_data = api_get("/agents/runs?limit=20")
+    _runs_role = st.session_state.get("user_role", "admin")
+    _runs_ns = st.session_state.get("user_namespace")
+    _runs_url = f"/agents/runs?limit=20&namespace={_runs_ns}" if _runs_role in ("client", "viewer") and _runs_ns else "/agents/runs?limit=20"
+    runs_data = api_get(_runs_url)
     if runs_data and runs_data.get("runs"):
         rows = []
         for r in runs_data["runs"]:
