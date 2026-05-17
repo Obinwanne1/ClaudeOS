@@ -151,6 +151,7 @@ pages = {
     "Workflows": "⚙️",
     "Projects":  "📁",
     "Outputs":   "📄",
+    "Tickets":   "🎫",
     "Settings":  "🔧",
 }
 
@@ -160,6 +161,13 @@ if role == "admin":
 if role in ("client", "viewer"):
     pages.pop("Settings", None)
     pages.pop("Workflows", None)
+
+if role == "staff":
+    pages.pop("Memory", None)
+    pages.pop("Workflows", None)
+    pages.pop("Projects", None)
+    pages.pop("Settings", None)
+    pages.pop("Admin", None)
 
 page = st.sidebar.radio(
     "Navigation",
@@ -205,6 +213,7 @@ from dashboard._pages._projects  import render as _render_projects
 from dashboard._pages._outputs   import render as _render_outputs
 from dashboard._pages._settings  import render as _render_settings
 from dashboard._pages._admin     import render as _render_admin
+from dashboard._pages._tickets   import render as _render_tickets
 
 _PAGE_DISPATCH = {
     "Overview":  (_render_overview,  api_get_cached),
@@ -213,6 +222,7 @@ _PAGE_DISPATCH = {
     "Workflows": (_render_workflows, api_get),
     "Projects":  (_render_projects,  api_get),
     "Outputs":   (_render_outputs,   api_get_cached),
+    "Tickets":   (_render_tickets,   api_get),
     "Settings":  (_render_settings,  api_get),
     "Admin":     (_render_admin,     api_get),
 }

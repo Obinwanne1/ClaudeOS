@@ -100,6 +100,12 @@ def _register_optional_blueprints(app: Flask):
     except ImportError:
         pass
 
+    try:
+        from core.api.routes.tickets import tickets_bp
+        app.register_blueprint(tickets_bp)
+    except ImportError:
+        pass
+
 
 def _start_scheduler(app: Flask):
     try:
