@@ -42,8 +42,15 @@ def run_all():
                 conn.execute("INSERT INTO applied_migrations(filename) VALUES (?)", (mf.name,))
             print("OK")
         except Exception as e:
-            print(f"FAILED: {e}")
-            sys.exit(1)
+            err = str(e).lower()
+            if "duplicate column" in err or "already exists" in err:
+                # Column/object already present — mark applied and continue
+                with get_db() as conn:
+                    conn.execute("INSERT OR IGNORE INTO applied_migrations(filename) VALUES (?)", (mf.name,))
+                print(f"OK (skipped: {e})")
+            else:
+                print(f"FAILED: {e}")
+                sys.exit(1)
 
     print("All migrations applied.")
 
