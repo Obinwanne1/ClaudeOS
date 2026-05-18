@@ -15,7 +15,7 @@ CATEGORY_COLORS = {
 }
 
 
-def render(api_get, api_post):
+def render(api_get, api_post, bulk_delete=None):
     st.title("🤖 Agents")
 
     agents_data = api_get("/agents?enabled_only=false")

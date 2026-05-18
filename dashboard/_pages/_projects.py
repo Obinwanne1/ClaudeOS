@@ -11,7 +11,7 @@ PRIORITY_LABELS = {1: "🔴 High", 2: "🟡 Medium", 3: "🟢 Low"}
 STATUS_ICONS = {"active": "🟢", "paused": "⏸️", "archived": "📦"}
 
 
-def render(api_get, api_post):
+def render(api_get, api_post, bulk_delete=None):
     st.title("Client Vault")
 
     # Fetch namespaces once — shared across all three tabs

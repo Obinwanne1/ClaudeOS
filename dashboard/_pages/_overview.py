@@ -5,7 +5,7 @@ from datetime import datetime
 from dashboard.components.brand import aurora_hero
 
 
-def render(api_get, api_post):
+def render(api_get, api_post, bulk_delete=None):
     aurora_hero(
         title="ClaudeOS",
         subtitle="AI Operating System — coordination layer for all agents, memory, and workflows.",

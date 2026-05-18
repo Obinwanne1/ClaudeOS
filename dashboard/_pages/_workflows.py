@@ -3,7 +3,7 @@ import streamlit as st
 from datetime import datetime
 
 
-def render(api_get, api_post):
+def render(api_get, api_post, bulk_delete=None):
     st.title("Workflow Engine")
 
     tab_list, tab_runs, tab_scheduler = st.tabs(["Workflows", "Run History", "Scheduler"])

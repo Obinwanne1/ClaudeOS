@@ -5,7 +5,7 @@ import streamlit as st
 from dashboard.components.brand import PRIMARY, get_theme_vars
 
 
-def render(api_get, api_post):
+def render(api_get, api_post, bulk_delete=None):
     st.title("🔧  Settings")
     st.markdown("---")
 
