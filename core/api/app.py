@@ -47,6 +47,10 @@ def create_app() -> Flask:
     # Workflow Scheduler — start after blueprints registered
     _start_scheduler(app)
 
+    # Pre-load ChromaDB + sentence-transformers in background.
+    # Without this, the first memory request blocks a Flask worker for 30-60s on Windows.
+    _warmup_vector_store()
+
     return app
 
 
@@ -105,6 +109,19 @@ def _register_optional_blueprints(app: Flask):
         app.register_blueprint(tickets_bp)
     except ImportError:
         pass
+
+
+def _warmup_vector_store():
+    """Pre-load ChromaDB + sentence-transformers in a daemon thread.
+    Prevents first memory request from blocking for 30-60s on Windows."""
+    import threading
+    def _warm():
+        try:
+            from memory.vector_store import _init
+            _init()
+        except Exception:
+            pass
+    threading.Thread(target=_warm, daemon=True, name="vs-warmup").start()
 
 
 def _start_scheduler(app: Flask):

@@ -12,28 +12,56 @@ from core.utils import new_id, utcnow_str
 tickets_bp = Blueprint("tickets", __name__, url_prefix="/api/v1/tickets")
 
 SLA_HOURS = {"P1": 4, "P2": 8, "P3": 24, "P4": 72}
-VALID_STATUSES = {"open", "in_progress", "resolved", "closed"}
-VALID_CATEGORIES = {"bug", "billing", "access", "feature", "other"}
-VALID_SLA_TIERS = set(SLA_HOURS.keys())
-STAFF_ROLES = {"admin", "operator", "staff"}
+VALID_STATUSES    = {"open", "assigned", "work_in_progress", "completed", "closed"}
+VALID_CATEGORIES  = {"bug", "billing", "access", "feature", "other"}
+VALID_SLA_TIERS   = set(SLA_HOURS.keys())
+STAFF_ROLES       = {"admin", "operator", "staff"}
+
+# Forward-only transitions allowed for non-admin users (staff/assignees).
+# Admin and operator can set any status freely.
+ALLOWED_TRANSITIONS: dict[str, set[str]] = {
+    "open":             {"assigned", "work_in_progress"},
+    "assigned":         {"work_in_progress"},
+    "work_in_progress": {"completed", "closed"},
+    "completed":        {"closed"},
+    "closed":           set(),
+}
 
 
-def _ticket_dict(row) -> dict:
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
+def _get_assignees(ticket_id: str, conn=None) -> list[str]:
+    """Return list of usernames assigned to this ticket."""
+    def _query(c):
+        rows = c.execute(
+            "SELECT username FROM ticket_assignees WHERE ticket_id = ? ORDER BY assigned_at ASC",
+            (ticket_id,),
+        ).fetchall()
+        return [r["username"] for r in rows]
+
+    if conn is not None:
+        return _query(conn)
+    with get_db() as c:
+        return _query(c)
+
+
+def _ticket_dict(row, assignees: list[str] | None = None) -> dict:
     return {
-        "id": row["id"],
-        "namespace": row["namespace"],
-        "created_by": row["created_by"],
-        "title": row["title"],
+        "id":          row["id"],
+        "namespace":   row["namespace"],
+        "created_by":  row["created_by"],
+        "title":       row["title"],
         "description": row["description"],
-        "status": row["status"],
-        "category": row["category"],
-        "priority": row["priority"],
-        "sla_tier": row["sla_tier"],
-        "sla_due_at": row["sla_due_at"],
-        "assigned_to": row["assigned_to"],
-        "resolution": row["resolution"],
-        "created_at": row["created_at"],
-        "updated_at": row["updated_at"],
+        "status":      row["status"],
+        "category":    row["category"],
+        "priority":    row["priority"],
+        "sla_tier":    row["sla_tier"],
+        "sla_due_at":  row["sla_due_at"],
+        "assigned_to": row["assigned_to"],   # primary assignee (first one)
+        "assignees":   assignees if assignees is not None else [],
+        "resolution":  row["resolution"],
+        "created_at":  row["created_at"],
+        "updated_at":  row["updated_at"],
     }
 
 
@@ -43,7 +71,9 @@ def _can_access_ticket(ticket: dict) -> bool:
         return True
     if ticket["created_by"] == g.username:
         return True
-    if ticket["assigned_to"] == g.username:
+    if ticket.get("assigned_to") == g.username:
+        return True
+    if g.username in ticket.get("assignees", []):
         return True
     return False
 
@@ -51,7 +81,34 @@ def _can_access_ticket(ticket: dict) -> bool:
 def _get_ticket_by_id(ticket_id: str) -> dict | None:
     with get_db() as conn:
         row = conn.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
-    return _ticket_dict(row) if row else None
+        if not row:
+            return None
+        assignees = _get_assignees(ticket_id, conn)
+    return _ticket_dict(row, assignees)
+
+
+def _is_assignee(ticket_id: str) -> bool:
+    """True if the current user is in this ticket's assignees list."""
+    return g.username in _get_assignees(ticket_id)
+
+
+# ── Bulk delete ────────────────────────────────────────────────────────────────
+
+@tickets_bp.delete("/bulk")
+@require_auth
+def bulk_delete_tickets():
+    if g.user_role != "admin":
+        return jsonify({"error": "Admin only"}), 403
+    ids = (request.get_json(silent=True) or {}).get("ids") or []
+    if not isinstance(ids, list) or not ids:
+        return jsonify({"error": "ids list required"}), 422
+    placeholders = ",".join("?" * len(ids))
+    with get_db() as conn:
+        rows = conn.execute(
+            f"DELETE FROM tickets WHERE id IN ({placeholders}) RETURNING id", ids
+        ).fetchall()
+    deleted = [r["id"] for r in rows]
+    return jsonify({"deleted": deleted, "failed": [i for i in ids if i not in set(deleted)], "count": len(deleted)})
 
 
 # ── List ───────────────────────────────────────────────────────────────────────
@@ -59,29 +116,30 @@ def _get_ticket_by_id(ticket_id: str) -> dict | None:
 @tickets_bp.get("")
 @require_auth
 def list_tickets():
-    role = g.user_role
+    role     = g.user_role
     username = g.username
 
-    status_filter = request.args.get("status")
+    status_filter   = request.args.get("status")
     priority_filter = request.args.get("priority")
-    ns_filter = request.args.get("namespace")
+    ns_filter       = request.args.get("namespace")
     assigned_filter = request.args.get("assigned_to")
-    limit = min(int(request.args.get("limit", 50)), 200)
+    limit  = min(int(request.args.get("limit", 50)), 200)
     offset = int(request.args.get("offset", 0))
 
-    conditions = []
+    conditions: list[str] = []
     params: list = []
 
     if role in ("client", "viewer"):
-        # Namespace-scoped — own tickets only
         ns = effective_namespace()
         conditions.append("namespace = ?")
         params.append(ns)
         conditions.append("created_by = ?")
         params.append(username)
     elif role == "staff":
-        # Staff see tickets assigned to them
-        conditions.append("assigned_to = ?")
+        # Staff see tickets where they appear in ticket_assignees
+        conditions.append(
+            "id IN (SELECT ticket_id FROM ticket_assignees WHERE username = ?)"
+        )
         params.append(username)
     else:
         # admin/operator — full access with optional filters
@@ -89,12 +147,11 @@ def list_tickets():
             conditions.append("namespace = ?")
             params.append(ns_filter)
         if assigned_filter:
-            if assigned_filter == "me":
-                conditions.append("assigned_to = ?")
-                params.append(username)
-            else:
-                conditions.append("assigned_to = ?")
-                params.append(assigned_filter)
+            target = username if assigned_filter == "me" else assigned_filter
+            conditions.append(
+                "id IN (SELECT ticket_id FROM ticket_assignees WHERE username = ?)"
+            )
+            params.append(target)
 
     if status_filter and status_filter in VALID_STATUSES:
         conditions.append("status = ?")
@@ -106,14 +163,18 @@ def list_tickets():
         except ValueError:
             pass
 
-    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
-    sql = f"SELECT * FROM tickets {where} ORDER BY created_at DESC LIMIT ? OFFSET ?"
+    where  = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+    sql    = f"SELECT * FROM tickets {where} ORDER BY created_at DESC LIMIT ? OFFSET ?"
     params += [limit, offset]
 
     with get_db() as conn:
         rows = conn.execute(sql, params).fetchall()
+        result = []
+        for row in rows:
+            assignees = _get_assignees(row["id"], conn)
+            result.append(_ticket_dict(row, assignees))
 
-    return jsonify([_ticket_dict(r) for r in rows])
+    return jsonify(result)
 
 
 # ── Create ─────────────────────────────────────────────────────────────────────
@@ -121,11 +182,11 @@ def list_tickets():
 @tickets_bp.post("")
 @require_auth
 def create_ticket():
-    body = request.get_json(silent=True) or {}
-    title = (body.get("title") or "").strip()
+    body        = request.get_json(silent=True) or {}
+    title       = (body.get("title") or "").strip()
     description = (body.get("description") or "").strip()
-    category = body.get("category", "other")
-    priority = body.get("priority", 3)
+    category    = body.get("category", "other")
+    priority    = body.get("priority", 3)
 
     if not title or not description:
         return jsonify({"error": "title and description required"}), 422
@@ -138,11 +199,10 @@ def create_ticket():
     except (ValueError, TypeError):
         priority = 3
 
-    # Namespace: clients/viewers locked to own; others supply or default to global
     ns = effective_namespace(body.get("namespace")) or g.user_namespace or "global"
 
     ticket_id = new_id()
-    now = utcnow_str()
+    now       = utcnow_str()
 
     with get_db() as conn:
         conn.execute(
@@ -153,20 +213,11 @@ def create_ticket():
         )
 
     return jsonify({
-        "id": ticket_id,
-        "namespace": ns,
-        "created_by": g.username,
-        "title": title,
-        "description": description,
-        "status": "open",
-        "category": category,
-        "priority": priority,
-        "sla_tier": None,
-        "sla_due_at": None,
-        "assigned_to": None,
-        "resolution": None,
-        "created_at": now,
-        "updated_at": now,
+        "id": ticket_id, "namespace": ns, "created_by": g.username,
+        "title": title, "description": description, "status": "open",
+        "category": category, "priority": priority, "sla_tier": None,
+        "sla_due_at": None, "assigned_to": None, "assignees": [],
+        "resolution": None, "created_at": now, "updated_at": now,
     }), 201
 
 
@@ -194,26 +245,38 @@ def update_ticket(ticket_id: str):
     if not _can_access_ticket(ticket):
         return jsonify({"error": "Access denied"}), 403
 
-    body = request.get_json(silent=True) or {}
-    role = g.user_role
-    sets = []
-    params: list = []
+    body    = request.get_json(silent=True) or {}
+    role    = g.user_role
+    sets: list[str] = []
+    params: list    = []
 
     if role in ("client", "viewer"):
-        # Clients may only update description if ticket is still open
-        if ticket["status"] != "open":
-            return jsonify({"error": "Cannot edit a ticket that is not open"}), 403
+        if ticket["status"] not in ("open", "assigned"):
+            return jsonify({"error": "Cannot edit ticket in current status"}), 403
         if "description" in body:
             sets.append("description = ?")
             params.append(body["description"])
+
     elif role == "staff":
-        # Staff: status, resolution
-        if "status" in body and body["status"] in VALID_STATUSES:
+        # Staff/assignee: forward-only status transitions + resolution
+        if "status" in body:
+            new_status = body["status"]
+            current    = ticket["status"]
+            allowed    = ALLOWED_TRANSITIONS.get(current, set())
+            is_assignee = g.username in ticket.get("assignees", [])
+            if not is_assignee:
+                return jsonify({"error": "You are not assigned to this ticket"}), 403
+            if new_status not in allowed:
+                return jsonify({
+                    "error": f"Cannot transition from '{current}' to '{new_status}'",
+                    "allowed": sorted(allowed),
+                }), 422
             sets.append("status = ?")
-            params.append(body["status"])
+            params.append(new_status)
         if "resolution" in body:
             sets.append("resolution = ?")
             params.append(body["resolution"])
+
     else:
         # admin/operator: all fields
         if "title" in body:
@@ -263,11 +326,162 @@ def update_ticket(ticket_id: str):
     params.append(ticket_id)
 
     with get_db() as conn:
-        conn.execute(
-            f"UPDATE tickets SET {', '.join(sets)} WHERE id = ?", params
-        )
+        conn.execute(f"UPDATE tickets SET {', '.join(sets)} WHERE id = ?", params)
 
     return jsonify(_get_ticket_by_id(ticket_id))
+
+
+# ── Self-assign ────────────────────────────────────────────────────────────────
+
+@tickets_bp.post("/<ticket_id>/assign-me")
+@require_auth
+def assign_me(ticket_id: str):
+    """Any staff/admin/operator can claim a ticket for themselves."""
+    if g.user_role not in STAFF_ROLES:
+        return jsonify({"error": "Staff or admin role required"}), 403
+
+    ticket = _get_ticket_by_id(ticket_id)
+    if not ticket:
+        return jsonify({"error": "Ticket not found"}), 404
+    if ticket["status"] == "closed":
+        return jsonify({"error": "Cannot assign a closed ticket"}), 422
+
+    now = utcnow_str()
+    with get_db() as conn:
+        # Add to assignees (ignore if already there)
+        try:
+            conn.execute(
+                "INSERT OR IGNORE INTO ticket_assignees (id, ticket_id, username, assigned_at, assigned_by) VALUES (?, ?, ?, ?, ?)",
+                (new_id(), ticket_id, g.username, now, g.username),
+            )
+        except Exception:
+            pass
+
+        # Set primary assigned_to if unset
+        if not ticket.get("assigned_to"):
+            conn.execute(
+                "UPDATE tickets SET assigned_to = ?, updated_at = ? WHERE id = ?",
+                (g.username, now, ticket_id),
+            )
+
+        # Auto-advance status: open → assigned
+        if ticket["status"] == "open":
+            conn.execute(
+                "UPDATE tickets SET status = 'assigned', updated_at = ? WHERE id = ?",
+                (now, ticket_id),
+            )
+
+    return jsonify(_get_ticket_by_id(ticket_id))
+
+
+# ── Multi-assignee management ──────────────────────────────────────────────────
+
+@tickets_bp.get("/<ticket_id>/assignees")
+@require_auth
+def list_assignees(ticket_id: str):
+    ticket = _get_ticket_by_id(ticket_id)
+    if not ticket:
+        return jsonify({"error": "Ticket not found"}), 404
+    if not _can_access_ticket(ticket):
+        return jsonify({"error": "Access denied"}), 403
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM ticket_assignees WHERE ticket_id = ? ORDER BY assigned_at ASC",
+            (ticket_id,),
+        ).fetchall()
+    return jsonify([{
+        "username":    r["username"],
+        "assigned_at": r["assigned_at"],
+        "assigned_by": r["assigned_by"],
+    } for r in rows])
+
+
+@tickets_bp.post("/<ticket_id>/assignees")
+@require_auth
+def add_assignees(ticket_id: str):
+    """Admin/operator assigns one or more users to a ticket."""
+    if g.user_role not in ("admin", "operator"):
+        return jsonify({"error": "Admin or operator required"}), 403
+
+    ticket = _get_ticket_by_id(ticket_id)
+    if not ticket:
+        return jsonify({"error": "Ticket not found"}), 404
+    if ticket["status"] == "closed":
+        return jsonify({"error": "Cannot assign to a closed ticket"}), 422
+
+    body      = request.get_json(silent=True) or {}
+    usernames = body.get("usernames") or []
+    if isinstance(usernames, str):
+        usernames = [usernames]
+    usernames = [u.strip() for u in usernames if u and u.strip()]
+    if not usernames:
+        return jsonify({"error": "usernames list required"}), 422
+
+    now   = utcnow_str()
+    added = []
+    with get_db() as conn:
+        for uname in usernames:
+            # Verify user exists
+            exists = conn.execute(
+                "SELECT 1 FROM users WHERE username = ? AND is_active = 1", (uname,)
+            ).fetchone()
+            if not exists:
+                continue
+            try:
+                conn.execute(
+                    "INSERT OR IGNORE INTO ticket_assignees (id, ticket_id, username, assigned_at, assigned_by) VALUES (?, ?, ?, ?, ?)",
+                    (new_id(), ticket_id, uname, now, g.username),
+                )
+                added.append(uname)
+            except Exception:
+                pass
+
+        # Set primary assigned_to if unset and we added someone
+        if added and not ticket.get("assigned_to"):
+            conn.execute(
+                "UPDATE tickets SET assigned_to = ?, updated_at = ? WHERE id = ?",
+                (added[0], now, ticket_id),
+            )
+        # Auto-advance status: open → assigned
+        if added and ticket["status"] == "open":
+            conn.execute(
+                "UPDATE tickets SET status = 'assigned', updated_at = ? WHERE id = ?",
+                (now, ticket_id),
+            )
+
+    return jsonify({"added": added, "ticket": _get_ticket_by_id(ticket_id)})
+
+
+@tickets_bp.delete("/<ticket_id>/assignees/<username>")
+@require_auth
+def remove_assignee(ticket_id: str, username: str):
+    """Admin/operator removes a specific assignee."""
+    if g.user_role not in ("admin", "operator"):
+        return jsonify({"error": "Admin or operator required"}), 403
+
+    ticket = _get_ticket_by_id(ticket_id)
+    if not ticket:
+        return jsonify({"error": "Ticket not found"}), 404
+
+    now = utcnow_str()
+    with get_db() as conn:
+        conn.execute(
+            "DELETE FROM ticket_assignees WHERE ticket_id = ? AND username = ?",
+            (ticket_id, username),
+        )
+        # If primary assigned_to was this user, reset to next assignee or null
+        if ticket.get("assigned_to") == username:
+            remaining = conn.execute(
+                "SELECT username FROM ticket_assignees WHERE ticket_id = ? ORDER BY assigned_at ASC LIMIT 1",
+                (ticket_id,),
+            ).fetchone()
+            new_primary = remaining["username"] if remaining else None
+            conn.execute(
+                "UPDATE tickets SET assigned_to = ?, updated_at = ? WHERE id = ?",
+                (new_primary, now, ticket_id),
+            )
+
+    return jsonify({"removed": username, "ticket": _get_ticket_by_id(ticket_id)})
 
 
 # ── Delete ─────────────────────────────────────────────────────────────────────
@@ -300,11 +514,8 @@ def list_comments(ticket_id: str):
             (ticket_id,),
         ).fetchall()
     return jsonify([{
-        "id": r["id"],
-        "ticket_id": r["ticket_id"],
-        "author": r["author"],
-        "body": r["body"],
-        "created_at": r["created_at"],
+        "id": r["id"], "ticket_id": r["ticket_id"],
+        "author": r["author"], "body": r["body"], "created_at": r["created_at"],
     } for r in rows])
 
 
@@ -328,7 +539,6 @@ def add_comment(ticket_id: str):
             "INSERT INTO ticket_comments (id, ticket_id, author, body, created_at) VALUES (?, ?, ?, ?, ?)",
             (cid, ticket_id, g.username, body, now),
         )
-
     return jsonify({"id": cid, "ticket_id": ticket_id, "author": g.username, "body": body, "created_at": now}), 201
 
 
@@ -342,28 +552,24 @@ def ticket_stats():
 
     now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     with get_db() as conn:
-        by_status = conn.execute(
-            "SELECT status, COUNT(*) as cnt FROM tickets GROUP BY status"
-        ).fetchall()
-        by_priority = conn.execute(
-            "SELECT priority, COUNT(*) as cnt FROM tickets GROUP BY priority"
-        ).fetchall()
+        by_status   = conn.execute("SELECT status, COUNT(*) as cnt FROM tickets GROUP BY status").fetchall()
+        by_priority = conn.execute("SELECT priority, COUNT(*) as cnt FROM tickets GROUP BY priority").fetchall()
         sla_breached = conn.execute(
-            "SELECT COUNT(*) as cnt FROM tickets WHERE sla_due_at IS NOT NULL AND sla_due_at < ? AND status NOT IN ('resolved','closed')",
+            "SELECT COUNT(*) as cnt FROM tickets WHERE sla_due_at IS NOT NULL AND sla_due_at < ? AND status NOT IN ('completed','closed')",
             (now_str,),
         ).fetchone()
         by_ns = conn.execute(
             "SELECT namespace, COUNT(*) as cnt FROM tickets GROUP BY namespace ORDER BY cnt DESC"
         ).fetchall()
         unassigned = conn.execute(
-            "SELECT COUNT(*) as cnt FROM tickets WHERE assigned_to IS NULL AND status NOT IN ('resolved','closed')"
+            "SELECT COUNT(*) as cnt FROM tickets WHERE assigned_to IS NULL AND status NOT IN ('completed','closed')"
         ).fetchone()
 
     return jsonify({
-        "by_status": {r["status"]: r["cnt"] for r in by_status},
-        "by_priority": {r["priority"]: r["cnt"] for r in by_priority},
-        "sla_breached": sla_breached["cnt"] if sla_breached else 0,
-        "by_namespace": {r["namespace"]: r["cnt"] for r in by_ns},
+        "by_status":      {r["status"]: r["cnt"] for r in by_status},
+        "by_priority":    {r["priority"]: r["cnt"] for r in by_priority},
+        "sla_breached":   sla_breached["cnt"] if sla_breached else 0,
+        "by_namespace":   {r["namespace"]: r["cnt"] for r in by_ns},
         "unassigned_open": unassigned["cnt"] if unassigned else 0,
     })
 

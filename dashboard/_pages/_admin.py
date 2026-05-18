@@ -1,9 +1,17 @@
 """Admin page — user management, API keys, audit log, sessions, security."""
+import requests as _req
 import streamlit as st
 from dashboard.components.brand import aurora_hero, badge
 
+_API_BASE = "http://localhost:5000/api/v1"
 
-def render(api_get, api_post):
+
+def _auth_headers() -> dict:
+    token = st.session_state.get("jwt_token", "")
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
+def render(api_get, api_post, bulk_delete=None):
     if st.session_state.get("user_role") != "admin":
         st.error("Admin access only.")
         return
@@ -41,14 +49,14 @@ def _render_users(api_get, api_post):
         rows = []
         for u in users:
             rows.append({
-                "Username": u.get("username", ""),
-                "Role": u.get("role", ""),
-                "Namespace": u.get("namespace") or "—",
-                "Active": "✅" if u.get("is_active") else "❌",
+                "Username":   u.get("username", ""),
+                "Role":       u.get("role", ""),
+                "Namespace":  u.get("namespace") or "—",
+                "Active":     "✅" if u.get("is_active") else "❌",
                 "Pwd Change": "⚠️ Required" if u.get("must_change_password") else "✅ Set",
-                "Locked": "🔒" if u.get("locked_until") else "—",
+                "Locked":     "🔒" if u.get("locked_until") else "—",
                 "Last Login": (u.get("last_login_at") or "Never")[:16],
-                "Created": (u.get("created_at") or "")[:10],
+                "Created":    (u.get("created_at") or "")[:10],
             })
         st.dataframe(rows, use_container_width=True)
     else:
@@ -56,53 +64,72 @@ def _render_users(api_get, api_post):
 
     st.markdown("---")
 
-    # Per-user actions
     if users:
         user_names = [u["username"] for u in users]
-        sel_username = st.selectbox("Select user for actions", user_names, key="admin_sel_user")
-        sel_user = next((u for u in users if u["username"] == sel_username), None)
+        sel_usernames = st.multiselect("Select user(s) for actions", user_names, key="admin_sel_users")
 
-        if sel_user:
-            uid = sel_user["id"]
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                if st.button("Unlock account", key=f"unlock_{uid}", use_container_width=True):
-                    r = api_post(f"/admin/users/{uid}/unlock", {})
-                    st.success("Unlocked." if r else "Failed.")
+        if len(sel_usernames) >= 2:
+            # ── Bulk actions ──
+            sel_users = [u for u in users if u["username"] in sel_usernames]
+            sel_uids  = [u["id"] for u in sel_users]
+            st.caption(f"{len(sel_usernames)} users selected")
+            if st.button(f"Deactivate {len(sel_usernames)} users", key="bulk_deact_users"):
+                st.session_state["bulk_confirm_users"] = True
+            if st.session_state.get("bulk_confirm_users"):
+                st.warning(f"Deactivate {len(sel_usernames)} accounts? This cannot be undone.")
+                c1, c2 = st.columns(2)
+                if c1.button("Yes, deactivate all", key="bulk_users_yes"):
+                    _req.delete(
+                        f"{_API_BASE}/admin/users/bulk",
+                        json={"ids": sel_uids},
+                        headers=_auth_headers(), timeout=10,
+                    )
+                    st.session_state.pop("bulk_confirm_users", None)
+                    st.success("Deactivated.")
                     st.rerun()
-            with col2:
-                if sel_user.get("is_active"):
-                    if st.button("Deactivate", key=f"deact_{uid}", use_container_width=True):
-                        import os, requests as _req
-                        _req.delete(
-                            f"http://localhost:5000/api/v1/admin/users/{uid}",
-                            headers={"Authorization": f"Bearer {st.session_state.get('jwt_token','')}"},
-                            timeout=5,
-                        )
-                        st.success("Deactivated.")
+                if c2.button("Cancel", key="bulk_users_cancel"):
+                    st.session_state.pop("bulk_confirm_users", None)
+                    st.rerun()
+
+        elif len(sel_usernames) == 1:
+            # ── Single-user actions ──
+            sel_user = next((u for u in users if u["username"] == sel_usernames[0]), None)
+            if sel_user:
+                uid = sel_user["id"]
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    if st.button("Unlock account", key=f"unlock_{uid}", use_container_width=True):
+                        r = api_post(f"/admin/users/{uid}/unlock", {})
+                        st.success("Unlocked." if r else "Failed.")
                         st.rerun()
-                else:
-                    if st.button("Reactivate", key=f"react_{uid}", use_container_width=True):
-                        api_post(f"/admin/users/{uid}", {"is_active": True}, method="PATCH")
-                        st.success("Reactivated.")
-                        st.rerun()
-            with col3:
-                with st.expander("Reset password"):
-                    new_pw = st.text_input("New password", type="password", key=f"rpw_{uid}")
-                    if st.button("Reset", key=f"rset_{uid}"):
-                        r = api_post(f"/admin/users/{uid}/reset-password", {"new_password": new_pw})
-                        st.success("Password reset." if r else "Failed (check strength).")
+                with col2:
+                    if sel_user.get("is_active"):
+                        if st.button("Deactivate", key=f"deact_{uid}", use_container_width=True):
+                            _req.delete(
+                                f"{_API_BASE}/admin/users/{uid}",
+                                headers=_auth_headers(), timeout=5,
+                            )
+                            st.success("Deactivated.")
+                            st.rerun()
+                    else:
+                        if st.button("Reactivate", key=f"react_{uid}", use_container_width=True):
+                            api_post(f"/admin/users/{uid}", {"is_active": True}, method="PATCH")
+                            st.success("Reactivated.")
+                            st.rerun()
+                with col3:
+                    with st.expander("Reset password"):
+                        new_pw = st.text_input("New password", type="password", key=f"rpw_{uid}")
+                        if st.button("Reset", key=f"rset_{uid}"):
+                            r = api_post(f"/admin/users/{uid}/reset-password", {"new_password": new_pw})
+                            st.success("Password reset." if r else "Failed (check strength).")
 
     st.markdown("---")
 
-    # Create user
     with st.expander("➕ Create User"):
         _create_user_form(api_get, api_post)
 
 
 def _create_user_form(api_get, api_post):
-    import requests as _req
-
     st.caption(
         "Password rules: **min 10 chars · uppercase · lowercase · digit**. "
         "User will be forced to change password on first login."
@@ -118,7 +145,7 @@ def _create_user_form(api_get, api_post):
         new_password2 = st.text_input("Confirm password", type="password", key="nu_pw2")
         ns_data = api_get("/namespaces") or []
         ns_opts = ["(none)"] + [n["slug"] for n in ns_data]
-        new_ns = st.selectbox("Namespace", ns_opts, key="nu_ns")
+        new_ns  = st.selectbox("Namespace", ns_opts, key="nu_ns")
 
     if st.button("Create User", type="primary", use_container_width=True, key="nu_btn"):
         if not new_username or not new_password:
@@ -127,26 +154,21 @@ def _create_user_form(api_get, api_post):
             st.error("Passwords do not match.")
         else:
             payload = {
-                "username": new_username,
-                "password": new_password,
-                "role": new_role,
-                "email": new_email or None,
+                "username": new_username, "password": new_password,
+                "role": new_role, "email": new_email or None,
                 "namespace": None if new_ns == "(none)" else new_ns,
-                "must_change_password": True,  # always forced for admin-created accounts
+                "must_change_password": True,
             }
             try:
                 r = _req.post(
-                    "http://localhost:5000/api/v1/admin/users",
-                    json=payload,
-                    headers={"Authorization": f"Bearer {st.session_state.get('jwt_token','')}"},
-                    timeout=5,
+                    f"{_API_BASE}/admin/users",
+                    json=payload, headers=_auth_headers(), timeout=5,
                 )
                 if r.status_code == 201:
                     st.success(f"User `{new_username}` created. They must change password on first login.")
                     st.rerun()
                 else:
-                    err = r.json().get("error", f"HTTP {r.status_code}")
-                    st.error(f"Failed: {err}")
+                    st.error(f"Failed: {r.json().get('error', f'HTTP {r.status_code}')}")
             except Exception as e:
                 st.error(f"Cannot reach API: {e}")
 
@@ -159,29 +181,40 @@ def _render_api_keys(api_get, api_post):
     keys = api_get("/admin/api-keys") or []
     if keys:
         rows = [{
-            "ID": k["id"][:8] + "...",
-            "Name": k.get("name", ""),
-            "Namespace": k.get("namespace", "global"),
+            "ID":          k["id"][:8] + "...",
+            "Name":        k.get("name", ""),
+            "Namespace":   k.get("namespace", "global"),
             "Permissions": ", ".join(k.get("permissions") if isinstance(k.get("permissions"), list) else ["?"]),
-            "Last Used": (k.get("last_used") or "Never")[:16],
-            "Created": (k.get("created_at") or "")[:10],
+            "Last Used":   (k.get("last_used") or "Never")[:16],
+            "Created":     (k.get("created_at") or "")[:10],
         } for k in keys]
         st.dataframe(rows, use_container_width=True)
 
-        # Revoke
-        key_ids = [k["id"] for k in keys]
+        key_ids    = [k["id"] for k in keys]
         key_labels = [f"{k['name']} ({k['id'][:8]})" for k in keys]
-        sel_label = st.selectbox("Select key to revoke", key_labels, key="sel_key_revoke")
-        sel_idx = key_labels.index(sel_label)
-        if st.button("Revoke selected key", key="revoke_key_btn"):
-            import requests as _req
-            _req.delete(
-                f"http://localhost:5000/api/v1/admin/api-keys/{key_ids[sel_idx]}",
-                headers={"Authorization": f"Bearer {st.session_state.get('jwt_token','')}"},
-                timeout=5,
-            )
-            st.success("Key revoked.")
-            st.rerun()
+
+        sel_labels = st.multiselect("Select key(s) to revoke", key_labels, key="sel_keys_revoke")
+        if sel_labels:
+            sel_indices = [key_labels.index(l) for l in sel_labels]
+            sel_key_ids = [key_ids[i] for i in sel_indices]
+            verb = f"Revoke {len(sel_labels)} key(s)"
+            if st.button(verb, key="revoke_keys_btn"):
+                st.session_state["bulk_confirm_keys"] = True
+            if st.session_state.get("bulk_confirm_keys"):
+                st.warning(f"Permanently revoke {len(sel_labels)} key(s)?")
+                c1, c2 = st.columns(2)
+                if c1.button("Yes, revoke all", key="bulk_keys_yes"):
+                    _req.delete(
+                        f"{_API_BASE}/admin/api-keys/bulk",
+                        json={"ids": sel_key_ids},
+                        headers=_auth_headers(), timeout=10,
+                    )
+                    st.session_state.pop("bulk_confirm_keys", None)
+                    st.success("Revoked.")
+                    st.rerun()
+                if c2.button("Cancel", key="bulk_keys_cancel"):
+                    st.session_state.pop("bulk_confirm_keys", None)
+                    st.rerun()
     else:
         st.info("No API keys.")
 
@@ -230,10 +263,10 @@ def _render_audit(api_get):
     events = api_get(url) or []
     if events:
         rows = [{
-            "Time": (e.get("created_at") or "")[:16],
-            "Event": e.get("event_type", ""),
-            "Username": e.get("username") or "—",
-            "IP": e.get("ip_address") or "—",
+            "Time":      (e.get("created_at") or "")[:16],
+            "Event":     e.get("event_type", ""),
+            "Username":  e.get("username") or "—",
+            "IP":        e.get("ip_address") or "—",
             "Namespace": e.get("namespace") or "—",
         } for e in events]
         st.dataframe(rows, use_container_width=True)
@@ -249,27 +282,41 @@ def _render_sessions(api_get, api_post):
     sessions = api_get("/admin/sessions") or []
     if sessions:
         rows = [{
-            "ID": s["id"][:8] + "...",
-            "User": s.get("username", ""),
-            "IP": s.get("ip_address") or "—",
-            "Created": (s.get("created_at") or "")[:16],
+            "ID":        s["id"][:8] + "...",
+            "User":      s.get("username", ""),
+            "IP":        s.get("ip_address") or "—",
+            "Created":   (s.get("created_at") or "")[:16],
             "Last Used": (s.get("last_used_at") or "")[:16],
-            "Expires": (s.get("expires_at") or "")[:16],
+            "Expires":   (s.get("expires_at") or "")[:16],
         } for s in sessions]
         st.dataframe(rows, use_container_width=True)
 
-        sess_labels = [f"{s.get('username','')} — {s['id'][:8]} ({(s.get('ip_address') or 'no IP')})" for s in sessions]
-        sel_label = st.selectbox("Select session to revoke", sess_labels, key="sel_sess")
-        sel_idx = sess_labels.index(sel_label)
-        if st.button("Revoke session", key="revoke_sess_btn"):
-            import requests as _req
-            _req.delete(
-                f"http://localhost:5000/api/v1/admin/sessions/{sessions[sel_idx]['id']}",
-                headers={"Authorization": f"Bearer {st.session_state.get('jwt_token','')}"},
-                timeout=5,
-            )
-            st.success("Session revoked.")
-            st.rerun()
+        sess_labels = [
+            f"{s.get('username','')} — {s['id'][:8]} ({s.get('ip_address') or 'no IP'})"
+            for s in sessions
+        ]
+        sel_sess_labels = st.multiselect("Select session(s) to revoke", sess_labels, key="sel_sess_multi")
+        if sel_sess_labels:
+            sel_indices = [sess_labels.index(l) for l in sel_sess_labels]
+            sel_sess_ids = [sessions[i]["id"] for i in sel_indices]
+            verb = f"Revoke {len(sel_sess_labels)} session(s)"
+            if st.button(verb, key="revoke_sess_btn"):
+                st.session_state["bulk_confirm_sess"] = True
+            if st.session_state.get("bulk_confirm_sess"):
+                st.warning(f"Revoke {len(sel_sess_labels)} session(s)?")
+                c1, c2 = st.columns(2)
+                if c1.button("Yes, revoke all", key="bulk_sess_yes"):
+                    _req.delete(
+                        f"{_API_BASE}/admin/sessions/bulk",
+                        json={"ids": sel_sess_ids},
+                        headers=_auth_headers(), timeout=10,
+                    )
+                    st.session_state.pop("bulk_confirm_sess", None)
+                    st.success("Revoked.")
+                    st.rerun()
+                if c2.button("Cancel", key="bulk_sess_cancel"):
+                    st.session_state.pop("bulk_confirm_sess", None)
+                    st.rerun()
     else:
         st.info("No active sessions.")
 
@@ -301,9 +348,9 @@ def _render_security(api_get, api_post):
     if st.button("Save Security Settings", type="primary", use_container_width=True, key="sec_save"):
         r = api_post("/admin/security-settings", {
             "max_failed_attempts": max_attempts,
-            "lockout_minutes": lockout_mins,
+            "lockout_minutes":     lockout_mins,
             "access_token_minutes": token_mins,
-            "refresh_token_days": refresh_days,
+            "refresh_token_days":  refresh_days,
             "allow_self_register": "1" if allow_register else "0",
         }, method="PATCH")
         if r:

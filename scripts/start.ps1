@@ -35,11 +35,7 @@ foreach ($port in @($FLASK_PORT, $STREAMLIT_PORT)) {
 
 Start-Sleep 1
 
-# Run migrations
-Write-Host "Running migrations..." -ForegroundColor Cyan
-Set-Location $ROOT
-python scripts\migrate.py
-if ($LASTEXITCODE -ne 0) { Write-Host "Migration failed." -ForegroundColor Red; exit 1 }
+# Migrations run automatically inside Flask create_app() — no separate step needed.
 
 # Start Flask API via waitress in background
 Write-Host "Starting API on :$FLASK_PORT ..." -ForegroundColor Cyan
@@ -51,16 +47,17 @@ $apiJob = Start-Job -ScriptBlock {
 
 # Wait for API with retries
 $apiReady = $false
-for ($i = 1; $i -le 10; $i++) {
-    Start-Sleep 2
+Start-Sleep 1
+for ($i = 1; $i -le 15; $i++) {
     try {
-        $health = Invoke-RestMethod -Uri "http://localhost:$FLASK_PORT/api/v1/health" -TimeoutSec 3
+        $health = Invoke-RestMethod -Uri "http://localhost:$FLASK_PORT/api/v1/health" -TimeoutSec 2
         if ($health.status -eq "ok") {
             Write-Host "  API: RUNNING on :$FLASK_PORT  (v$($health.version))" -ForegroundColor Green
             $apiReady = $true
             break
         }
     } catch {}
+    Start-Sleep 1
 }
 if (-not $apiReady) {
     Write-Host "  API: FAILED to start - check logs/api.log" -ForegroundColor Red

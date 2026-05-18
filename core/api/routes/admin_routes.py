@@ -109,6 +109,27 @@ def deactivate_user(user_id: str):
     return jsonify({"deactivated": user_id})
 
 
+@admin_bp.delete("/users/bulk")
+@require_auth
+@require_role("admin")
+def bulk_deactivate_users():
+    ids = (request.get_json(silent=True) or {}).get("ids") or []
+    if not isinstance(ids, list) or not ids:
+        return jsonify({"error": "ids list required"}), 422
+    safe = [i for i in ids if i != g.user_id]
+    if not safe:
+        return jsonify({"error": "Cannot deactivate your own account"}), 400
+    placeholders = ",".join("?" * len(safe))
+    with get_db() as conn:
+        rows = conn.execute(
+            f"UPDATE users SET is_active=0, updated_at=CURRENT_TIMESTAMP WHERE id IN ({placeholders}) RETURNING id",
+            safe,
+        ).fetchall()
+    deactivated = [r["id"] for r in rows]
+    audit_log("bulk_users_deactivated", user_id=g.user_id, username=g.username, detail={"targets": deactivated})
+    return jsonify({"deactivated": deactivated, "count": len(deactivated)})
+
+
 @admin_bp.post("/users/<user_id>/unlock")
 @require_auth
 @require_role("admin")
@@ -203,6 +224,19 @@ def delete_session(session_id: str):
     return jsonify({"revoked": session_id})
 
 
+@admin_bp.delete("/sessions/bulk")
+@require_auth
+@require_role("admin")
+def bulk_revoke_sessions():
+    ids = (request.get_json(silent=True) or {}).get("ids") or []
+    if not isinstance(ids, list) or not ids:
+        return jsonify({"error": "ids list required"}), 422
+    for sid in ids:
+        revoke_session(sid)
+        audit_log("session_revoked", user_id=g.user_id, username=g.username, detail={"session": sid})
+    return jsonify({"revoked": ids, "count": len(ids)})
+
+
 # ── API Keys ──────────────────────────────────────────────────────────────────
 
 @admin_bp.get("/api-keys")
@@ -233,6 +267,23 @@ def create_api_key():
     audit_log("api_key_created", user_id=g.user_id, username=g.username, namespace=namespace, detail={"name": name})
     return jsonify({"raw_key": raw_key, "id": key_id, "name": name, "namespace": namespace,
                     "permissions": permissions, "warning": "Copy this key — it will not be shown again"}), 201
+
+
+@admin_bp.delete("/api-keys/bulk")
+@require_auth
+@require_role("admin")
+def bulk_revoke_api_keys():
+    ids = (request.get_json(silent=True) or {}).get("ids") or []
+    if not isinstance(ids, list) or not ids:
+        return jsonify({"error": "ids list required"}), 422
+    placeholders = ",".join("?" * len(ids))
+    with get_db() as conn:
+        rows = conn.execute(
+            f"DELETE FROM api_keys WHERE id IN ({placeholders}) RETURNING id, name", ids
+        ).fetchall()
+    for r in rows:
+        audit_log("api_key_revoked", user_id=g.user_id, username=g.username, detail={"key_id": r["id"], "name": r["name"]})
+    return jsonify({"revoked": [r["id"] for r in rows], "count": len(rows)})
 
 
 @admin_bp.delete("/api-keys/<key_id>")

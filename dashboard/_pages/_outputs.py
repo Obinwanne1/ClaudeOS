@@ -9,6 +9,7 @@ def _auth_headers() -> dict:
     token = st.session_state.get("jwt_token", "")
     return {"Authorization": f"Bearer {token}"} if token else {}
 
+
 TYPE_ICONS = {
     "report": "📄",
     "draft": "✏️",
@@ -19,21 +20,58 @@ TYPE_ICONS = {
 }
 
 
-def render(api_get, api_post):
+def _bulk_toolbar(ids: list, label: str, bulk_delete_fn, endpoint: str):
+    """Select All / Clear All / Delete Selected toolbar."""
+    if not bulk_delete_fn:
+        return
+    selected = [i for i in ids if st.session_state.get(f"sel_{i}")]
+    slug = endpoint.replace("/", "_")
+    c1, c2, c3 = st.columns([1, 1, 2])
+    if c1.button("Select All", key=f"selall{slug}"):
+        for i in ids:
+            st.session_state[f"sel_{i}"] = True
+        st.rerun()
+    if c2.button("Clear All", key=f"clrall{slug}"):
+        for i in ids:
+            st.session_state[f"sel_{i}"] = False
+        st.rerun()
+    if selected:
+        c3.caption(f"{len(selected)} selected")
+        if c3.button(f"🗑 Delete {len(selected)} {label}", key=f"bulkdel{slug}"):
+            st.session_state[f"bulk_confirm{slug}"] = True
+
+    if st.session_state.get(f"bulk_confirm{slug}"):
+        st.warning(f"Permanently delete {len(selected)} {label}? Cannot be undone.")
+        ca, cb = st.columns(2)
+        if ca.button("Yes, delete all selected", key=f"bulkyes{slug}"):
+            result = bulk_delete_fn(endpoint, selected)
+            if result:
+                st.success(f"Deleted {result.get('count', len(selected))}.")
+            else:
+                st.error("Bulk delete failed — check API.")
+            for i in selected:
+                st.session_state.pop(f"sel_{i}", None)
+            st.session_state.pop(f"bulk_confirm{slug}", None)
+            st.rerun()
+        if cb.button("Cancel", key=f"bulkcancel{slug}"):
+            st.session_state.pop(f"bulk_confirm{slug}", None)
+            st.rerun()
+
+
+def render(api_get, api_post, bulk_delete=None):
     st.title("Output Manager")
 
     role = st.session_state.get("user_role", "admin")
     user_ns = st.session_state.get("user_namespace")
-    # Fetch namespace list once — passed to browse + search to avoid redundant calls
     if role in ("client", "viewer") and user_ns:
-        ns_data = []  # clients don't need the list — they're locked to their namespace
+        ns_data = []
     else:
         ns_data = api_get("/namespaces") or []
 
     tab_browse, tab_search, tab_stats = st.tabs(["Browse", "Search", "Stats"])
 
     with tab_browse:
-        _render_browse(api_get, api_post, ns_data)
+        _render_browse(api_get, api_post, ns_data, bulk_delete)
 
     with tab_search:
         _render_search(api_get, ns_data)
@@ -42,7 +80,7 @@ def render(api_get, api_post):
         _render_stats(api_get)
 
 
-def _render_browse(api_get, api_post, ns_data: list):
+def _render_browse(api_get, api_post, ns_data: list, bulk_delete=None):
     role = st.session_state.get("user_role", "admin")
     user_ns = st.session_state.get("user_namespace")
 
@@ -72,68 +110,74 @@ def _render_browse(api_get, api_post, ns_data: list):
         st.info("No outputs found.")
         return
 
+    all_ids = [out.get("id", "") for out in outputs]
     st.caption(f"{len(outputs)} outputs")
+    _bulk_toolbar(all_ids, "outputs", bulk_delete, "/outputs/bulk")
+    st.markdown("---")
 
     for out in outputs:
-        icon = TYPE_ICONS.get(out.get("output_type", ""), "•")
-        title = out.get("title", "Untitled")
-        ns = out.get("namespace", "global")
-        otype = out.get("output_type", "?")
+        icon    = TYPE_ICONS.get(out.get("output_type", ""), "•")
+        title   = out.get("title", "Untitled")
+        ns      = out.get("namespace", "global")
+        otype   = out.get("output_type", "?")
         created = (out.get("created_at") or "")[:10]
         size_kb = round(out.get("size_bytes", 0) / 1024, 1)
-        tags = out.get("tags") or []
+        tags    = out.get("tags") or []
         summary = out.get("summary") or ""
-        oid = out.get("id", "")
+        oid     = out.get("id", "")
 
-        with st.expander(f"{icon} **{title}** · `{ns}` · {created}"):
-            col_meta, col_actions = st.columns([3, 1])
-            with col_meta:
-                st.markdown(f"**Type:** `{otype}` · **Size:** {size_kb} KB")
-                if tags:
-                    tag_str = " ".join(f"`{t}`" for t in tags[:8])
-                    st.markdown(f"**Tags:** {tag_str}")
-                if summary:
-                    st.caption(summary)
+        col_check, col_card = st.columns([0.05, 0.95])
+        with col_check:
+            st.checkbox("", key=f"sel_{oid}", label_visibility="collapsed")
+        with col_card:
+            with st.expander(f"{icon} **{title}** · `{ns}` · {created}"):
+                col_meta, col_actions = st.columns([3, 1])
+                with col_meta:
+                    st.markdown(f"**Type:** `{otype}` · **Size:** {size_kb} KB")
+                    if tags:
+                        tag_str = " ".join(f"`{t}`" for t in tags[:8])
+                        st.markdown(f"**Tags:** {tag_str}")
+                    if summary:
+                        st.caption(summary)
 
-            with col_actions:
-                if st.button("View", key=f"view_{oid}", width='stretch'):
-                    st.session_state[f"show_content_{oid}"] = True
-                # Fetch export only on demand — avoids N HTTP calls per render
-                if st.button("⬇ Download MD", key=f"dl_btn_{oid}", width='stretch'):
-                    _r = requests.get(
-                        f"{_API_BASE}/outputs/{oid}/export?format=markdown",
-                        headers=_auth_headers(), timeout=5,
-                    )
-                    if _r.ok:
-                        fname = f"{title[:40].replace(' ','_')}.md"
-                        st.download_button("Save", data=_r.text, file_name=fname,
-                                           mime="text/markdown", key=f"dl_{oid}")
-                if st.button("🗑 Delete", key=f"del_{oid}", width='stretch'):
-                    st.session_state[f"confirm_delete_{oid}"] = True
+                with col_actions:
+                    if st.button("View", key=f"view_{oid}", width='stretch'):
+                        st.session_state[f"show_content_{oid}"] = True
+                    if st.button("⬇ Download MD", key=f"dl_btn_{oid}", width='stretch'):
+                        _r = requests.get(
+                            f"{_API_BASE}/outputs/{oid}/export?format=markdown",
+                            headers=_auth_headers(), timeout=5,
+                        )
+                        if _r.ok:
+                            fname = f"{title[:40].replace(' ','_')}.md"
+                            st.download_button("Save", data=_r.text, file_name=fname,
+                                               mime="text/markdown", key=f"dl_{oid}")
+                    if st.button("🗑 Delete", key=f"del_{oid}", width='stretch'):
+                        st.session_state[f"confirm_delete_{oid}"] = True
 
-            if st.session_state.get(f"confirm_delete_{oid}"):
-                st.warning("Confirm delete?")
-                c1, c2 = st.columns(2)
-                if c1.button("Yes, delete", key=f"yes_del_{oid}"):
-                    requests.delete(
-                        f"{_API_BASE}/outputs/{oid}",
-                        headers=_auth_headers(),
-                        timeout=5,
-                    )
-                    st.session_state.pop(f"confirm_delete_{oid}", None)
-                    st.rerun()
-                if c2.button("Cancel", key=f"cancel_del_{oid}"):
-                    st.session_state.pop(f"confirm_delete_{oid}", None)
-                    st.rerun()
+                if st.session_state.get(f"confirm_delete_{oid}"):
+                    st.warning("Confirm delete?")
+                    c1, c2 = st.columns(2)
+                    if c1.button("Yes, delete", key=f"yes_del_{oid}"):
+                        requests.delete(
+                            f"{_API_BASE}/outputs/{oid}",
+                            headers=_auth_headers(),
+                            timeout=5,
+                        )
+                        st.session_state.pop(f"confirm_delete_{oid}", None)
+                        st.rerun()
+                    if c2.button("Cancel", key=f"cancel_del_{oid}"):
+                        st.session_state.pop(f"confirm_delete_{oid}", None)
+                        st.rerun()
 
-            if st.session_state.get(f"show_content_{oid}"):
-                content_data = api_get(f"/outputs/{oid}")
-                if content_data:
-                    st.markdown("---")
-                    st.markdown(content_data.get("content", "*(no content)*"))
-                if st.button("Hide", key=f"hide_{oid}"):
-                    st.session_state.pop(f"show_content_{oid}", None)
-                    st.rerun()
+                if st.session_state.get(f"show_content_{oid}"):
+                    content_data = api_get(f"/outputs/{oid}")
+                    if content_data:
+                        st.markdown("---")
+                        st.markdown(content_data.get("content", "*(no content)*"))
+                    if st.button("Hide", key=f"hide_{oid}"):
+                        st.session_state.pop(f"show_content_{oid}", None)
+                        st.rerun()
 
 
 def _render_search(api_get, ns_data: list):
@@ -163,7 +207,7 @@ def _render_search(api_get, ns_data: list):
         else:
             st.caption(f"{len(results)} results")
             for r in results:
-                icon = TYPE_ICONS.get(r.get("output_type", ""), "•")
+                icon  = TYPE_ICONS.get(r.get("output_type", ""), "•")
                 score = abs(r.get("score", 0.0))
                 st.markdown(
                     f"{icon} **{r.get('title','?')}** · `{r.get('namespace','')}` · "
@@ -182,12 +226,12 @@ def _render_stats(api_get):
 
     col1, col2 = st.columns(2)
     with col1:
-        label = f"Namespace: `{user_ns}`" if is_scoped else "Global"
+        label     = f"Namespace: `{user_ns}`" if is_scoped else "Global"
         st.markdown(f"**{label}**")
         stats_url = f"/outputs/stats?namespace={user_ns}" if is_scoped else "/outputs/stats"
-        stats = api_get(stats_url) or {}
-        total = stats.get("total_count", 0)
-        total_kb = round(stats.get("total_bytes", 0) / 1024, 1)
+        stats     = api_get(stats_url) or {}
+        total     = stats.get("total_count", 0)
+        total_kb  = round(stats.get("total_bytes", 0) / 1024, 1)
         st.metric("Total Outputs", total)
         st.metric("Total Size", f"{total_kb} KB")
 
@@ -200,9 +244,8 @@ def _render_stats(api_get):
 
     with col2:
         if not is_scoped:
-            # Single aggregated call — avoids N per-namespace HTTP round-trips
             all_stats = api_get("/outputs/stats/all") or {}
-            by_ns = all_stats.get("by_namespace", {})
+            by_ns     = all_stats.get("by_namespace", {})
             if by_ns:
                 st.markdown("**By Namespace:**")
                 for slug, info in sorted(by_ns.items()):

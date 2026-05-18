@@ -123,6 +123,24 @@ def api_get_cached(path: str, timeout: int = 3) -> dict | None:
     return api_get(path, timeout)
 
 
+def bulk_delete(path: str, ids: list, timeout: int = 10) -> dict | None:
+    """DELETE with JSON body {"ids": [...]} for bulk endpoints."""
+    try:
+        r = requests.delete(
+            f"{API_BASE}{path}",
+            json={"ids": ids},
+            headers=_get_headers(),
+            timeout=timeout,
+        )
+        if r.status_code == 401:
+            _handle_401()
+        if r.ok:
+            return r.json()
+    except Exception:
+        pass
+    return None
+
+
 def api_post(path: str, data: dict, timeout: int = 5, method: str = "POST") -> dict | None:
     try:
         fn = {"POST": requests.post, "PATCH": requests.patch, "PUT": requests.put}.get(method, requests.post)
@@ -205,27 +223,33 @@ else:
 st.sidebar.markdown(f'<div style="color:{_tv["TEXT_MUTED"]};font-size:0.75rem;margin-top:4px;">{datetime.now().strftime("%a %d %b · %H:%M")}</div>', unsafe_allow_html=True)
 
 # ── Page dispatch ─────────────────────────────────────────────────────────────
-from dashboard._pages._overview  import render as _render_overview
-from dashboard._pages._agents    import render as _render_agents
-from dashboard._pages._memory    import render as _render_memory
-from dashboard._pages._workflows import render as _render_workflows
-from dashboard._pages._projects  import render as _render_projects
-from dashboard._pages._outputs   import render as _render_outputs
-from dashboard._pages._settings  import render as _render_settings
-from dashboard._pages._admin     import render as _render_admin
-from dashboard._pages._tickets   import render as _render_tickets
+# Lazy imports — only load the selected page module, not all 9 at once.
+# Saves ~2.7s on login page cold load and avoids importing heavy page deps early.
+import importlib
 
-_PAGE_DISPATCH = {
-    "Overview":  (_render_overview,  api_get_cached),
-    "Agents":    (_render_agents,    api_get),
-    "Memory":    (_render_memory,    api_get),
-    "Workflows": (_render_workflows, api_get),
-    "Projects":  (_render_projects,  api_get),
-    "Outputs":   (_render_outputs,   api_get_cached),
-    "Tickets":   (_render_tickets,   api_get),
-    "Settings":  (_render_settings,  api_get),
-    "Admin":     (_render_admin,     api_get),
+_PAGE_MODULES = {
+    "Overview":  "dashboard._pages._overview",
+    "Agents":    "dashboard._pages._agents",
+    "Memory":    "dashboard._pages._memory",
+    "Workflows": "dashboard._pages._workflows",
+    "Projects":  "dashboard._pages._projects",
+    "Outputs":   "dashboard._pages._outputs",
+    "Tickets":   "dashboard._pages._tickets",
+    "Settings":  "dashboard._pages._settings",
+    "Admin":     "dashboard._pages._admin",
 }
 
-_render_fn, _getter = _PAGE_DISPATCH[page]
-_render_fn(_getter, api_post)
+_PAGE_GETTERS = {
+    "Overview":  api_get_cached,
+    "Agents":    api_get,
+    "Memory":    api_get,
+    "Workflows": api_get,
+    "Projects":  api_get,
+    "Outputs":   api_get_cached,
+    "Tickets":   api_get,
+    "Settings":  api_get,
+    "Admin":     api_get,
+}
+
+_mod = importlib.import_module(_PAGE_MODULES[page])
+_mod.render(_PAGE_GETTERS[page], api_post, bulk_delete)

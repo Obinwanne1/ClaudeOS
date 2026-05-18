@@ -79,6 +79,18 @@ def write_memory():
     return jsonify(_entry_dict(entry)), 201
 
 
+@memory_bp.delete("/bulk")
+@require_auth
+def bulk_delete_memory():
+    ids = (request.get_json(silent=True) or {}).get("ids") or []
+    if not isinstance(ids, list) or not ids:
+        return jsonify({"error": "ids list required"}), 422
+    deleted, failed = [], []
+    for eid in ids:
+        (deleted if engine.delete(eid) else failed).append(eid)
+    return jsonify({"deleted": deleted, "failed": failed, "count": len(deleted)})
+
+
 @memory_bp.get("/<entry_id>")
 @require_auth
 def get_memory(entry_id: str):
