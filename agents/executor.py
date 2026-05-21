@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import time
 from datetime import datetime, timezone
 from typing import Optional
@@ -23,13 +24,16 @@ from memory import engine as memory_engine
 logger = logging.getLogger("claudeos.agents.executor")
 
 _client = None  # anthropic.Anthropic — lazy, avoids 4s import at startup
+_client_lock = threading.Lock()
 
 
 def _get_client():
     global _client
     if _client is None:
-        import anthropic  # deferred: ~4s import only on first agent call
-        _client = anthropic.Anthropic(api_key=get_settings().ANTHROPIC_API_KEY)
+        with _client_lock:
+            if _client is None:  # double-checked locking
+                import anthropic  # deferred: ~4s import only on first agent call
+                _client = anthropic.Anthropic(api_key=get_settings().ANTHROPIC_API_KEY)
     return _client
 
 
@@ -234,5 +238,5 @@ def _log_event(event_type: str, namespace: str, payload: dict) -> None:
                 "INSERT INTO system_events(id, event_type, namespace, payload) VALUES (?, ?, ?, ?)",
                 (new_id(), event_type, namespace, json.dumps(payload)),
             )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("_log_event failed (%s): %s", event_type, e)
