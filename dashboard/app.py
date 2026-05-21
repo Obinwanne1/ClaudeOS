@@ -29,6 +29,7 @@ if st.session_state.get("must_change_password"):
     render_change_password()
     st.stop()
 
+import logging
 import os
 import requests
 from datetime import datetime
@@ -37,7 +38,10 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
-API_BASE = "http://localhost:5000/api/v1"
+_FLASK_PORT = os.environ.get("FLASK_PORT", "5000")
+API_BASE = f"http://localhost:{_FLASK_PORT}/api/v1"
+
+logger = logging.getLogger("claudeos.dashboard")
 
 
 def _get_headers() -> dict:
@@ -74,8 +78,8 @@ def _maybe_refresh_token() -> None:
             )
             if r.ok:
                 st.session_state["jwt_token"] = r.json()["access_token"]
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Token refresh skipped: %s", e)
 
 
 _maybe_refresh_token()
@@ -93,8 +97,8 @@ def api_get(path: str, timeout: int = 3) -> dict | None:
             _handle_401()
         if r.ok:
             return r.json()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("api_get %s failed: %s", path, e)
     return None
 
 
@@ -150,8 +154,8 @@ def api_post(path: str, data: dict, timeout: int = 5, method: str = "POST") -> d
             _handle_401()
         if r.ok:
             return r.json()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("api_post %s failed: %s", path, e)
     return None
 
 
