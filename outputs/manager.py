@@ -186,6 +186,27 @@ def delete(output_id: str) -> bool:
     return True
 
 
+def delete_bulk(ids: list[str]) -> tuple[list[str], list[str]]:
+    """Delete multiple outputs in one DB transaction. Returns (deleted, failed)."""
+    if not ids:
+        return [], []
+    ph = ",".join("?" * len(ids))
+    with get_db() as conn:
+        rows = conn.execute(
+            f"DELETE FROM outputs WHERE id IN ({ph}) RETURNING id, file_path", ids
+        ).fetchall()
+    deleted = []
+    for row in rows:
+        if row["file_path"]:
+            try:
+                Path(row["file_path"]).unlink(missing_ok=True)
+            except Exception:
+                pass
+        deleted.append(row["id"])
+    failed = [i for i in ids if i not in set(deleted)]
+    return deleted, failed
+
+
 def export_text(output_id: str) -> Optional[str]:
     """Return raw content string."""
     out = get_by_id(output_id)

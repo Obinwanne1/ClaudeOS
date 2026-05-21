@@ -280,86 +280,6 @@ hr {{ border-color: {t['BORDER']} !important; }}
 ::-webkit-scrollbar-track {{ background: {t['BG']}; }}
 ::-webkit-scrollbar-thumb {{ background: {t['BORDER']}; border-radius: 3px; }}
 
-/* ── Aurora Background Animation ── */
-@keyframes aurora {{
-    from {{ background-position: 50% 50%, 50% 50%; }}
-    to   {{ background-position: 350% 50%, 350% 50%; }}
-}}
-
-/* Full-page aurora canvas — fixed behind all content */
-#aurora-canvas {{
-    position: fixed;
-    inset: -10px;
-    z-index: 0;
-    pointer-events: none;
-    overflow: hidden;
-}}
-
-#aurora-canvas .aurora-layer,
-#aurora-canvas .aurora-layer-after {{
-    position: absolute;
-    inset: 0;
-    background-size: 300%, 200%;
-    background-position: 50% 50%, 50% 50%;
-    will-change: transform;
-}}
-
-/* Primary sweep */
-#aurora-canvas .aurora-layer {{
-    background-image:
-        repeating-linear-gradient(100deg,
-            {t['BG']} 0%,
-            {t['BG']} 7%,
-            transparent 10%,
-            transparent 12%,
-            {t['BG']} 16%
-        ),
-        repeating-linear-gradient(100deg,
-            {PRIMARY}    10%,
-            {ACCENT}     15%,
-            {PRIMARY_LT} 20%,
-            #E8F5E8      25%,
-            {PRIMARY_DK} 30%
-        );
-    filter: blur(10px) {invert};
-    opacity: 0.45;
-    animation: aurora 60s linear infinite;
-    -webkit-mask-image: radial-gradient(ellipse at 100% 0%, black 10%, transparent 70%);
-    mask-image: radial-gradient(ellipse at 100% 0%, black 10%, transparent 70%);
-}}
-
-/* Secondary shimmer sweep */
-#aurora-canvas .aurora-layer-after {{
-    background-image:
-        repeating-linear-gradient(100deg,
-            {t['BG']} 0%,
-            {t['BG']} 7%,
-            transparent 10%,
-            transparent 12%,
-            {t['BG']} 16%
-        ),
-        repeating-linear-gradient(100deg,
-            {PRIMARY}    10%,
-            {ACCENT}     15%,
-            {PRIMARY_LT} 20%,
-            #E8F5E8      25%,
-            {PRIMARY_DK} 30%
-        );
-    background-size: 200%, 100%;
-    background-attachment: fixed;
-    animation: aurora 60s linear infinite reverse;
-    mix-blend-mode: {blend};
-    opacity: 0.25;
-    filter: blur(6px);
-}}
-
-/* Ensure all Streamlit content stacks above the aurora canvas */
-[data-testid="stAppViewContainer"],
-[data-testid="stAppViewBlockContainer"],
-section[data-testid="stSidebar"] {{
-    position: relative;
-    z-index: 1;
-}}
 
 /* ── aurora_hero() card (optional, used per-page) ── */
 .aurora-hero-card {{
@@ -369,7 +289,7 @@ section[data-testid="stSidebar"] {{
     margin-bottom: 1.5rem;
     border: 1px solid {t['BORDER']};
     background: {t['BG']}cc;
-    backdrop-filter: blur(4px);
+    background: {t['SURFACE']};
 }}
 
 .aurora-hero-content {{
@@ -546,10 +466,6 @@ div[data-testid="stToggle"] input:checked + span[data-testid="stToggleSlider"] {
     }}
 }}
 </style>
-<div id="aurora-canvas">
-  <div class="aurora-layer"></div>
-  <div class="aurora-layer-after"></div>
-</div>
 """
 
 
@@ -576,68 +492,71 @@ def sidebar_logo():
 
 
 def theme_toggle():
-    """Sidebar theme toggle — kept for backward compat but hidden when topbar toggle active."""
-    current = get_theme()
-    is_light = current == "light"
-    icon  = "☀️" if is_light else "🌙"
-    label = f"{icon}  {'Light Mode' if is_light else 'Dark Mode'}"
-    switched = st.sidebar.toggle(label, value=is_light, key="theme_toggle_v101")
-    if switched != is_light:
-        st.session_state.theme = "light" if switched else "dark"
-        st.rerun()
-
-
-def theme_toggle_topbar() -> None:
-    """Fixed-position Dark/Light toggle injected into the parent document via JS.
-
-    Uses a hidden Streamlit button as the real trigger so session state is preserved
-    across clicks (URL navigation resets the session; button click does not).
-    """
+    """Fixed-position circular icon toggle — dark navy sun (dark mode) / light gray moon (light mode)."""
     import streamlit.components.v1 as _components
 
-    # Hidden trigger — JS will find and click this button
-    # Plain text marker (no underscores — Streamlit renders __ as bold, stripping them)
     _MARKER = "COS-THEME-FLIP-TRIGGER"
     if st.button(_MARKER, key="_cos_theme_flip_btn"):
         current = get_theme()
         st.session_state.theme = "dark" if current == "light" else "light"
         st.rerun()
 
-    current  = get_theme()
-    t        = THEMES[current]
+    current = get_theme()
     is_dark  = current == "dark"
-    icon     = "🌙" if is_dark else "☀️"
-    label    = "Dark" if is_dark else "Light"
-    track_bg = "#407E3C" if is_dark else "#d1d5db"
-    thumb_l  = "14px"   if is_dark else "2px"
 
-    # Styles as single-line strings (no newlines inside JS template literals)
+    if is_dark:
+        btn_bg     = "#111827"
+        btn_border = "none"
+        btn_shadow = "0 2px 12px rgba(0,0,0,0.55)"
+        # Asterisk sun — 8 rays + center circle, white
+        icon_svg = (
+            "<svg width='22' height='22' viewBox='0 0 24 24' fill='none' "
+            "xmlns='http://www.w3.org/2000/svg'>"
+            "<circle cx='12' cy='12' r='3.5' fill='white'/>"
+            "<line x1='12' y1='1.5' x2='12' y2='5.5' stroke='white' stroke-width='2' stroke-linecap='round'/>"
+            "<line x1='12' y1='18.5' x2='12' y2='22.5' stroke='white' stroke-width='2' stroke-linecap='round'/>"
+            "<line x1='1.5' y1='12' x2='5.5' y2='12' stroke='white' stroke-width='2' stroke-linecap='round'/>"
+            "<line x1='18.5' y1='12' x2='22.5' y2='12' stroke='white' stroke-width='2' stroke-linecap='round'/>"
+            "<line x1='4.22' y1='4.22' x2='7.05' y2='7.05' stroke='white' stroke-width='2' stroke-linecap='round'/>"
+            "<line x1='16.95' y1='16.95' x2='19.78' y2='19.78' stroke='white' stroke-width='2' stroke-linecap='round'/>"
+            "<line x1='19.78' y1='4.22' x2='16.95' y2='7.05' stroke='white' stroke-width='2' stroke-linecap='round'/>"
+            "<line x1='7.05' y1='16.95' x2='4.22' y2='19.78' stroke='white' stroke-width='2' stroke-linecap='round'/>"
+            "</svg>"
+        )
+        # Small white indicator dot bottom-right (matches reference image)
+        dot_html = (
+            "<span style='position:absolute;width:6px;height:6px;"
+            "background:rgba(255,255,255,0.75);border-radius:50%;"
+            "bottom:7px;right:7px;'></span>"
+        )
+    else:
+        btn_bg     = "#f0f0f0"
+        btn_border = "1.5px solid #d9d9d9"
+        btn_shadow = "0 2px 8px rgba(0,0,0,0.13)"
+        # Crescent moon, dark gray
+        icon_svg = (
+            "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' "
+            "xmlns='http://www.w3.org/2000/svg'>"
+            "<path d='M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z' "
+            "fill='#374151' stroke='#374151' stroke-width='0.5'/>"
+            "</svg>"
+        )
+        dot_html = ""
+
     btn_css = (
         f"position:fixed;bottom:24px;left:16px;z-index:2147483647;"
-        f"display:inline-flex;align-items:center;gap:7px;"
-        f"background:{t['SURFACE']};border:1px solid {t['BORDER']};"
-        f"border-radius:999px;color:{t['TEXT']};"
-        f"font-size:0.76rem;font-family:Poppins,sans-serif;font-weight:600;"
-        f"padding:5px 14px 5px 10px;text-decoration:none;"
-        f"white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.22);"
-        f"cursor:pointer;letter-spacing:.02em;"
-    )
-    track_css = (
-        f"display:inline-flex;align-items:center;width:28px;height:16px;"
-        f"background:{track_bg};border-radius:999px;position:relative;flex-shrink:0;"
-    )
-    thumb_css = (
-        f"position:absolute;width:12px;height:12px;background:#fff;"
-        f"border-radius:50%;top:2px;left:{thumb_l};"
-        f"box-shadow:0 1px 3px rgba(0,0,0,.3);"
+        f"width:44px;height:44px;border-radius:50%;"
+        f"display:flex;align-items:center;justify-content:center;"
+        f"background:{btn_bg};border:{btn_border};"
+        f"box-shadow:{btn_shadow};"
+        f"cursor:pointer;outline:none;"
+        f"transition:transform 0.15s ease,box-shadow 0.15s ease;"
     )
 
     _components.html(f"""
 <script>
 (function() {{
   var doc = window.parent.document;
-
-  // Remove any previous instance so re-renders stay fresh
   var old = doc.getElementById('cos-theme-btn');
   if (old) old.remove();
 
@@ -646,18 +565,17 @@ def theme_toggle_topbar() -> None:
   btn.title = 'Toggle dark / light mode';
   btn.type = 'button';
   btn.style.cssText = '{btn_css}';
+  btn.style.position = 'fixed';
+  btn.innerHTML = `{icon_svg}{dot_html}`;
 
   var MARKER = '{_MARKER}';
-
   function findTrigger() {{
     var all = doc.querySelectorAll('button');
     for (var i = 0; i < all.length; i++) {{
-      var txt = (all[i].innerText || all[i].textContent || '');
-      if (txt.indexOf(MARKER) !== -1) return all[i];
+      if ((all[i].innerText || all[i].textContent || '').indexOf(MARKER) !== -1) return all[i];
     }}
     return null;
   }}
-
   function hideTrigger() {{
     var t = findTrigger();
     if (t) {{
@@ -667,34 +585,24 @@ def theme_toggle_topbar() -> None:
     }}
     return false;
   }}
-
-  btn.onclick = function() {{
-    var t = findTrigger();
-    if (t) t.click();
-  }};
-
-  // Hide immediately, then watch DOM for late renders
+  btn.onmouseenter = function() {{ this.style.transform = 'scale(1.1)'; }};
+  btn.onmouseleave = function() {{ this.style.transform = 'scale(1)'; }};
+  btn.onclick = function() {{ var t = findTrigger(); if (t) t.click(); }};
   hideTrigger();
   setTimeout(hideTrigger, 100);
   setTimeout(hideTrigger, 500);
   var obs = new MutationObserver(function() {{ if (hideTrigger()) obs.disconnect(); }});
   obs.observe(doc.body, {{childList: true, subtree: true}});
   setTimeout(function() {{ obs.disconnect(); }}, 5000);
-
-  var track = doc.createElement('span');
-  track.style.cssText = '{track_css}';
-
-  var thumb = doc.createElement('span');
-  thumb.style.cssText = '{thumb_css}';
-
-  track.appendChild(thumb);
-  btn.appendChild(track);
-  btn.appendChild(doc.createTextNode('\u00a0{icon} {label}'));
-
   doc.body.appendChild(btn);
 }})();
 </script>
 """, height=0, scrolling=False)
+
+
+def theme_toggle_topbar() -> None:
+    """Alias — delegates to theme_toggle() which has the canonical implementation."""
+    theme_toggle()
 
 
 def badge(text: str, kind: str = "ok") -> str:

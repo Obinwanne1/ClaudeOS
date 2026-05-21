@@ -319,8 +319,12 @@ def _render_ticket_card(
                         st.success("Updated.")
                         st.rerun()
 
-        # ── Comment thread ──
-        _render_comments(tid, api_get, api_post)
+        # ── Comment thread — lazy load to avoid N+1 HTTP calls per card ──
+        if st.button("💬 Comments", key=f"comments_toggle_{tid}"):
+            key = f"_show_comments_{tid}"
+            st.session_state[key] = not st.session_state.get(key, False)
+        if st.session_state.get(f"_show_comments_{tid}", False):
+            _render_comments(tid, api_get, api_post)
 
 
 # ── Staff controls ─────────────────────────────────────────────────────────────

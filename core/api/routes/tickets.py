@@ -89,7 +89,12 @@ def _get_ticket_by_id(ticket_id: str) -> dict | None:
 
 def _is_assignee(ticket_id: str) -> bool:
     """True if the current user is in this ticket's assignees list."""
-    return g.username in _get_assignees(ticket_id)
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM ticket_assignees WHERE ticket_id = ? AND username = ? LIMIT 1",
+            (ticket_id, g.username),
+        ).fetchone()
+    return row is not None
 
 
 # ── Bulk delete ────────────────────────────────────────────────────────────────
@@ -169,10 +174,19 @@ def list_tickets():
 
     with get_db() as conn:
         rows = conn.execute(sql, params).fetchall()
-        result = []
-        for row in rows:
-            assignees = _get_assignees(row["id"], conn)
-            result.append(_ticket_dict(row, assignees))
+        if not rows:
+            return jsonify([])
+        # Batch-fetch all assignees in one query instead of N+1
+        ids = [r["id"] for r in rows]
+        ph = ",".join("?" * len(ids))
+        asgn_rows = conn.execute(
+            f"SELECT ticket_id, username FROM ticket_assignees WHERE ticket_id IN ({ph}) ORDER BY assigned_at ASC",
+            ids,
+        ).fetchall()
+        asgn_map: dict[str, list[str]] = {}
+        for ar in asgn_rows:
+            asgn_map.setdefault(ar["ticket_id"], []).append(ar["username"])
+        result = [_ticket_dict(row, asgn_map.get(row["id"], [])) for row in rows]
 
     return jsonify(result)
 
@@ -420,12 +434,15 @@ def add_assignees(ticket_id: str):
     now   = utcnow_str()
     added = []
     with get_db() as conn:
+        # Batch-verify all usernames in one query
+        ph = ",".join("?" * len(usernames))
+        valid_rows = conn.execute(
+            f"SELECT username FROM users WHERE username IN ({ph}) AND is_active = 1",
+            usernames,
+        ).fetchall()
+        valid_set = {r["username"] for r in valid_rows}
         for uname in usernames:
-            # Verify user exists
-            exists = conn.execute(
-                "SELECT 1 FROM users WHERE username = ? AND is_active = 1", (uname,)
-            ).fetchone()
-            if not exists:
+            if uname not in valid_set:
                 continue
             try:
                 conn.execute(
@@ -554,23 +571,24 @@ def ticket_stats():
     with get_db() as conn:
         by_status   = conn.execute("SELECT status, COUNT(*) as cnt FROM tickets GROUP BY status").fetchall()
         by_priority = conn.execute("SELECT priority, COUNT(*) as cnt FROM tickets GROUP BY priority").fetchall()
-        sla_breached = conn.execute(
-            "SELECT COUNT(*) as cnt FROM tickets WHERE sla_due_at IS NOT NULL AND sla_due_at < ? AND status NOT IN ('completed','closed')",
+        # Merge sla_breached + unassigned_open into one pass
+        agg = conn.execute(
+            """SELECT
+                SUM(CASE WHEN sla_due_at IS NOT NULL AND sla_due_at < ? AND status NOT IN ('completed','closed') THEN 1 ELSE 0 END) AS sla_breached,
+                SUM(CASE WHEN assigned_to IS NULL AND status NOT IN ('completed','closed') THEN 1 ELSE 0 END) AS unassigned
+               FROM tickets""",
             (now_str,),
         ).fetchone()
         by_ns = conn.execute(
             "SELECT namespace, COUNT(*) as cnt FROM tickets GROUP BY namespace ORDER BY cnt DESC"
         ).fetchall()
-        unassigned = conn.execute(
-            "SELECT COUNT(*) as cnt FROM tickets WHERE assigned_to IS NULL AND status NOT IN ('completed','closed')"
-        ).fetchone()
 
     return jsonify({
-        "by_status":      {r["status"]: r["cnt"] for r in by_status},
-        "by_priority":    {r["priority"]: r["cnt"] for r in by_priority},
-        "sla_breached":   sla_breached["cnt"] if sla_breached else 0,
-        "by_namespace":   {r["namespace"]: r["cnt"] for r in by_ns},
-        "unassigned_open": unassigned["cnt"] if unassigned else 0,
+        "by_status":       {r["status"]: r["cnt"] for r in by_status},
+        "by_priority":     {r["priority"]: r["cnt"] for r in by_priority},
+        "sla_breached":    agg["sla_breached"] or 0,
+        "by_namespace":    {r["namespace"]: r["cnt"] for r in by_ns},
+        "unassigned_open": agg["unassigned"] or 0,
     })
 
 

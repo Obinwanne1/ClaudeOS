@@ -112,14 +112,15 @@ _READ_ONLY_PREFIXES = (
 
 
 @st.cache_data(ttl=30)
-def _cached_api_get(path: str, timeout: int = 3) -> dict | None:
+def _cached_api_get(path: str, token: str = "", timeout: int = 3) -> dict | None:
     return api_get(path, timeout=timeout)
 
 
 def api_get_cached(path: str, timeout: int = 3) -> dict | None:
-    """api_get with 30-second cache for known read-only endpoints."""
+    """api_get with 30-second TTL cache scoped per user token."""
     if any(path == p or path.startswith(p) for p in _READ_ONLY_PREFIXES):
-        return _cached_api_get(path, timeout)
+        tok = st.session_state.get("jwt_token", "")
+        return _cached_api_get(path, token=tok, timeout=timeout)
     return api_get(path, timeout)
 
 

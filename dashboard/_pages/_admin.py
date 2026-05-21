@@ -18,15 +18,18 @@ def render(api_get, api_post, bulk_delete=None):
 
     aurora_hero("Admin Panel", subtitle="Users · API Keys · Audit · Security", pill="Admin")
 
+    # Fetch namespaces once — shared by Users + API Keys tabs
+    ns_data = api_get("/namespaces") or []
+
     tab_users, tab_keys, tab_audit, tab_sessions, tab_security = st.tabs([
         "Users", "API Keys", "Audit Log", "Sessions", "Security"
     ])
 
     with tab_users:
-        _render_users(api_get, api_post)
+        _render_users(api_get, api_post, ns_data)
 
     with tab_keys:
-        _render_api_keys(api_get, api_post)
+        _render_api_keys(api_get, api_post, ns_data)
 
     with tab_audit:
         _render_audit(api_get)
@@ -40,7 +43,7 @@ def render(api_get, api_post, bulk_delete=None):
 
 # ── Users ─────────────────────────────────────────────────────────────────────
 
-def _render_users(api_get, api_post):
+def _render_users(api_get, api_post, ns_data=None):
     st.subheader("User Accounts")
 
     users = api_get("/admin/users") or []
@@ -126,10 +129,10 @@ def _render_users(api_get, api_post):
     st.markdown("---")
 
     with st.expander("➕ Create User"):
-        _create_user_form(api_get, api_post)
+        _create_user_form(api_get, api_post, ns_data=ns_data)
 
 
-def _create_user_form(api_get, api_post):
+def _create_user_form(api_get, api_post, ns_data=None):
     st.caption(
         "Password rules: **min 10 chars · uppercase · lowercase · digit**. "
         "User will be forced to change password on first login."
@@ -143,7 +146,8 @@ def _create_user_form(api_get, api_post):
         new_password  = st.text_input("Temporary password", type="password", key="nu_pw",
                                       help="Min 10 chars · upper + lower + digit")
         new_password2 = st.text_input("Confirm password", type="password", key="nu_pw2")
-        ns_data = api_get("/namespaces") or []
+        if ns_data is None:
+            ns_data = api_get("/namespaces") or []
         ns_opts = ["(none)"] + [n["slug"] for n in ns_data]
         new_ns  = st.selectbox("Namespace", ns_opts, key="nu_ns")
 
@@ -175,7 +179,7 @@ def _create_user_form(api_get, api_post):
 
 # ── API Keys ──────────────────────────────────────────────────────────────────
 
-def _render_api_keys(api_get, api_post):
+def _render_api_keys(api_get, api_post, ns_data=None):
     st.subheader("API Keys")
 
     keys = api_get("/admin/api-keys") or []
@@ -220,12 +224,13 @@ def _render_api_keys(api_get, api_post):
 
     st.markdown("---")
     with st.expander("➕ Create API Key"):
-        _create_key_form(api_get, api_post)
+        _create_key_form(api_get, api_post, ns_data=ns_data)
 
 
-def _create_key_form(api_get, api_post):
+def _create_key_form(api_get, api_post, ns_data=None):
     key_name = st.text_input("Key name", key="nk_name", placeholder="e.g. my-script")
-    ns_data  = api_get("/namespaces") or []
+    if ns_data is None:
+        ns_data = api_get("/namespaces") or []
     ns_opts  = [n["slug"] for n in ns_data] or ["global"]
     key_ns   = st.selectbox("Namespace", ns_opts, key="nk_ns")
     perms    = st.multiselect("Permissions", ["read", "write"], default=["read", "write"], key="nk_perms")

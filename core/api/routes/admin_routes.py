@@ -231,9 +231,10 @@ def bulk_revoke_sessions():
     ids = (request.get_json(silent=True) or {}).get("ids") or []
     if not isinstance(ids, list) or not ids:
         return jsonify({"error": "ids list required"}), 422
-    for sid in ids:
-        revoke_session(sid)
-        audit_log("session_revoked", user_id=g.user_id, username=g.username, detail={"session": sid})
+    ph = ",".join("?" * len(ids))
+    with get_db() as conn:
+        conn.execute(f"UPDATE user_sessions SET revoked = 1 WHERE id IN ({ph})", ids)
+    audit_log("session_revoked", user_id=g.user_id, username=g.username, detail={"sessions": ids, "count": len(ids)})
     return jsonify({"revoked": ids, "count": len(ids)})
 
 
@@ -322,8 +323,7 @@ def update_security_settings():
         return jsonify({"error": "No valid settings provided"}), 400
 
     with get_db() as conn:
-        for k, v in updates.items():
-            conn.execute("INSERT OR REPLACE INTO system_config(key, value) VALUES (?, ?)", (k, v))
+        conn.executemany("INSERT OR REPLACE INTO system_config(key, value) VALUES (?, ?)", updates.items())
 
     # Invalidate TTL cache so new settings take effect immediately
     for k in updates:

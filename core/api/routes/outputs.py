@@ -79,13 +79,11 @@ def output_stats():
 @outputs_bp.delete("/bulk")
 @require_api_key
 def bulk_delete_outputs():
-    from outputs.manager import delete as _del
+    from outputs.manager import delete_bulk as _del_bulk
     ids = (request.get_json(silent=True) or {}).get("ids") or []
     if not isinstance(ids, list) or not ids:
         return jsonify({"error": "ids list required"}), 422
-    deleted, failed = [], []
-    for oid in ids:
-        (deleted if _del(oid) else failed).append(oid)
+    deleted, failed = _del_bulk(ids)
     return jsonify({"deleted": deleted, "failed": failed, "count": len(deleted)})
 
 

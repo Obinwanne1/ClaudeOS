@@ -263,8 +263,10 @@ def _client_ua() -> str:
 # ── API key fallback (re-uses existing api_keys table) ────────────────────────
 
 # Debounce last_used writes: only hit DB once per 60s per key id
+# Bounded to 500 entries — evict entries older than 2× interval to prevent unbounded growth
 _api_key_last_updated: dict[str, float] = {}
 _API_KEY_UPDATE_INTERVAL = 60.0
+_API_KEY_CACHE_MAX = 500
 
 
 def _validate_api_key_header(raw_key: str) -> bool:
@@ -280,6 +282,12 @@ def _validate_api_key_header(raw_key: str) -> bool:
         if now - _api_key_last_updated.get(row["id"], 0) >= _API_KEY_UPDATE_INTERVAL:
             conn.execute("UPDATE api_keys SET last_used = CURRENT_TIMESTAMP WHERE id = ?", (row["id"],))
             _api_key_last_updated[row["id"]] = now
+            # Evict stale entries when cache exceeds bound
+            if len(_api_key_last_updated) > _API_KEY_CACHE_MAX:
+                cutoff = now - _API_KEY_UPDATE_INTERVAL * 2
+                stale = [k for k, v in _api_key_last_updated.items() if v < cutoff]
+                for k in stale:
+                    del _api_key_last_updated[k]
     g.user_id = f"apikey:{row['id']}"
     g.username = row["name"]
     g.user_role = "operator"
