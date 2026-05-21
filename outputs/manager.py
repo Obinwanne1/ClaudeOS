@@ -270,10 +270,19 @@ def get_stats_all() -> dict:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+def _safe_path_segment(s: str) -> str:
+    """Strip path separators and dotdot sequences, bound length."""
+    s = re.sub(r'[/\\]', '_', s)   # no separators
+    s = re.sub(r'\.\.', '', s)      # no dotdot
+    return s[:64] or "unknown"
+
+
 def _write_file(output_id: str, namespace: str, output_type: str, format: str, content: str) -> Path:
     ext = {"markdown": "md", "json": "json", "html": "html"}.get(format, "txt")
     type_dir = output_type if output_type in ("reports", "drafts", "analyses", "code", "archive") else output_type + "s"
-    store_dir = STORE_ROOT / type_dir / namespace
+    store_dir = STORE_ROOT / _safe_path_segment(type_dir) / _safe_path_segment(namespace)
+    # Guard: raise ValueError if path escaped STORE_ROOT
+    store_dir.resolve().relative_to(STORE_ROOT.resolve())
     store_dir.mkdir(parents=True, exist_ok=True)
     date_prefix = datetime.now(timezone.utc).strftime("%Y%m%d")
     file_path = store_dir / f"{date_prefix}-{output_id[:8]}.{ext}"
