@@ -1,6 +1,11 @@
 """Auth routes — /api/v1/auth/*"""
 from __future__ import annotations
 
+import datetime
+import hashlib
+import secrets
+import time
+
 from flask import Blueprint, jsonify, request
 
 from core.api.limiter import limiter
@@ -8,11 +13,11 @@ from core.auth import (
     audit_log, check_lockout, clear_failed_attempts, create_access_token,
     create_refresh_token, create_user, effective_namespace, get_user_by_id,
     get_user_by_username, hash_password, record_failed_attempt, require_auth,
-    revoke_sessions_by_token_hash, store_refresh_token, validate_password_strength,
-    validate_refresh_token, verify_password,
+    require_role, revoke_sessions_by_token_hash, store_refresh_token,
+    validate_password_strength, validate_refresh_token, verify_password,
 )
 from core.database import get_db
-from core.utils import new_id
+from core.utils import new_id, utcnow
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/v1/auth")
 
@@ -40,7 +45,7 @@ def login():
     user = get_user_by_username(username)
     if not user:
         # Constant-time response — prevent username enumeration
-        import time as _time; _time.sleep(0.2)
+        time.sleep(0.2)
         audit_log("login_failure", username=username, ip=_ip(), ua=_ua(), detail={"reason": "not_found"})
         return jsonify({"error": "Invalid username or password"}), 401
 
@@ -188,8 +193,8 @@ def me():
 # ── POST /auth/change-password ────────────────────────────────────────────────
 
 @auth_bp.post("/change-password")
-@require_auth
 @limiter.limit("5 per minute")
+@require_auth
 def change_password():
     from flask import g as _g
     body = request.get_json(silent=True) or {}
@@ -224,30 +229,25 @@ def change_password():
 # ── POST /auth/forgot-password ────────────────────────────────────────────────
 
 @auth_bp.post("/forgot-password")
-@limiter.limit("5/hour")
+@limiter.limit("20/hour")
+@require_auth
+@require_role("admin")
 def forgot_password():
-    """Generate a password-reset token.
-
-    No email server is configured — token is returned directly in the response
-    so the admin can relay it to the user out-of-band.  When an email integration
-    is added later, send the token there instead.
+    """Generate a password-reset token. Admin-only — token is returned to the admin
+    who relays it to the user out-of-band. When SMTP is configured, send via email instead.
     """
-    import hashlib, secrets as _sec
     body = request.get_json(silent=True) or {}
     username = (body.get("username") or "").strip()
     if not username:
         return jsonify({"error": "username required"}), 400
 
     user = get_user_by_username(username)
-    # Always respond 200 — don't reveal whether username exists
     if not user or not user["is_active"]:
-        return jsonify({"message": "If that account exists a reset token has been issued."}), 200
+        return jsonify({"error": "User not found or inactive"}), 404
 
-    raw_token = _sec.token_urlsafe(32)
+    raw_token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
-    from core.utils import utcnow_str
-    import datetime
-    expires = (datetime.datetime.utcnow() + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
+    expires = (utcnow() + datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
 
     with get_db() as conn:
         # Reuse user_sessions table with a special user_agent marker
@@ -258,7 +258,6 @@ def forgot_password():
         )
 
     audit_log("password_reset_request", user_id=user["id"], username=username, ip=_ip(), ua=_ua())
-    # Return token directly (admin-relay model — swap for email send when SMTP is configured)
     return jsonify({
         "message": "Reset token issued. Share with the user securely.",
         "reset_token": raw_token,
