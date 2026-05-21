@@ -14,6 +14,14 @@ from core.utils import new_id
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/api/v1/admin")
 
+# Hardcoded column map — SQL column names are never taken from request keys directly
+_ALLOWED_USER_UPDATES = {
+    "role":      "role",
+    "namespace": "namespace",
+    "is_active": "is_active",
+    "email":     "email",
+}
+
 
 # ── Users ─────────────────────────────────────────────────────────────────────
 
@@ -78,14 +86,14 @@ def update_user(user_id: str):
         return jsonify({"error": "User not found"}), 404
 
     body = request.get_json(silent=True) or {}
-    allowed = {"role", "namespace", "is_active", "email"}
-    updates = {k: v for k, v in body.items() if k in allowed}
+    # Derive SQL column names from the hardcoded map — never from request keys directly
+    updates = {_ALLOWED_USER_UPDATES[k]: v for k, v in body.items() if k in _ALLOWED_USER_UPDATES}
 
     if "role" in updates and updates["role"] not in ("admin", "operator", "client", "viewer"):
         return jsonify({"error": "Invalid role"}), 422
 
     if updates:
-        set_clauses = ", ".join(f"{k} = ?" for k in updates)
+        set_clauses = ", ".join(f"{col} = ?" for col in updates)
         vals = list(updates.values()) + [user_id]
         with get_db() as conn:
             conn.execute(f"UPDATE users SET {set_clauses}, updated_at = CURRENT_TIMESTAMP WHERE id = ?", vals)
@@ -187,6 +195,8 @@ def get_audit():
         conditions.append("username = ?")
         params.append(username)
 
+    # Safe: conditions list contains only hardcoded SQL fragments ("event_type = ?",
+    # "username = ?"), never user-supplied strings. Values are always in params list.
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     params += [limit, offset]
 
