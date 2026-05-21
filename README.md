@@ -46,8 +46,24 @@
 ├──────────────┼──────────────────────────────┤
 │  Layer 7     │  Supabase Cloud Sync         │
 │  Push-only   │  Watermark · Auto 15min      │
+├──────────────┼──────────────────────────────┤
+│  Layer 8     │  Auth & Security             │
+│  JWT/bcrypt  │  Roles · Audit log           │
+├──────────────┼──────────────────────────────┤
+│  Layer 9     │  Ticketing System            │
+│  SLA tiers   │  Staff role · Bulk ops       │
 └──────────────┴──────────────────────────────┘
 ```
+
+## Roles
+
+| Role | Access |
+|------|--------|
+| `admin` | Full access — all namespaces, user management, admin panel |
+| `operator` | All namespaces, all resources; no user management |
+| `client` | Own namespace only; read/write memory, run agents, view outputs |
+| `viewer` | Own namespace, read-only |
+| `staff` | Sees only assigned tickets; can self-assign and advance ticket status |
 
 ## Setup
 
@@ -118,8 +134,26 @@ python scripts/seed_namespaces.py
 | `GET` | `/api/v1/workflows` | List workflows |
 | `POST` | `/api/v1/workflows/{id}/trigger` | Trigger workflow |
 | `GET` | `/api/v1/outputs` | List outputs |
+| `DELETE` | `/api/v1/outputs/bulk` | Bulk delete outputs |
+| `GET/POST` | `/api/v1/tickets` | List / create tickets |
+| `GET/PUT/DELETE` | `/api/v1/tickets/{id}` | Get, update, or delete a ticket |
+| `DELETE` | `/api/v1/tickets/bulk` | Bulk delete tickets |
+| `GET` | `/api/v1/tickets/stats` | Ticket counts by status/priority |
 | `GET` | `/api/v1/sync/status` | Sync status |
 | `POST` | `/api/v1/sync/push` | Push to Supabase |
+
+## Performance
+
+- Parallel API calls via `ThreadPoolExecutor` — overview data fetched in one shot
+- Ticket assignees batch-fetched in a single query (N+1 eliminated)
+- Ticket comments lazy-loaded on toggle — not fetched on every card render
+- `_cached_api_get` cache key scoped per JWT token — no cross-user cache pollution
+- Bulk session revoke uses single `UPDATE ... WHERE id IN (...)` — no per-row loop
+- `ticket_stats` aggregates 5 metrics in 3 queries via `SUM(CASE WHEN ...)`
+- `idx_events_created` index on `system_events(created_at DESC)` — migration 012
+- `_api_key_last_updated` bounded to 500 entries with TTL eviction
+- Security settings update uses `executemany` — no per-row loop
+- `_is_assignee` uses EXISTS point query — no full list fetch
 
 ## Stack
 

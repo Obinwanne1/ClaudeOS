@@ -12,7 +12,7 @@ Browser (Streamlit :8501)
           └─ Flask :5000
               ├─ require_auth (JWT or X-API-Key fallback)
               ├─ require_role("admin") → /api/v1/admin/*
-              └─ All existing routes (memory, agents, outputs, etc.)
+              └─ All existing routes (memory, agents, outputs, tickets, etc.)
 
 Layer 0: Streamlit dashboard (:8501) — login-gated, role-filtered nav
 Layer 1: Flask REST API (:5000) — JWT + X-API-Key auth on all routes
@@ -23,6 +23,7 @@ Layer 5: Client Vault (namespace isolation)
 Layer 6: Output Manager (auto-tag, FTS, export)
 Layer 7: Supabase Cloud Sync (push-only, 15-min auto)
 Layer 8: Auth & Security (JWT, bcrypt, roles, audit log)
+Layer 9: Ticketing System (SLA tiers, staff role, bulk ops)
 ```
 
 ## Critical Files
@@ -30,12 +31,13 @@ Layer 8: Auth & Security (JWT, bcrypt, roles, audit log)
 - `core/auth.py` — JWT, bcrypt, session management, decorators, audit log
 - `core/api/routes/auth_routes.py` — /api/v1/auth/* (login, register, refresh, logout, me)
 - `core/api/routes/admin_routes.py` — /api/v1/admin/* (users, sessions, API keys, audit, security config)
+- `core/api/routes/tickets.py` — /api/v1/tickets/* (ticketing REST API)
 - `memory/engine.py` — memory facade, all agents call this
 - `agents/executor.py` — Claude API wrapper, injects namespace context
 - `workflows/pipeline.py` — step executor for all 7 workflows
 - `dashboard/app.py` — Streamlit entry point, auth gate, role nav
-- `dashboard/components/login_form.py` — branded login + self-registration form
-- `dashboard/components/brand.py` — CSS injection, aurora hero, theme toggle, all visual primitives
+- `dashboard/components/login_form.py` — branded login + self-registration form (st.form, Enter-to-submit)
+- `dashboard/components/brand.py` — CSS injection, theme toggle, all visual primitives
 - `dashboard/_pages/_admin.py` — Admin Panel UI (users, API keys, audit, sessions, security)
 - `scripts/create_admin.py` — first-run admin seed script
 
@@ -51,7 +53,7 @@ Layer 8: Auth & Security (JWT, bcrypt, roles, audit log)
 ## Auth & Security Rules
 - All API routes require auth (`@require_auth`) — JWT Bearer or X-API-Key fallback
 - `/api/v1/health` is the ONLY public endpoint
-- Roles: admin (all access) | operator (all namespaces, no user mgmt) | client (own namespace only) | viewer (own namespace, read-only)
+- Roles: admin (all access) | operator (all namespaces, no user mgmt) | client (own namespace only) | viewer (own namespace, read-only) | staff (assigned tickets only — can self-assign and advance ticket status)
 - JWT access tokens: 60 min TTL. Refresh tokens: 7 days, stored as SHA-256 hash
 - Passwords: bcrypt 12 rounds, min 10 chars, upper+lower+digit required
 - Account lockout: 5 failed attempts → 15-min lock (configurable via system_config)
@@ -59,6 +61,7 @@ Layer 8: Auth & Security (JWT, bcrypt, roles, audit log)
 - Client one-per-namespace enforced in application layer
 - Never expose raw refresh tokens in logs or responses beyond initial issue
 - `effective_namespace()` in auth.py enforces client scoping — never trust client-supplied namespace
+- Username lookup uses `LOWER()` match — login is case-insensitive
 
 ## Database Tables (Auth Layer)
 - `users` — id, username, email, password_hash, role, namespace, is_active, failed_attempts, locked_until, must_change_password
@@ -70,13 +73,26 @@ Layer 8: Auth & Security (JWT, bcrypt, roles, audit log)
 - `inject()` and `theme_toggle()` MUST be called BEFORE the auth gate (`st.stop()`) — they need to render on the login page
 - Theme toggle lives at bottom-left: `position:fixed;bottom:24px;left:16px;z-index:2147483647`
 - Sidebar renders AFTER auth gate — it is only visible to logged-in users
-- Role-based nav: clients/viewers do not see Settings, Workflows, Admin; admin sees Admin tab
+- Role-based nav: clients/viewers do not see Settings, Workflows, Admin; admin sees Admin tab; staff sees Tickets only
 - Auto token refresh: `api_get` decodes token locally, if expiry < 5 min away → call `/auth/refresh` silently
 - 401 response from any API call → clear session_state + `st.rerun()` (returns user to login)
+- Login form uses `st.form` — password field submits on Return key (Enter-to-submit)
 
 ## Performance Patterns
 - Parallel API calls via `ThreadPoolExecutor` — all overview data fetched in one shot (5 concurrent)
 - N+1 → parallel: namespace workspace + projects fetched concurrently in Client Vault
+- Ticket assignees batch-fetched in a single `WHERE id IN (...)` query — not 1 per ticket
+- Ticket comments lazy-loaded: only fetched when user opens the "💬 Comments" toggle
+- `_cached_api_get` cache key includes JWT token — prevents cross-user cache pollution
+- Bulk session revoke: single `UPDATE ... WHERE id IN (...)` — not a per-session loop
+- Outputs bulk delete: single DB transaction via `delete_bulk()` in `outputs/manager.py`
+- Admin `/namespaces` fetched once in `render()`, passed to Users and API Keys tabs — not called twice
+- `_is_assignee` uses EXISTS point query — no full assignee list fetch
+- User validation: single `WHERE username IN (...)` batch query — not 1 query per username
+- `ticket_stats`: 5 metrics aggregated in 3 queries via `SUM(CASE WHEN ...)` conditionals
+- `idx_events_created` index on `system_events(created_at DESC)` — added in migration 012
+- `_api_key_last_updated` dict bounded to 500 entries with TTL eviction — no unbounded growth
+- Security settings update uses `executemany` — not a per-row loop
 - TTL config cache in `core/auth.py:_cfg()` — 60s in-process cache, avoids per-request DB hit
 - Single DB connection per operation in `_validate_api_key_header` — no redundant transactions
 - `memory/store.py:update()` — check `cursor.rowcount` before post-fetch, avoids dead reads
@@ -87,6 +103,11 @@ Layer 8: Auth & Security (JWT, bcrypt, roles, audit log)
 - `_build_css(t)` generates the full CSS string from theme vars — one call, entire app styled
 - `inject()` must be called on every page render (it re-injects fresh CSS matching current theme)
 - Password eye icon: `[data-testid="stTextInput"] button` + SVG `fill: {t['TEXT']}` override
+- Theme toggle: circular 44px icon button, no text label
+  - Dark mode: dark navy `#111827` circle + white 8-ray sun SVG + small white dot
+  - Light mode: light gray `#f0f0f0` circle + dark crescent moon SVG
+  - Hover scales 1.1×
+- Aurora background removed — no `@keyframes aurora`, no animated gradient layers, no `backdrop-filter: blur()` or `will-change: transform`
 
 ## Rules
 - Never use gunicorn — use waitress on Windows
@@ -132,5 +153,16 @@ python scripts/create_admin.py --username admin --password Admin123!
   - must_change_password enforcement
   - Performance: parallel fetches, TTL cache, N+1 eliminated
   - Responsive CSS (mobile ≤600px, tablet ≤900px)
-  - Aurora hero animation on overview page
   - Dark/light theme toggle (bottom-left, persists in session)
+- Phase 9: Ticketing System + Bulk Delete ✅
+  - Full ticket lifecycle: create, assign, status transitions, resolution notes
+  - SLA tiers: P1 (critical) · P2 (high) · P3 (medium) · P4 (low)
+  - Comments on tickets, lazy-loaded
+  - Bulk delete across all resource types: memory, agents/runs, outputs, tickets
+  - Checkbox + bulk toolbar UI on every list page
+  - New `staff` role: assigned tickets only, can self-assign and advance status
+  - Enter-to-submit login via `st.form`
+  - Case-insensitive username login (`LOWER()` match)
+  - Circular icon theme toggle (no text label, 44px, dark navy / light gray)
+  - Aurora background removed (GPU/CPU reduction)
+  - 12 additional performance fixes (batch queries, EXISTS, bounded cache, executemany, lazy comments, scoped cache keys, index migration)

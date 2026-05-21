@@ -1,7 +1,7 @@
 # ClaudeOS — Client Documentation
 
-**Version:** 8.0  
-**Last Updated:** 2026-05-16  
+**Version:** 9.0  
+**Last Updated:** 2026-05-22  
 **Brand:** #407E3C Green · White · #5a9e56 Accent
 
 ---
@@ -35,15 +35,19 @@ If self-registration is enabled by the admin:
 
 ## Roles & Permissions
 
-| Feature | Admin | Operator | Client | Viewer |
-|---------|-------|----------|--------|--------|
-| All namespaces | ✅ | ✅ | Own only | Own only |
-| Memory read | ✅ | ✅ | ✅ | ✅ |
-| Memory write | ✅ | ✅ | ✅ | ❌ |
-| Run agents | ✅ | ✅ | ✅ | ❌ |
-| View outputs | ✅ | ✅ | ✅ | ✅ |
-| Manage workflows | ✅ | ✅ | ❌ | ❌ |
-| Admin Panel | ✅ | ❌ | ❌ | ❌ |
+| Feature | Admin | Operator | Client | Viewer | Staff |
+|---------|-------|----------|--------|--------|-------|
+| All namespaces | ✅ | ✅ | Own only | Own only | — |
+| Memory read | ✅ | ✅ | ✅ | ✅ | — |
+| Memory write | ✅ | ✅ | ✅ | ❌ | — |
+| Run agents | ✅ | ✅ | ✅ | ❌ | — |
+| View outputs | ✅ | ✅ | ✅ | ✅ | — |
+| Manage workflows | ✅ | ✅ | ❌ | ❌ | — |
+| View/work tickets | ✅ | ✅ | ✅ | ✅ | Assigned only |
+| Assign & advance tickets | ✅ | ✅ | ❌ | ❌ | Self-assign ✅ |
+| Admin Panel | ✅ | ❌ | ❌ | ❌ | ❌ |
+
+**Staff** is a dedicated support role. Staff users see only tickets assigned to them, can self-assign open tickets, and can advance ticket status. They do not have access to memory, agents, outputs, or admin functions.
 
 ---
 
@@ -64,12 +68,14 @@ Browse, search, write, and delete memory entries.
 - Write entries with category (fact, preference, reminder, task), TTL, and confidence score
 - Reminder entries use a date/time picker for expiry
 - Search via FTS5 for instant keyword matching
+- Bulk delete: select entries with checkboxes, then use the bulk toolbar to delete all selected
 
 ### Agents
 - View all 12 registered agents with their descriptions and capabilities
 - Run any agent directly with a custom prompt and namespace
 - Live output polling — results auto-refresh every 3 seconds until done
 - Full run history with status, duration, and output preview
+- Bulk delete run history entries via checkbox selection
 
 ### Workflows
 - View all 7 configured pipelines
@@ -87,6 +93,23 @@ Browse, search, write, and delete memory entries.
 - Full-text search across output content
 - Filter by namespace, type, and date
 - Export individual outputs as Markdown or PDF
+- Bulk delete: select outputs with checkboxes and delete in one action
+
+### Tickets
+The ticketing system provides a full support and task lifecycle within ClaudeOS.
+
+- **Create tickets** — title, description, priority (P1–P4), and namespace
+- **Priority / SLA tiers:**
+  - P1 — Critical (immediate response required)
+  - P2 — High
+  - P3 — Medium
+  - P4 — Low
+- **Status flow** — Open → In Progress → Resolved → Closed
+- **Assignment** — admin and operator can assign tickets to staff or other users; staff can self-assign open tickets
+- **Comments** — add threaded comments to any ticket; comments are loaded on demand when you open the comment panel
+- **Resolution notes** — record resolution details when closing a ticket
+- **Bulk delete** — select multiple tickets and delete in one action
+- **Stats panel** — ticket counts broken down by status and priority
 
 ### Settings (Admin/Operator)
 - System configuration
@@ -104,7 +127,11 @@ Browse, search, write, and delete memory entries.
 
 ## Theme
 
-A dark/light mode toggle sits in the **bottom-left corner** of every page, including the login screen. Your theme preference persists for your current session.
+A dark/light mode toggle sits in the **bottom-left corner** of every page, including the login screen. It is a circular icon button (44px) with no text label:
+- **Dark mode:** dark navy circle with a white sun icon
+- **Light mode:** light gray circle with a dark crescent moon icon
+
+Your theme preference persists for your current session.
 
 ---
 
@@ -112,6 +139,7 @@ A dark/light mode toggle sits in the **bottom-left corner** of every page, inclu
 
 - **JWT-based authentication** — tokens expire after 60 minutes, auto-refreshed silently
 - **Account lockout** — 5 failed login attempts triggers a 15-minute lockout (admin-configurable)
+- **Case-insensitive login** — usernames are matched case-insensitively (`Romanus`, `ROMANUS`, and `romanus` all work)
 - **Audit log** — every login, logout, failure, user action, and password change is logged with IP and timestamp
 - **Namespace isolation** — clients can only read and write within their assigned namespace
 - **Bcrypt password hashing** — 12 rounds, never stored in plaintext
@@ -155,6 +183,14 @@ curl http://localhost:5000/api/v1/memory \
 | POST | `/agents/{id}/run` | Run agent with prompt |
 | GET | `/agents/runs/{id}` | Poll run status and output |
 | GET | `/outputs` | List outputs |
+| DELETE | `/outputs/bulk` | Bulk delete outputs |
+| GET | `/tickets` | List tickets |
+| POST | `/tickets` | Create a ticket |
+| GET | `/tickets/{id}` | Get ticket detail |
+| PUT | `/tickets/{id}` | Update ticket (status, assignee, resolution) |
+| DELETE | `/tickets/{id}` | Delete a ticket |
+| DELETE | `/tickets/bulk` | Bulk delete tickets |
+| GET | `/tickets/stats` | Ticket counts by status and priority |
 | GET | `/workflows` | List workflows |
 | POST | `/workflows/{id}/trigger` | Trigger a workflow |
 | GET | `/system/status` | System health |
@@ -204,12 +240,13 @@ Outputs and memory can be synced to Supabase for cloud backup and sharing.
 | Problem | Solution |
 |---------|---------|
 | Can't reach dashboard | Run `.\scripts\start.ps1` — check both ports are alive |
-| Login fails | Check username/password; after 5 failures wait 15 min or ask admin to unlock |
+| Login fails | Check username/password (login is case-insensitive); after 5 failures wait 15 min or ask admin to unlock |
 | "Must change password" shown | Enter current password + new password in the prompt |
 | API returns 401 | Token expired — log out and log back in |
 | Output won't export | Try Markdown export; PDF may need wkhtmltopdf installed |
 | Sync fails | Verify SUPABASE_URL and SUPABASE_SERVICE_KEY in .env; restart after changes |
 | Eye icon not visible | Light mode CSS — this is a known Streamlit quirk, fixed in latest build |
+| Ticket comments not loading | Click the "💬 Comments" toggle — comments load on demand |
 
 ---
 
