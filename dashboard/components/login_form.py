@@ -2,10 +2,16 @@
 from __future__ import annotations
 
 import os
+from html import escape as _esc
+
 import requests
 import streamlit as st
+from dotenv import load_dotenv
+from pathlib import Path
 
-_API_BASE = "http://localhost:5000/api/v1"
+load_dotenv(Path(__file__).parent.parent.parent / ".env")
+_FLASK_PORT = os.environ.get("FLASK_PORT", "5000")
+_API_BASE = f"http://localhost:{_FLASK_PORT}/api/v1"
 
 
 def render_login() -> None:
@@ -135,13 +141,12 @@ section[data-testid="stVerticalBlock"] > div:last-child {{
 
             with tab_reset:
                 st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-                st.caption("Step 1 — Request a reset token (admin relays it to you securely).")
-                fp_username = st.text_input("Username", key="fp_username")
-                if st.button("Request Reset Token", use_container_width=True, key="fp_req_btn"):
-                    _do_forgot_password(fp_username.strip())
-
+                st.info(
+                    "To reset your password, contact your administrator. "
+                    "They will generate a reset token and share it with you securely."
+                )
                 st.markdown("---")
-                st.caption("Step 2 — Enter the token your admin gave you + your new password.")
+                st.caption("Enter the token your admin gave you + your new password.")
                 fp_token  = st.text_input("Reset token", key="fp_token")
                 fp_newpw  = st.text_input("New password", type="password", key="fp_newpw",
                                           help="Min 10 chars · upper + lower + digit")
@@ -156,27 +161,6 @@ section[data-testid="stVerticalBlock"] > div:last-child {{
 
 
 # ── Internal ─────────────────────────────────────────────────────────────────
-
-def _do_forgot_password(username: str) -> None:
-    if not username:
-        st.warning("Enter your username.")
-        return
-    try:
-        r = requests.post(f"{_API_BASE}/auth/forgot-password", json={"username": username}, timeout=5)
-        if r.ok:
-            data = r.json()
-            token = data.get("reset_token")
-            if token:
-                st.success("Reset token generated. Copy it and use Step 2:")
-                st.code(token, language=None)
-                st.caption("Token valid for 1 hour. Keep it secure.")
-            else:
-                st.info(data.get("message", "Request submitted."))
-        else:
-            st.error(r.json().get("error", f"Failed ({r.status_code})."))
-    except Exception:
-        st.error("Cannot reach API server.")
-
 
 def _do_reset_password(token: str, new_pw: str, new_pw2: str) -> None:
     if not token or not new_pw:
@@ -297,12 +281,13 @@ def render_change_password() -> None:
 
     _, col, _ = st.columns([1, 1.4, 1])
     with col:
+        username_safe = _esc(st.session_state.get('username', ''))
         st.markdown(f"""
 <div class="cos-chpw-card">
   <div class="cos-chpw-title">Change Password Required</div>
   <div class="cos-chpw-sub">
     You must set a new password before continuing.
-    Logged in as <strong>{st.session_state.get('username','')}</strong>.
+    Logged in as <strong>{username_safe}</strong>.
   </div>
 </div>
 """, unsafe_allow_html=True)
