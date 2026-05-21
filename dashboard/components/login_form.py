@@ -108,11 +108,12 @@ section[data-testid="stVerticalBlock"] > div:last-child {{
 
             with tab_login:
                 st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-                username = st.text_input("Username", key="li_username", placeholder="your username")
-                password = st.text_input("Password", type="password", key="li_password")
-                st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
-                if st.button("Sign In", type="primary", use_container_width=True, key="li_btn"):
-                    _do_login(username.strip(), password)
+                with st.form("login_form", border=False):
+                    username = st.text_input("Username", key="li_username", placeholder="your username")
+                    password = st.text_input("Password", type="password", key="li_password")
+                    st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+                    if st.form_submit_button("Sign In", type="primary", use_container_width=True):
+                        _do_login(username.strip(), password)
 
             with tab_register:
                 st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
