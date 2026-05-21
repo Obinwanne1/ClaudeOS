@@ -218,7 +218,9 @@ def audit_log(
 
 def get_user_by_username(username: str) -> Optional[dict]:
     with get_db() as conn:
-        row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM users WHERE LOWER(username) = LOWER(?)", (username,)
+        ).fetchone()
     return dict(row) if row else None
 
 
