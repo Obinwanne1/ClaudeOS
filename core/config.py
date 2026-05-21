@@ -9,7 +9,7 @@ BASE_DIR = Path(__file__).parent.parent
 
 class Settings(BaseSettings):
     # Core
-    CLAUDEOS_SECRET_KEY: str = "dev-secret-change-in-prod"
+    CLAUDEOS_SECRET_KEY: str  # Required — no default; must be set in .env
     CLAUDEOS_ENV: str = "development"
     CLAUDEOS_VERSION: str = "1.0.0"
 
@@ -55,6 +55,19 @@ class Settings(BaseSettings):
         "env_file_encoding": "utf-8",
         "extra": "ignore",
     }
+
+    @field_validator("CLAUDEOS_SECRET_KEY")
+    @classmethod
+    def secret_not_default(cls, v: str) -> str:
+        _BAD = {"dev-secret-change-in-prod", "change-me-random-32-chars", ""}
+        if not v or v in _BAD:
+            raise ValueError(
+                "CLAUDEOS_SECRET_KEY must be set to a random secret in .env "
+                "(not the example value)"
+            )
+        if len(v) < 32:
+            raise ValueError("CLAUDEOS_SECRET_KEY must be at least 32 characters")
+        return v
 
     @field_validator("SQLITE_PATH", "CHROMADB_PATH", "LOG_PATH", mode="before")
     @classmethod
