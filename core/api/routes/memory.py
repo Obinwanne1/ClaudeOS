@@ -7,7 +7,7 @@ from memory.schemas import (
     MemoryEntryUpdate,
     MemorySearchRequest,
 )
-from core.auth import require_auth, effective_namespace
+from core.auth import require_auth, require_role, effective_namespace
 from core.utils import utcnow_str
 
 memory_bp = Blueprint("memory", __name__, url_prefix="/api/v1/memory")
@@ -87,6 +87,14 @@ def bulk_delete_memory():
         return jsonify({"error": "ids list required"}), 422
     deleted, failed = [], []
     for eid in ids:
+        entry = engine.get_by_id(eid)
+        if not entry:
+            failed.append(eid)
+            continue
+        allowed_ns = effective_namespace(entry.namespace)
+        if allowed_ns and entry.namespace != allowed_ns:
+            failed.append(eid)
+            continue
         (deleted if engine.delete(eid) else failed).append(eid)
     return jsonify({"deleted": deleted, "failed": failed, "count": len(deleted)})
 
@@ -97,6 +105,9 @@ def get_memory(entry_id: str):
     entry = engine.get_by_id(entry_id)
     if not entry:
         return jsonify({"error": "Not found"}), 404
+    allowed_ns = effective_namespace(entry.namespace)
+    if allowed_ns and entry.namespace != allowed_ns:
+        return jsonify({"error": "Not found"}), 404  # 404, not 403 — don't confirm existence
     return jsonify(_entry_dict(entry))
 
 
@@ -106,6 +117,13 @@ def update_memory(entry_id: str):
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "JSON body required"}), 400
+
+    entry = engine.get_by_id(entry_id)
+    if not entry:
+        return jsonify({"error": "Not found"}), 404
+    allowed_ns = effective_namespace(entry.namespace)
+    if allowed_ns and entry.namespace != allowed_ns:
+        return jsonify({"error": "Not found"}), 404
 
     try:
         update_data = MemoryEntryUpdate(**data)
@@ -121,6 +139,12 @@ def update_memory(entry_id: str):
 @memory_bp.delete("/<entry_id>")
 @require_auth
 def delete_memory(entry_id: str):
+    entry = engine.get_by_id(entry_id)
+    if not entry:
+        return jsonify({"error": "Not found"}), 404
+    allowed_ns = effective_namespace(entry.namespace)
+    if allowed_ns and entry.namespace != allowed_ns:
+        return jsonify({"error": "Not found"}), 404
     deleted = engine.delete(entry_id)
     if not deleted:
         return jsonify({"error": "Not found"}), 404
@@ -156,6 +180,7 @@ def search_memory():
 
 @memory_bp.post("/import")
 @require_auth
+@require_role("admin", "operator")
 def import_memory():
     from pathlib import Path
     from core.config import get_settings
@@ -163,7 +188,7 @@ def import_memory():
 
     settings = get_settings()
     memory_dir = Path(settings.CLAUDE_MEMORY_PATH)
-    namespace = request.args.get("namespace", "global")
+    namespace = effective_namespace(request.args.get("namespace", "global")) or "global"
 
     if not memory_dir.exists():
         return jsonify({"error": f"Memory directory not found: {memory_dir}"}), 400
@@ -187,6 +212,7 @@ def list_namespaces():
 
 @memory_bp.delete("/expire")
 @require_auth
+@require_role("admin", "operator")
 def expire_memory():
     count = engine.expire_stale()
     return jsonify({"expired": count, "timestamp": utcnow_str()})
@@ -196,5 +222,6 @@ def expire_memory():
 @require_auth
 def agent_context(namespace: str):
     min_confidence = float(request.args.get("min_confidence", 0.8))
-    context_str = engine.get_agent_context(namespace, min_confidence)
-    return jsonify({"namespace": namespace, "context": context_str})
+    safe_ns = effective_namespace(namespace) or namespace
+    context_str = engine.get_agent_context(safe_ns, min_confidence)
+    return jsonify({"namespace": safe_ns, "context": context_str})
