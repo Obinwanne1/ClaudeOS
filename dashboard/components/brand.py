@@ -4,6 +4,7 @@ Design tokens match CustomCommand reference project exactly.
 Dark:  near-black green bg (#0A1F0A) with green-tinted surfaces.
 Light: clean white bg with gray borders, near-black text.
 """
+from html import escape as _esc
 import streamlit as st
 
 PRIMARY       = "#407E3C"
@@ -606,7 +607,9 @@ def theme_toggle_topbar() -> None:
 
 
 def badge(text: str, kind: str = "ok") -> str:
-    return f'<span class="status-badge badge-{kind}">{text}</span>'
+    _SAFE_KINDS = {"ok", "error", "pending", "warning", "info"}
+    safe_kind = kind if kind in _SAFE_KINDS else "ok"
+    return f'<span class="status-badge badge-{safe_kind}">{_esc(text)}</span>'
 
 
 def aurora_hero(title: str, subtitle: str = "", pill: str = "") -> None:
@@ -617,6 +620,11 @@ def aurora_hero(title: str, subtitle: str = "", pill: str = "") -> None:
         subtitle: Optional smaller description line.
         pill:     Optional small label badge (e.g. "v7.0 · All Systems Go").
     """
+    # ME-01: HTML-escape all caller-supplied strings before interpolation
+    title    = _esc(title)
+    subtitle = _esc(subtitle)
+    pill     = _esc(pill)
+
     t = THEMES[get_theme()]
     pill_html = (
         f'<span style="display:inline-block;background:{PRIMARY}33;color:{ACCENT};'
