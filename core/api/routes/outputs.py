@@ -94,6 +94,9 @@ def get_output(output_id: str):
     out = get_by_id(output_id)
     if not out:
         return jsonify({"error": "Output not found"}), 404
+    allowed_ns = effective_namespace(out.namespace)
+    if allowed_ns and out.namespace != allowed_ns:
+        return jsonify({"error": "Output not found"}), 404
     return jsonify(_out_dict(out))
 
 
@@ -101,11 +104,14 @@ def get_output(output_id: str):
 @require_api_key
 def get_content(output_id: str):
     """Return raw content as plain text."""
-    from outputs.manager import export_text
-    content = export_text(output_id)
-    if content is None:
+    from outputs.manager import get_by_id
+    out = get_by_id(output_id)
+    if not out:
         return jsonify({"error": "Output not found"}), 404
-    return Response(content, mimetype="text/plain; charset=utf-8")
+    allowed_ns = effective_namespace(out.namespace)
+    if allowed_ns and out.namespace != allowed_ns:
+        return jsonify({"error": "Output not found"}), 404
+    return Response(out.content, mimetype="text/plain; charset=utf-8")
 
 
 @outputs_bp.get("/<output_id>/export")
@@ -115,6 +121,9 @@ def export_output(output_id: str):
     from outputs.manager import get_by_id
     out = get_by_id(output_id)
     if not out:
+        return jsonify({"error": "Output not found"}), 404
+    allowed_ns = effective_namespace(out.namespace)
+    if allowed_ns and out.namespace != allowed_ns:
         return jsonify({"error": "Output not found"}), 404
     fmt = request.args.get("format", "json")
     if fmt == "json":
@@ -135,7 +144,13 @@ def export_output(output_id: str):
 @outputs_bp.delete("/<output_id>")
 @require_api_key
 def delete_output(output_id: str):
-    from outputs.manager import delete
+    from outputs.manager import get_by_id, delete
+    out = get_by_id(output_id)
+    if not out:
+        return jsonify({"error": "Output not found"}), 404
+    allowed_ns = effective_namespace(out.namespace)
+    if allowed_ns and out.namespace != allowed_ns:
+        return jsonify({"error": "Output not found"}), 404
     if not delete(output_id):
         return jsonify({"error": "Output not found"}), 404
     return jsonify({"deleted": output_id})
