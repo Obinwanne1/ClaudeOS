@@ -1,9 +1,16 @@
 """Admin page — user management, API keys, audit log, sessions, security."""
+import os
+from urllib.parse import urlencode
+
 import requests as _req
 import streamlit as st
+from dotenv import load_dotenv
+from pathlib import Path
 from dashboard.components.brand import aurora_hero, badge
 
-_API_BASE = "http://localhost:5000/api/v1"
+load_dotenv(Path(__file__).parent.parent.parent / ".env")
+_FLASK_PORT = os.environ.get("FLASK_PORT", "5000")
+_API_BASE = f"http://localhost:{_FLASK_PORT}/api/v1"
 
 
 def _auth_headers() -> dict:
@@ -82,13 +89,16 @@ def _render_users(api_get, api_post, ns_data=None):
                 st.warning(f"Deactivate {len(sel_usernames)} accounts? This cannot be undone.")
                 c1, c2 = st.columns(2)
                 if c1.button("Yes, deactivate all", key="bulk_users_yes"):
-                    _req.delete(
+                    resp = _req.delete(
                         f"{_API_BASE}/admin/users/bulk",
                         json={"ids": sel_uids},
                         headers=_auth_headers(), timeout=10,
                     )
                     st.session_state.pop("bulk_confirm_users", None)
-                    st.success("Deactivated.")
+                    if resp.ok:
+                        st.success(f"Deactivated {resp.json().get('count', 0)} users.")
+                    else:
+                        st.error(f"Failed: {resp.json().get('error', f'HTTP {resp.status_code}')}")
                     st.rerun()
                 if c2.button("Cancel", key="bulk_users_cancel"):
                     st.session_state.pop("bulk_confirm_users", None)
@@ -208,13 +218,16 @@ def _render_api_keys(api_get, api_post, ns_data=None):
                 st.warning(f"Permanently revoke {len(sel_labels)} key(s)?")
                 c1, c2 = st.columns(2)
                 if c1.button("Yes, revoke all", key="bulk_keys_yes"):
-                    _req.delete(
+                    resp = _req.delete(
                         f"{_API_BASE}/admin/api-keys/bulk",
                         json={"ids": sel_key_ids},
                         headers=_auth_headers(), timeout=10,
                     )
                     st.session_state.pop("bulk_confirm_keys", None)
-                    st.success("Revoked.")
+                    if resp.ok:
+                        st.success(f"Revoked {resp.json().get('count', 0)} key(s).")
+                    else:
+                        st.error(f"Failed: {resp.json().get('error', f'HTTP {resp.status_code}')}")
                     st.rerun()
                 if c2.button("Cancel", key="bulk_keys_cancel"):
                     st.session_state.pop("bulk_confirm_keys", None)
@@ -259,11 +272,12 @@ def _render_audit(api_get):
     with col2:
         un_filter = st.text_input("Filter username", key="audit_un", placeholder="(any)")
 
-    url = "/admin/audit?limit=100"
+    params = {"limit": 100}
     if et_filter:
-        url += f"&event_type={et_filter}"
+        params["event_type"] = et_filter
     if un_filter.strip():
-        url += f"&username={un_filter.strip()}"
+        params["username"] = un_filter.strip()
+    url = f"/admin/audit?{urlencode(params)}"
 
     events = api_get(url) or []
     if events:
@@ -311,13 +325,16 @@ def _render_sessions(api_get, api_post):
                 st.warning(f"Revoke {len(sel_sess_labels)} session(s)?")
                 c1, c2 = st.columns(2)
                 if c1.button("Yes, revoke all", key="bulk_sess_yes"):
-                    _req.delete(
+                    resp = _req.delete(
                         f"{_API_BASE}/admin/sessions/bulk",
                         json={"ids": sel_sess_ids},
                         headers=_auth_headers(), timeout=10,
                     )
                     st.session_state.pop("bulk_confirm_sess", None)
-                    st.success("Revoked.")
+                    if resp.ok:
+                        st.success(f"Revoked {resp.json().get('count', 0)} session(s).")
+                    else:
+                        st.error(f"Failed: {resp.json().get('error', f'HTTP {resp.status_code}')}")
                     st.rerun()
                 if c2.button("Cancel", key="bulk_sess_cancel"):
                     st.session_state.pop("bulk_confirm_sess", None)
