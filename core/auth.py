@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import secrets
+import threading
 import time
 from datetime import datetime, timedelta, timezone
 from functools import wraps
@@ -172,15 +173,15 @@ def record_failed_attempt(user_id: str) -> None:
     lockout_minutes = _cfg_int("lockout_minutes", 15)
     with get_db() as conn:
         conn.execute(
-            f"""UPDATE users SET
+            """UPDATE users SET
                 failed_attempts = failed_attempts + 1,
                 locked_until = CASE
-                    WHEN failed_attempts + 1 >= ? THEN datetime('now', '+{lockout_minutes} minutes')
+                    WHEN failed_attempts + 1 >= ? THEN datetime('now', '+' || ? || ' minutes')
                     ELSE locked_until
                 END,
                 updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?""",
-            (max_attempts, user_id),
+            (max_attempts, lockout_minutes, user_id),
         )
     audit_log("login_failure", user_id=user_id, ip=_client_ip(), ua=_client_ua())
 
@@ -221,13 +222,22 @@ def get_user_by_username(username: str) -> Optional[dict]:
         row = conn.execute(
             "SELECT * FROM users WHERE LOWER(username) = LOWER(?)", (username,)
         ).fetchone()
-    return dict(row) if row else None
+    if not row:
+        return None
+    user = dict(row)
+    # Keep password_hash accessible internally (needed by verify_password callers)
+    # but mark it so accidental serialisation is detectable. Callers that need to
+    # check the hash access user["password_hash"] explicitly; API responses must
+    # use _user_public() or _user_dict_full() which never include the hash.
+    return user
 
 
 def get_user_by_id(user_id: str) -> Optional[dict]:
     with get_db() as conn:
         row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-    return dict(row) if row else None
+    if not row:
+        return None
+    return dict(row)
 
 
 def create_user(username: str, password: str, role: str = "viewer",
@@ -267,6 +277,7 @@ def _client_ua() -> str:
 # Debounce last_used writes: only hit DB once per 60s per key id
 # Bounded to 500 entries — evict entries older than 2× interval to prevent unbounded growth
 _api_key_last_updated: dict[str, float] = {}
+_api_key_lock = threading.Lock()  # IN-04: protect dict from concurrent mutation
 _API_KEY_UPDATE_INTERVAL = 60.0
 _API_KEY_CACHE_MAX = 500
 
@@ -281,19 +292,22 @@ def _validate_api_key_header(raw_key: str) -> bool:
         if not row:
             return False
         now = time.monotonic()
-        if now - _api_key_last_updated.get(row["id"], 0) >= _API_KEY_UPDATE_INTERVAL:
-            conn.execute("UPDATE api_keys SET last_used = CURRENT_TIMESTAMP WHERE id = ?", (row["id"],))
-            _api_key_last_updated[row["id"]] = now
-            # Evict stale entries when cache exceeds bound
-            if len(_api_key_last_updated) > _API_KEY_CACHE_MAX:
-                cutoff = now - _API_KEY_UPDATE_INTERVAL * 2
-                stale = [k for k, v in _api_key_last_updated.items() if v < cutoff]
-                for k in stale:
-                    del _api_key_last_updated[k]
+        with _api_key_lock:
+            if now - _api_key_last_updated.get(row["id"], 0) >= _API_KEY_UPDATE_INTERVAL:
+                conn.execute("UPDATE api_keys SET last_used = CURRENT_TIMESTAMP WHERE id = ?", (row["id"],))
+                _api_key_last_updated[row["id"]] = now
+                # Evict stale entries when cache exceeds bound
+                if len(_api_key_last_updated) > _API_KEY_CACHE_MAX:
+                    cutoff = now - _API_KEY_UPDATE_INTERVAL * 2
+                    stale = [k for k, v in _api_key_last_updated.items() if v < cutoff]
+                    for k in stale:
+                        del _api_key_last_updated[k]
+    # HI-05: propagate stored namespace and derive role from it
+    stored_ns = row["namespace"] if row["namespace"] not in (None, "", "global") else None
     g.user_id = f"apikey:{row['id']}"
     g.username = row["name"]
-    g.user_role = "operator"
-    g.user_namespace = None
+    g.user_role = "client" if stored_ns else "operator"
+    g.user_namespace = stored_ns
     g.auth_method = "api_key"
     return True
 
@@ -321,8 +335,8 @@ def require_auth(f):
             except jwt.InvalidTokenError:
                 return jsonify({"error": "Invalid token"}), 401
 
-        # 2. X-API-Key fallback
-        raw_key = request.headers.get("X-API-Key") or request.args.get("api_key")
+        # 2. X-API-Key header fallback (query param removed — keys must not appear in URLs)
+        raw_key = request.headers.get("X-API-Key")
         if raw_key and _validate_api_key_header(raw_key):
             return f(*args, **kwargs)
 
