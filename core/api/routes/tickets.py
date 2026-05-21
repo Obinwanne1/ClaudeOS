@@ -1,15 +1,17 @@
 """Tickets REST API routes."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+import logging
 
 from flask import Blueprint, g, jsonify, request
 
 from core.auth import require_auth, effective_namespace
 from core.database import get_db
-from core.utils import new_id, utcnow_str
+from core.utils import new_id, utcnow, utcnow_str
+from datetime import timedelta
 
 tickets_bp = Blueprint("tickets", __name__, url_prefix="/api/v1/tickets")
+logger = logging.getLogger("claudeos.tickets")
 
 SLA_HOURS = {"P1": 4, "P2": 8, "P3": 24, "P4": 72}
 VALID_STATUSES    = {"open", "assigned", "work_in_progress", "completed", "closed"}
@@ -322,14 +324,16 @@ def update_ticket(ticket_id: str):
         if "sla_tier" in body:
             tier = body["sla_tier"]
             if tier in VALID_SLA_TIERS:
-                due = (datetime.utcnow() + timedelta(hours=SLA_HOURS[tier])).strftime("%Y-%m-%d %H:%M:%S")
+                due = (utcnow() + timedelta(hours=SLA_HOURS[tier])).strftime("%Y-%m-%d %H:%M:%S")
                 sets.append("sla_tier = ?")
                 params.append(tier)
                 sets.append("sla_due_at = ?")
                 params.append(due)
             elif tier is None or tier == "":
-                sets.append("sla_tier = NULL")
-                sets.append("sla_due_at = NULL")
+                sets.append("sla_tier = ?")
+                params.append(None)
+                sets.append("sla_due_at = ?")
+                params.append(None)
 
     if not sets:
         return jsonify({"error": "No valid fields to update"}), 422
@@ -368,8 +372,8 @@ def assign_me(ticket_id: str):
                 "INSERT OR IGNORE INTO ticket_assignees (id, ticket_id, username, assigned_at, assigned_by) VALUES (?, ?, ?, ?, ?)",
                 (new_id(), ticket_id, g.username, now, g.username),
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("assign_me insert failed for ticket %s: %s", ticket_id, e)
 
         # Set primary assigned_to if unset
         if not ticket.get("assigned_to"):
@@ -450,8 +454,8 @@ def add_assignees(ticket_id: str):
                     (new_id(), ticket_id, uname, now, g.username),
                 )
                 added.append(uname)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to insert assignee %s for ticket %s: %s", uname, ticket_id, e)
 
         # Set primary assigned_to if unset and we added someone
         if added and not ticket.get("assigned_to"):
@@ -567,7 +571,7 @@ def ticket_stats():
     if g.user_role not in ("admin", "operator"):
         return jsonify({"error": "Insufficient permissions"}), 403
 
-    now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    now_str = utcnow().strftime("%Y-%m-%d %H:%M:%S")
     with get_db() as conn:
         by_status   = conn.execute("SELECT status, COUNT(*) as cnt FROM tickets GROUP BY status").fetchall()
         by_priority = conn.execute("SELECT priority, COUNT(*) as cnt FROM tickets GROUP BY priority").fetchall()
