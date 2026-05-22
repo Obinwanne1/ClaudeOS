@@ -137,11 +137,11 @@ _READ_ONLY_PREFIXES = (
     "/system/stats",
     "/system/events",
     "/agents",
-    "/agents/runs",
     "/memory/namespaces",
     "/outputs/stats",
     "/namespaces",
 )
+# NOTE: /agents/runs intentionally excluded — user-scoped, must never be cached cross-user
 
 
 @st.cache_data(ttl=30)
@@ -150,7 +150,12 @@ def _cached_api_get(path: str, token: str = "", timeout: int = 3) -> dict | None
 
 
 def api_get_cached(path: str, timeout: int = 3) -> dict | None:
-    """api_get with 30-second TTL cache scoped per user token."""
+    """api_get with 30-second TTL cache scoped per user token.
+    /agents/runs is explicitly excluded — user-scoped data must not be cached cross-user.
+    """
+    base = path.split("?")[0]
+    if base == "/agents/runs" or base.startswith("/agents/runs/"):
+        return api_get(path, timeout)
     if any(path == p or path.startswith(p) for p in _READ_ONLY_PREFIXES):
         tok = st.session_state.get("jwt_token", "")
         return _cached_api_get(path, token=tok, timeout=timeout)
