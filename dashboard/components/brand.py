@@ -446,18 +446,37 @@ div[data-testid="stToggle"] input:checked + span[data-testid="stToggleSlider"] {
     .stApp h1 {{ font-size: 1.4rem !important; }}
     .stApp h2 {{ font-size: 1.1rem !important; }}
     .stApp h3 {{ font-size: 1rem !important; }}
+    /* KPI row: 2-per-row grid (50%) instead of 100% stack.
+       Two-column content rows still stack at 100% via the
+       min-width floor — narrow cols (weight<0.4) go full-width. */
+    [data-testid="column"] {{
+        width: 50% !important;
+        min-width: 50% !important;
+        flex: 0 0 50% !important;
+    }}
+    /* Two-col layout (left≈67%, right≈33%) — force full-width stack */
+    [data-testid="column"]:first-child:not(:last-child) {{
+        width: 100% !important;
+        min-width: 100% !important;
+        flex: 0 0 100% !important;
+    }}
     /* Metric cards compact */
     [data-testid="metric-container"] {{
-        padding: 0.5rem 0.75rem !important;
+        padding: 0.4rem 0.5rem !important;
     }}
-    .metric-value {{ font-size: 1.2rem !important; }}
-    /* Sidebar auto-collapse — handled by Streamlit config */
+    [data-testid="metric-container"] label {{
+        font-size: 0.7rem !important;
+    }}
+    [data-testid="metric-container"] [data-testid="stMetricValue"] {{
+        font-size: 1.3rem !important;
+    }}
     /* Expanders full-width */
     .streamlit-expanderHeader {{ font-size: 0.85rem !important; }}
     /* Download/action buttons touch-friendly */
     .stButton > button {{
         min-height: 44px !important;
         font-size: 0.9rem !important;
+        width: 100% !important;
     }}
     /* Dataframe scroll on mobile */
     .stDataFrame {{ overflow-x: auto !important; }}
@@ -465,6 +484,8 @@ div[data-testid="stToggle"] input:checked + span[data-testid="stToggleSlider"] {
     [data-testid="stHorizontalBlock"] {{
         overflow-x: auto !important;
     }}
+    /* Namespace pill compact */
+    .cos-login-card {{ padding: 24px 20px 20px !important; }}
 }}
 </style>
 """
