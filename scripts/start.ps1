@@ -38,19 +38,20 @@ Start-Sleep 1
 # Migrations run automatically inside Flask create_app() — no separate step needed.
 
 # Start Flask API via waitress in background
+# Use Start-Process (not Start-Job) — inherits PATH and env vars correctly.
 Write-Host "Starting API on :$FLASK_PORT ..." -ForegroundColor Cyan
-$apiJob = Start-Job -ScriptBlock {
-    param($root, $port)
-    Set-Location $root
-    python scripts\serve_api.py $port
-} -ArgumentList $ROOT, $FLASK_PORT
+$apiProc = Start-Process -FilePath "python" `
+    -ArgumentList "scripts\serve_api.py", $FLASK_PORT `
+    -WorkingDirectory $ROOT `
+    -PassThru `
+    -WindowStyle Hidden
 
-# Wait for API with retries
+# Wait for API with retries (60s window — Python imports + migrations take ~15-35s)
 $apiReady = $false
 Start-Sleep 1
-for ($i = 1; $i -le 30; $i++) {
+for ($i = 1; $i -le 60; $i++) {
     try {
-        $health = Invoke-RestMethod -Uri "http://localhost:$FLASK_PORT/api/v1/health" -TimeoutSec 2
+        $health = Invoke-RestMethod -Uri "http://127.0.0.1:$FLASK_PORT/api/v1/health" -TimeoutSec 3
         if ($health.status -eq "ok") {
             Write-Host "  API: RUNNING on :$FLASK_PORT  (v$($health.version))" -ForegroundColor Green
             $apiReady = $true
@@ -61,6 +62,7 @@ for ($i = 1; $i -le 30; $i++) {
 }
 if (-not $apiReady) {
     Write-Host "  API: FAILED to start - check logs/api.log" -ForegroundColor Red
+    if ($apiProc -and -not $apiProc.HasExited) { $apiProc.Kill() }
     exit 1
 }
 
