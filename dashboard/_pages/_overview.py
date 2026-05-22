@@ -5,6 +5,45 @@ from datetime import datetime
 from dashboard.components.brand import aurora_hero, PRIMARY
 
 
+def _render_kpi_grid(kpis: list) -> None:
+    """Render KPI cards as a pure HTML/CSS grid — immune to Streamlit column overrides.
+    3 columns on desktop, 2 columns on mobile (≤480px).
+    kpis: list of (label, value, delta_str|None)
+    """
+    from dashboard.components.brand import get_theme_vars
+    t = get_theme_vars()
+    cards = ""
+    for label, value, delta in kpis:
+        delta_html = (
+            f'<div style="font-size:0.72rem;color:#f87171;margin-top:2px;">{delta}</div>'
+            if delta else ""
+        )
+        cards += f"""
+        <div style="background:{t['SURFACE']};border:1px solid {t['BORDER']};
+                    border-radius:10px;padding:14px 16px;min-width:0;">
+            <div style="font-size:0.78rem;color:{t['TEXT_MUTED']};
+                        font-weight:500;margin-bottom:4px;white-space:nowrap;
+                        overflow:hidden;text-overflow:ellipsis;">{label}</div>
+            <div style="font-size:1.9rem;font-weight:700;
+                        color:{t['TEXT']};line-height:1.1;">{value}</div>
+            {delta_html}
+        </div>"""
+    st.markdown(f"""
+<style>
+.cos-kpi-grid {{
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
+}}
+@media (max-width: 480px) {{
+    .cos-kpi-grid {{ grid-template-columns: repeat(2, 1fr); gap: 8px; }}
+}}
+</style>
+<div class="cos-kpi-grid">{cards}</div>
+""", unsafe_allow_html=True)
+
+
 def render(api_get, api_post, bulk_delete=None):
     role      = st.session_state.get("user_role", "viewer")
     username  = st.session_state.get("username", "")
@@ -50,22 +89,27 @@ def render(api_get, api_post, bulk_delete=None):
     counts = stats.get("counts", {}) if stats else {}
     open_tickets = counts.get("open_tickets", 0)
 
-    # KPI grid — two rows of 3 columns (renders as 3×2 on desktop, 1×6 stacked
-    # on mobile via Streamlit's responsive collapse; avoids 6-col CSS issues).
-    r1c1, r1c2, r1c3 = st.columns(3)
-    r2c1, r2c2, r2c3 = st.columns(3)
-    r1c1.metric("Memory",  counts.get("memory_entries", 0))
-    r1c2.metric("Agents",  counts.get("agents", 0))
-    r1c3.metric("Runs",    counts.get("agent_runs", 0))
+    # KPI grid — pure HTML/CSS, bypasses Streamlit's column system entirely.
+    # Renders 3-per-row on desktop, 2-per-row on mobile (≤480px).
     if is_scoped:
-        r2c1.metric("Outputs",      counts.get("outputs", 0))
-        r2c2.metric("Projects",     counts.get("projects", 0))
-        r2c3.metric("Open Tickets", open_tickets,
-                    delta=None if open_tickets == 0 else f"{open_tickets} active")
+        kpis = [
+            ("Memory",      counts.get("memory_entries", 0), None),
+            ("Agents",      counts.get("agents", 0),         None),
+            ("Runs",        counts.get("agent_runs", 0),     None),
+            ("Outputs",     counts.get("outputs", 0),        None),
+            ("Projects",    counts.get("projects", 0),       None),
+            ("Open Tickets",open_tickets, f"🔴 {open_tickets} active" if open_tickets else None),
+        ]
     else:
-        r2c1.metric("Workflows",    counts.get("workflows", 0))
-        r2c2.metric("Outputs",      counts.get("outputs", 0))
-        r2c3.metric("Open Tickets", open_tickets)
+        kpis = [
+            ("Memory",      counts.get("memory_entries", 0), None),
+            ("Agents",      counts.get("agents", 0),         None),
+            ("Runs",        counts.get("agent_runs", 0),     None),
+            ("Workflows",   counts.get("workflows", 0),      None),
+            ("Outputs",     counts.get("outputs", 0),        None),
+            ("Open Tickets",open_tickets, f"🔴 {open_tickets} active" if open_tickets else None),
+        ]
+    _render_kpi_grid(kpis)
 
     st.markdown("---")
 
