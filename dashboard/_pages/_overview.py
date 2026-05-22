@@ -116,13 +116,33 @@ def render(api_get, api_post, bulk_delete=None):
         st.subheader("Recent Activity" if is_scoped else "Recent Agent Runs")
         runs = (runs_data or {}).get("runs", [])
         if runs:
+            from dashboard.components.brand import get_theme_vars as _tv
+            _t = _tv()
             for run in runs[:8]:
-                status_icon = {"done": "✅", "failed": "❌", "running": "⏳", "pending": "⏸️"}.get(run.get("status", ""), "•")
-                agent_id = run.get("agent_id", "")[:8]
-                ns       = run.get("namespace", "global")
-                created  = run.get("created_at", "")[:16] if run.get("created_at") else ""
-                ns_part  = "" if is_scoped else f" · `{ns}`"
-                st.markdown(f"`{status_icon} {run.get('status','?'):8}` · agent `{agent_id}`{ns_part} · {created}")
+                _status = run.get("status", "?")
+                _icon = {"done": "✅", "failed": "❌", "running": "⏳", "pending": "⏸️"}.get(_status, "•")
+                _agent = run.get("agent_id", "")[:8]
+                _ns    = run.get("namespace", "global")
+                _raw   = run.get("created_at", "")
+                # Format: "22 May · 06:56"
+                try:
+                    from datetime import datetime as _dt
+                    _parsed = _dt.fromisoformat(_raw.replace("Z",""))
+                    _created = f"{_parsed.day} {_parsed.strftime('%b')} · {_parsed.strftime('%H:%M')}"
+                except Exception:
+                    _created = _raw[:16]
+                _muted  = _t["TEXT_MUTED"]
+                _border = _t["BORDER"]
+                _ns_part = "" if is_scoped else f'<span style="color:{_muted};font-size:0.75rem;"> · {_ns}</span>'
+                _color = {"done":"#5a9e56","failed":"#ef4444","running":"#f59e0b","pending":"#6b7280"}.get(_status,"#6b7280")
+                st.markdown(
+                    f'<div style="padding:6px 0;border-bottom:1px solid {_border};font-size:0.82rem;">'
+                    f'<span style="color:{_color};font-weight:600;">{_icon} {_status}</span>'
+                    f' · <code style="font-size:0.78rem;">{_agent}</code>{_ns_part}'
+                    f'<span style="float:right;color:{_muted};font-size:0.75rem;">{_created}</span>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
         else:
             # Empty state
             st.info(
