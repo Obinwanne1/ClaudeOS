@@ -533,8 +533,6 @@ def sidebar_logo():
 
 def theme_toggle():
     """Fixed-position circular icon toggle — dark navy sun (dark mode) / light gray moon (light mode)."""
-    import streamlit.components.v1 as _components
-
     _MARKER = "COS-THEME-FLIP-TRIGGER"
     if st.button(_MARKER, key="_cos_theme_flip_btn"):
         current = get_theme()
@@ -593,10 +591,10 @@ def theme_toggle():
         f"transition:transform 0.15s ease,box-shadow 0.15s ease;"
     )
 
-    _components.html(f"""
+    st.html(f"""
 <script>
 (function() {{
-  var doc = window.parent.document;
+  var doc = document;
   var old = doc.getElementById('cos-theme-btn');
   if (old) old.remove();
 
@@ -637,7 +635,7 @@ def theme_toggle():
   doc.body.appendChild(btn);
 }})();
 </script>
-""", height=0, scrolling=False)
+""")
 
 
 def theme_toggle_topbar() -> None:
