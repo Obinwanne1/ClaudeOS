@@ -136,10 +136,10 @@ def render(api_get, api_post, bulk_delete=None):
                 _ns_part = "" if is_scoped else f'<span style="color:{_muted};font-size:0.75rem;"> · {_ns}</span>'
                 _color = {"done":"#5a9e56","failed":"#ef4444","running":"#f59e0b","pending":"#6b7280"}.get(_status,"#6b7280")
                 st.markdown(
-                    f'<div style="padding:6px 0;border-bottom:1px solid {_border};font-size:0.82rem;">'
+                    f'<div style="padding:7px 0;font-size:0.82rem;">'
                     f'<span style="color:{_color};font-weight:600;">{_icon} {_status}</span>'
-                    f' · <code style="font-size:0.78rem;">{_agent}</code>{_ns_part}'
-                    f' · <span style="color:{_muted};font-size:0.75rem;">{_created}</span>'
+                    f'&nbsp;&nbsp;·&nbsp;&nbsp;<code style="font-size:0.78rem;">{_agent}</code>{_ns_part}'
+                    f'&nbsp;&nbsp;&nbsp;<span style="color:{_muted};font-size:0.75rem;">{_created}</span>'
                     f'</div>',
                     unsafe_allow_html=True,
                 )
