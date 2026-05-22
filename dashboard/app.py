@@ -3,6 +3,10 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import os
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parent.parent / ".env")
+
 import jwt as _jwt
 import streamlit as st
 
@@ -17,6 +21,27 @@ from dashboard.components.brand import inject, sidebar_logo, theme_toggle, PRIMA
 inject()
 theme_toggle()  # available on all pages including login
 
+# ── Cookie-based session persistence (survive page refresh) ───────────────────
+from streamlit_cookies_manager import EncryptedCookieManager as _CookieManager
+_COOKIE_SECRET = os.environ.get("CLAUDEOS_SECRET_KEY", "claudeos-fallback-32-char-secret!")
+_cookies = _CookieManager(prefix="cos_", password=_COOKIE_SECRET)
+if not _cookies.ready():
+    st.stop()
+
+# Restore session from cookies if session_state was cleared by page refresh
+if not st.session_state.get("jwt_token"):
+    _saved_jwt = _cookies.get("jwt_token")
+    if _saved_jwt:
+        st.session_state["jwt_token"]            = _saved_jwt
+        st.session_state["refresh_token"]        = _cookies.get("refresh_token", "")
+        st.session_state["username"]             = _cookies.get("username", "")
+        st.session_state["user_role"]            = _cookies.get("user_role", "viewer")
+        st.session_state["user_namespace"]       = _cookies.get("user_namespace") or None
+        st.session_state["must_change_password"] = _cookies.get("must_change_password") == "true"
+
+# Store cookie manager for login_form and logout to access
+st.session_state["_cookies"] = _cookies
+
 # ── Auth gate ─────────────────────────────────────────────────────────────────
 if not st.session_state.get("jwt_token"):
     from dashboard.components.login_form import render_login
@@ -30,13 +55,8 @@ if st.session_state.get("must_change_password"):
     st.stop()
 
 import logging
-import os
 import requests
 from datetime import datetime
-from pathlib import Path
-from dotenv import load_dotenv
-
-load_dotenv(Path(__file__).parent.parent / ".env")
 
 _FLASK_PORT = os.environ.get("FLASK_PORT", "5000")
 API_BASE = f"http://localhost:{_FLASK_PORT}/api/v1"
@@ -77,7 +97,13 @@ def _maybe_refresh_token() -> None:
                 timeout=3,
             )
             if r.ok:
-                st.session_state["jwt_token"] = r.json()["access_token"]
+                new_token = r.json()["access_token"]
+                st.session_state["jwt_token"] = new_token
+                # Keep cookie in sync so refresh survives next page reload
+                _c = st.session_state.get("_cookies")
+                if _c:
+                    _c["jwt_token"] = new_token
+                    _c.save()
     except Exception as e:
         logger.debug("Token refresh skipped: %s", e)
 
@@ -232,6 +258,15 @@ if st.sidebar.button("Logout", use_container_width=True):
         )
     except Exception:
         pass
+    # Clear persisted cookies before wiping session_state
+    _c = st.session_state.get("_cookies")
+    if _c:
+        for _k in ["jwt_token", "refresh_token", "username", "user_role", "user_namespace", "must_change_password"]:
+            try:
+                del _c[_k]
+            except KeyError:
+                pass
+        _c.save()
     st.session_state.clear()
     st.rerun()
 
