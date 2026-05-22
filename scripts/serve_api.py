@@ -1,7 +1,13 @@
 import sys
 import os
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Load .env before any heavy imports so HF_HUB_OFFLINE and other vars are set
+# before sentence-transformers / chromadb initialize.
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 from waitress import serve
 from core.api.app import create_app
