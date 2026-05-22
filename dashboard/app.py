@@ -198,7 +198,7 @@ _ticket_stats = _cached_api_get(
     token=st.session_state.get("jwt_token", ""),
     timeout=3,
 )
-_open_ticket_count = (_ticket_stats or {}).get("count", 0)
+_open_ticket_count = (_ticket_stats.get("count", 0) if isinstance(_ticket_stats, dict) else 0)
 
 page = st.sidebar.radio(
     "Navigation",
