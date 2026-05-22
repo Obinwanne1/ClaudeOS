@@ -28,20 +28,7 @@ def _render_kpi_grid(kpis: list) -> None:
                         color:{t['TEXT']};line-height:1.1;">{value}</div>
             {delta_html}
         </div>"""
-    st.markdown(f"""
-<style>
-.cos-kpi-grid {{
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-    margin-bottom: 16px;
-}}
-@media (max-width: 480px) {{
-    .cos-kpi-grid {{ grid-template-columns: repeat(2, 1fr); gap: 8px; }}
-}}
-</style>
-<div class="cos-kpi-grid">{cards}</div>
-""", unsafe_allow_html=True)
+    st.markdown(f'<div class="cos-kpi-grid">{cards}</div>', unsafe_allow_html=True)
 
 
 def render(api_get, api_post, bulk_delete=None):

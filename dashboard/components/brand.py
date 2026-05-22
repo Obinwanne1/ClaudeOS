@@ -282,6 +282,17 @@ hr {{ border-color: {t['BORDER']} !important; }}
 ::-webkit-scrollbar-thumb {{ background: {t['BORDER']}; border-radius: 3px; }}
 
 
+/* ── KPI grid — 3-col desktop, 2-col mobile ── */
+.cos-kpi-grid {{
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
+}}
+@media (max-width: 480px) {{
+    .cos-kpi-grid {{ grid-template-columns: repeat(2, 1fr); gap: 8px; }}
+}}
+
 /* ── aurora_hero() card (optional, used per-page) ── */
 .aurora-hero-card {{
     position: relative;
