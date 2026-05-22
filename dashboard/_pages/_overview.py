@@ -50,19 +50,22 @@ def render(api_get, api_post, bulk_delete=None):
     counts = stats.get("counts", {}) if stats else {}
     open_tickets = counts.get("open_tickets", 0)
 
-    # KPI row — 6 metrics; swap Workflows→Open Tickets for scoped users
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
-    col1.metric("Memory", counts.get("memory_entries", 0))
-    col2.metric("Agents", counts.get("agents", 0))
-    col3.metric("Runs", counts.get("agent_runs", 0))
+    # KPI grid — two rows of 3 columns (renders as 3×2 on desktop, 1×6 stacked
+    # on mobile via Streamlit's responsive collapse; avoids 6-col CSS issues).
+    r1c1, r1c2, r1c3 = st.columns(3)
+    r2c1, r2c2, r2c3 = st.columns(3)
+    r1c1.metric("Memory",  counts.get("memory_entries", 0))
+    r1c2.metric("Agents",  counts.get("agents", 0))
+    r1c3.metric("Runs",    counts.get("agent_runs", 0))
     if is_scoped:
-        col4.metric("Outputs", counts.get("outputs", 0))
-        col5.metric("Projects", counts.get("projects", 0))
-        col6.metric("Open Tickets", open_tickets, delta=None if open_tickets == 0 else f"{open_tickets} active")
+        r2c1.metric("Outputs",      counts.get("outputs", 0))
+        r2c2.metric("Projects",     counts.get("projects", 0))
+        r2c3.metric("Open Tickets", open_tickets,
+                    delta=None if open_tickets == 0 else f"{open_tickets} active")
     else:
-        col4.metric("Workflows", counts.get("workflows", 0))
-        col5.metric("Outputs", counts.get("outputs", 0))
-        col6.metric("Open Tickets", open_tickets)
+        r2c1.metric("Workflows",    counts.get("workflows", 0))
+        r2c2.metric("Outputs",      counts.get("outputs", 0))
+        r2c3.metric("Open Tickets", open_tickets)
 
     st.markdown("---")
 

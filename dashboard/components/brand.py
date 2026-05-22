@@ -446,16 +446,10 @@ div[data-testid="stToggle"] input:checked + span[data-testid="stToggleSlider"] {
     .stApp h1 {{ font-size: 1.4rem !important; }}
     .stApp h2 {{ font-size: 1.1rem !important; }}
     .stApp h3 {{ font-size: 1rem !important; }}
-    /* KPI row: 2-per-row grid (50%) instead of 100% stack.
-       Two-column content rows still stack at 100% via the
-       min-width floor — narrow cols (weight<0.4) go full-width. */
+    /* All columns stack full-width on mobile.
+       KPI grid uses 3-col Python layout (two rows of 3) so 3 per row
+       is the natural desktop view; on mobile each stacks cleanly. */
     [data-testid="column"] {{
-        width: 50% !important;
-        min-width: 50% !important;
-        flex: 0 0 50% !important;
-    }}
-    /* Two-col layout (left≈67%, right≈33%) — force full-width stack */
-    [data-testid="column"]:first-child:not(:last-child) {{
         width: 100% !important;
         min-width: 100% !important;
         flex: 0 0 100% !important;
