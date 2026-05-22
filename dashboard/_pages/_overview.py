@@ -12,22 +12,15 @@ def _render_kpi_grid(kpis: list) -> None:
     """
     from dashboard.components.brand import get_theme_vars
     t = get_theme_vars()
+    # All HTML must be single-line — Streamlit's markdown parser chokes on
+    # multi-line attribute values and treats subsequent lines as raw text.
     cards = ""
     for label, value, delta in kpis:
-        delta_html = (
-            f'<div style="font-size:0.72rem;color:#f87171;margin-top:2px;">{delta}</div>'
-            if delta else ""
-        )
-        cards += f"""
-        <div style="background:{t['SURFACE']};border:1px solid {t['BORDER']};
-                    border-radius:10px;padding:14px 16px;min-width:0;">
-            <div style="font-size:0.78rem;color:{t['TEXT_MUTED']};
-                        font-weight:500;margin-bottom:4px;white-space:nowrap;
-                        overflow:hidden;text-overflow:ellipsis;">{label}</div>
-            <div style="font-size:1.9rem;font-weight:700;
-                        color:{t['TEXT']};line-height:1.1;">{value}</div>
-            {delta_html}
-        </div>"""
+        d = f'<div style="font-size:0.72rem;color:#f87171;margin-top:2px;">{delta}</div>' if delta else ""
+        cs = f"background:{t['SURFACE']};border:1px solid {t['BORDER']};border-radius:10px;padding:14px 16px;min-width:0;"
+        ls = f"font-size:0.78rem;color:{t['TEXT_MUTED']};font-weight:500;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
+        vs = f"font-size:1.9rem;font-weight:700;color:{t['TEXT']};line-height:1.1;"
+        cards += f'<div style="{cs}"><div style="{ls}">{label}</div><div style="{vs}">{value}</div>{d}</div>'
     st.markdown(f'<div class="cos-kpi-grid">{cards}</div>', unsafe_allow_html=True)
 
 
