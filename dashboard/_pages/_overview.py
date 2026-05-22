@@ -131,14 +131,16 @@ def render(api_get, api_post, bulk_delete=None):
                     _created = f"{_parsed.day} {_parsed.strftime('%b')} · {_parsed.strftime('%H:%M')}"
                 except Exception:
                     _created = _raw[:16]
-                _muted  = _t["TEXT_MUTED"]
-                _border = _t["BORDER"]
+                _muted   = _t["TEXT_MUTED"]
+                _surf2   = _t["SURFACE2"]
+                _txt     = _t["TEXT"]
                 _ns_part = "" if is_scoped else f'<span style="color:{_muted};font-size:0.75rem;"> · {_ns}</span>'
-                _color = {"done":"#5a9e56","failed":"#ef4444","running":"#f59e0b","pending":"#6b7280"}.get(_status,"#6b7280")
+                _color   = {"done":"#5a9e56","failed":"#ef4444","running":"#f59e0b","pending":"#6b7280"}.get(_status,"#6b7280")
+                _pill    = f"background:{_surf2};color:{_txt};padding:1px 6px;border-radius:4px;font-size:0.78rem;font-family:monospace;"
                 st.markdown(
                     f'<div style="padding:7px 0;font-size:0.82rem;">'
                     f'<span style="color:{_color};font-weight:600;">{_icon} {_status}</span>'
-                    f'&nbsp;&nbsp;·&nbsp;&nbsp;<code style="font-size:0.78rem;">{_agent}</code>{_ns_part}'
+                    f'&nbsp;&nbsp;·&nbsp;&nbsp;<span style="{_pill}">{_agent}</span>{_ns_part}'
                     f'&nbsp;&nbsp;&nbsp;<span style="color:{_muted};font-size:0.75rem;">{_created}</span>'
                     f'</div>',
                     unsafe_allow_html=True,
