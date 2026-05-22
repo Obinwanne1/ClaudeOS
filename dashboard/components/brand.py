@@ -155,6 +155,19 @@ section[data-testid="stSidebar"] > div > div > button svg * {{
     color: {t['TEXT_MUTED']} !important;
 }}
 
+/* ── Code blocks ── */
+[data-testid="stMarkdownContainer"] pre,
+[data-testid="stMarkdownContainer"] pre code {{
+    background-color: {t['SURFACE2']} !important;
+    color: {t['TEXT']} !important;
+    border: 1px solid {t['BORDER']} !important;
+    border-radius: 6px !important;
+}}
+[data-testid="stMarkdownContainer"] code {{
+    background-color: {t['SURFACE2']} !important;
+    color: {t['TEXT']} !important;
+}}
+
 /* ── Metric values ── */
 [data-testid="metric-container"],
 [data-testid="metric-container"] * {{

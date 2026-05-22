@@ -128,7 +128,7 @@ def _render_browse(api_get, api_post, ns_data: list, bulk_delete=None):
 
         col_check, col_card = st.columns([0.05, 0.95])
         with col_check:
-            st.checkbox("", key=f"sel_{oid}", label_visibility="collapsed")
+            st.checkbox("Select", key=f"sel_{oid}", label_visibility="collapsed")
         with col_card:
             with st.expander(f"{icon} **{title}** · `{ns}` · {created}"):
                 col_meta, col_actions = st.columns([3, 1])
