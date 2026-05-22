@@ -13,6 +13,7 @@ import json
 import logging
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -25,6 +26,9 @@ logger = logging.getLogger("claudeos.agents.executor")
 
 _client = None  # anthropic.Anthropic — lazy, avoids 4s import at startup
 _client_lock = threading.Lock()
+
+# Background pool for fire-and-forget event log inserts (1 thread is enough).
+_bg_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="exec-bg")
 
 
 def _get_client():
@@ -232,6 +236,11 @@ def _save_output_inline(namespace: str, agent_run_id: str, title: str, content: 
 
 
 def _log_event(event_type: str, namespace: str, payload: dict) -> None:
+    """Fire-and-forget event log insert — does not block the caller."""
+    _bg_pool.submit(_do_log_event, event_type, namespace, payload)
+
+
+def _do_log_event(event_type: str, namespace: str, payload: dict) -> None:
     try:
         with get_db() as conn:
             conn.execute(

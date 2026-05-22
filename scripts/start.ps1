@@ -48,7 +48,7 @@ $apiJob = Start-Job -ScriptBlock {
 # Wait for API with retries
 $apiReady = $false
 Start-Sleep 1
-for ($i = 1; $i -le 15; $i++) {
+for ($i = 1; $i -le 30; $i++) {
     try {
         $health = Invoke-RestMethod -Uri "http://localhost:$FLASK_PORT/api/v1/health" -TimeoutSec 2
         if ($health.status -eq "ok") {

@@ -112,15 +112,19 @@ def _register_optional_blueprints(app: Flask):
 
 
 def _warmup_vector_store():
-    """Pre-load ChromaDB + sentence-transformers in a daemon thread.
-    Prevents first memory request from blocking for 30-60s on Windows."""
+    """Pre-load ChromaDB + sentence-transformers in a background thread.
+    Flask starts serving /health immediately; warmup completes in ~5-8s.
+    _init() is protected by a lock so concurrent calls are safe."""
     import threading
+    log = logging.getLogger("claudeos.api")
     def _warm():
         try:
+            log.info("ChromaDB warmup starting (sentence-transformers model load)...")
             from memory.vector_store import _init
             _init()
-        except Exception:
-            pass
+            log.info("ChromaDB warmup complete.")
+        except Exception as e:
+            log.warning("ChromaDB warmup failed (semantic search disabled): %s", e)
     threading.Thread(target=_warm, daemon=True, name="vs-warmup").start()
 
 

@@ -18,25 +18,29 @@ logger = logging.getLogger("claudeos.memory.vector")
 _client = None
 _ef = None   # embedding function
 _collections: dict = {}
+_init_lock = __import__("threading").Lock()
 
 
 def _init():
     global _client, _ef
     if _client is not None:
         return True
-    try:
-        import chromadb
-        from chromadb.utils import embedding_functions
+    with _init_lock:
+        if _client is not None:  # double-checked locking — another thread may have init'd
+            return True
+        try:
+            import chromadb
+            from chromadb.utils import embedding_functions
 
-        settings = get_settings()
-        _client = chromadb.PersistentClient(path=str(settings.chromadb_path))
-        _ef = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="all-MiniLM-L6-v2"
-        )
-        return True
-    except Exception as e:
-        logger.warning("ChromaDB unavailable — semantic search disabled: %s", e)
-        return False
+            settings = get_settings()
+            _client = chromadb.PersistentClient(path=str(settings.chromadb_path))
+            _ef = embedding_functions.SentenceTransformerEmbeddingFunction(
+                model_name="all-MiniLM-L6-v2"
+            )
+            return True
+        except Exception as e:
+            logger.warning("ChromaDB unavailable — semantic search disabled: %s", e)
+            return False
 
 
 def _collection(namespace: str):

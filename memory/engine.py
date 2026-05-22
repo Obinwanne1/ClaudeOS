@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Optional
 
@@ -33,6 +34,11 @@ from core.database import get_db
 from core.utils import new_id, utcnow_str
 
 logger = logging.getLogger("claudeos.memory.engine")
+
+# Background thread pool for ChromaDB upserts and event log inserts.
+# These are fire-and-forget — callers get the SQLite entry back immediately.
+# max_workers=2: one for upserts, one for log events; keeps GIL pressure low.
+_bg_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="mem-bg")
 
 # In-process TTL cache for get_agent_context: key → (result_str, expiry_epoch)
 _context_cache: dict[tuple, tuple[str, float]] = {}
@@ -51,7 +57,12 @@ def write(
     confidence: float = 1.0,
     expires_at: Optional[datetime] = None,
 ) -> MemoryEntry:
-    """Write a memory entry. Upserts on same namespace+key."""
+    """Write a memory entry. Upserts on same namespace+key.
+
+    SQLite write is synchronous (returns entry immediately).
+    ChromaDB embed + vector metadata + event log run in a background thread
+    so the caller is not blocked by sentence-transformer inference (~50-200ms).
+    """
     entry_create = MemoryEntryCreate(
         namespace=namespace,
         category=category,
@@ -66,10 +77,27 @@ def write(
     )
     entry = store.write(entry_create)
 
-    # Embed into ChromaDB (outside the DB transaction — network/IO call)
-    embed_text = f"{entry.key}: {entry.value}"
+    # Fire-and-forget: ChromaDB upsert + vector metadata + event log.
+    # Semantic search has eventual consistency (~100-300ms lag after write).
+    # FTS5 / exact-key lookups are immediately consistent (SQLite already committed above).
+    _bg_pool.submit(_upsert_vector, entry.id, entry.key, entry.value, namespace, category, key, confidence)
+
+    return entry
+
+
+def _upsert_vector(
+    entry_id: str,
+    entry_key: str,
+    entry_value: str,
+    namespace: str,
+    category: str,
+    key: str,
+    confidence: float,
+) -> None:
+    """Background: embed into ChromaDB, record vector metadata and event log."""
+    embed_text = f"{entry_key}: {entry_value}"
     chroma_id = vector_store.upsert(
-        memory_id=entry.id,
+        memory_id=entry_id,
         namespace=namespace,
         text=embed_text,
         metadata={
@@ -79,14 +107,12 @@ def write(
             "confidence": str(confidence),
         },
     )
-
-    # Record vector metadata + event log in a single DB round-trip
     if chroma_id:
         try:
             with get_db() as conn:
                 conn.execute(
                     "INSERT OR REPLACE INTO memory_vectors(id, memory_id, chroma_id) VALUES (?, ?, ?)",
-                    (new_id(), entry.id, chroma_id),
+                    (new_id(), entry_id, chroma_id),
                 )
                 conn.execute(
                     "INSERT INTO system_events(id, event_type, namespace, payload) VALUES (?, ?, ?, ?)",
@@ -95,9 +121,7 @@ def write(
         except Exception as e:
             logger.warning("Failed to record vector metadata or event: %s", e)
     else:
-        _log_event("memory_write", namespace, {"key": key, "category": category})
-
-    return entry
+        _do_log_event("memory_write", namespace, {"key": key, "category": category})
 
 
 def get(namespace: str, key: str) -> Optional[MemoryEntry]:
@@ -255,6 +279,11 @@ def get_agent_context(namespace: str, min_confidence: float = 0.8) -> str:
 
 
 def _log_event(event_type: str, namespace: str, payload: dict) -> None:
+    """Fire-and-forget event log insert."""
+    _bg_pool.submit(_do_log_event, event_type, namespace, payload)
+
+
+def _do_log_event(event_type: str, namespace: str, payload: dict) -> None:
     try:
         with get_db() as conn:
             conn.execute(
