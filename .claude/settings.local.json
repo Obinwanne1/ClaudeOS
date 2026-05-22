@@ -81,7 +81,9 @@
       "Read(//mnt/c/Users/rigwe/AppData/Local/Programs/**)",
       "Read(//mnt/**)",
       "Read(//mnt/c/Users/**)",
-      "Skill(startserver)"
+      "Skill(startserver)",
+      "Skill(gsd-code-review-fix)",
+      "Bash(pip show:*)"
     ]
   }
 }

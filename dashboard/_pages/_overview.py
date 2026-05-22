@@ -49,11 +49,16 @@ def render(api_get, api_post, bulk_delete=None):
         )
 
     # Fetch all data in parallel
+    _runs_url = (
+        f"/agents/runs?limit=10&namespace={user_ns}"
+        if is_scoped and user_ns
+        else "/agents/runs?limit=10"
+    )
     _calls = {
         "status":     "/system/status",
         "stats":      "/system/stats",
         "agents":     "/agents",
-        "runs":       "/agents/runs?limit=10",
+        "runs":       _runs_url,
         "namespaces": "/memory/namespaces",
     }
     results: dict = {}
