@@ -220,16 +220,18 @@ def _do_login(username: str, password: str) -> None:
         st.session_state["user_role"]           = user["role"]
         st.session_state["user_namespace"]      = user.get("namespace")
         st.session_state["must_change_password"] = data.get("must_change_password", False)
-        # Persist session to cookies so page refresh doesn't log the user out
-        _c = st.session_state.get("_cookies")
-        if _c:
-            _c["jwt_token"]            = data["access_token"]
-            _c["refresh_token"]        = data["refresh_token"]
-            _c["username"]             = user["username"]
-            _c["user_role"]            = user["role"]
-            _c["user_namespace"]       = user.get("namespace") or ""
-            _c["must_change_password"] = "true" if data.get("must_change_password") else "false"
-            _c.save()
+        # Persist session to Flask store — key in URL survives page refresh
+        try:
+            _sr = requests.post(
+                f"{_API_BASE}/auth/session",
+                json={"refresh_token": data["refresh_token"]},
+                headers={"Authorization": f"Bearer {data['access_token']}"},
+                timeout=3,
+            )
+            if _sr.ok:
+                st.query_params["_s"] = _sr.json()["session_key"]
+        except Exception:
+            pass  # non-fatal — user just won't survive page refresh this session
         st.rerun()
     else:
         st.error(f"Login failed ({r.status_code}).")

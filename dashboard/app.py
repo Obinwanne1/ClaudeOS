@@ -1,10 +1,13 @@
 """ClaudeOS Control Center — Streamlit entry point."""
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import os
+import logging
+import requests
+from pathlib import Path
+from datetime import datetime
 from dotenv import load_dotenv
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
 load_dotenv(Path(__file__).parent.parent / ".env")
 
 import jwt as _jwt
@@ -21,26 +24,42 @@ from dashboard.components.brand import inject, sidebar_logo, theme_toggle, PRIMA
 inject()
 theme_toggle()  # available on all pages including login
 
-# ── Cookie-based session persistence (survive page refresh) ───────────────────
-from streamlit_cookies_manager import EncryptedCookieManager as _CookieManager
-_COOKIE_SECRET = os.environ.get("CLAUDEOS_SECRET_KEY", "claudeos-fallback-32-char-secret!")
-_cookies = _CookieManager(prefix="cos_", password=_COOKIE_SECRET)
-if not _cookies.ready():
-    st.stop()
+_FLASK_PORT = os.environ.get("FLASK_PORT", "5000")
+API_BASE = f"http://localhost:{_FLASK_PORT}/api/v1"
+logger = logging.getLogger("claudeos.dashboard")
 
-# Restore session from cookies if session_state was cleared by page refresh
+_SESSION_PARAM = "_s"  # URL query param key for session persistence
+
+
+def _restore_session_from_url() -> bool:
+    """On page refresh, restore session from URL session_key → Flask session store."""
+    sk = st.query_params.get(_SESSION_PARAM)
+    if not sk:
+        return False
+    try:
+        r = requests.get(f"{API_BASE}/auth/session/{sk}", timeout=3)
+        if r.ok:
+            data = r.json()
+            st.session_state["jwt_token"]            = data["access_token"]
+            st.session_state["refresh_token"]        = data["refresh_token"]
+            st.session_state["username"]             = data["username"]
+            st.session_state["user_role"]            = data["user_role"]
+            st.session_state["user_namespace"]       = data.get("user_namespace") or None
+            st.session_state["must_change_password"] = data.get("must_change_password", False)
+            return True
+        # Expired / invalid key — purge from URL so login page shows cleanly
+        try:
+            del st.query_params[_SESSION_PARAM]
+        except Exception:
+            pass
+    except Exception as e:
+        logger.debug("Session restore failed: %s", e)
+    return False
+
+
+# ── Session restore (page refresh) ───────────────────────────────────────────
 if not st.session_state.get("jwt_token"):
-    _saved_jwt = _cookies.get("jwt_token")
-    if _saved_jwt:
-        st.session_state["jwt_token"]            = _saved_jwt
-        st.session_state["refresh_token"]        = _cookies.get("refresh_token", "")
-        st.session_state["username"]             = _cookies.get("username", "")
-        st.session_state["user_role"]            = _cookies.get("user_role", "viewer")
-        st.session_state["user_namespace"]       = _cookies.get("user_namespace") or None
-        st.session_state["must_change_password"] = _cookies.get("must_change_password") == "true"
-
-# Store cookie manager for login_form and logout to access
-st.session_state["_cookies"] = _cookies
+    _restore_session_from_url()
 
 # ── Auth gate ─────────────────────────────────────────────────────────────────
 if not st.session_state.get("jwt_token"):
@@ -53,16 +72,6 @@ if st.session_state.get("must_change_password"):
     from dashboard.components.login_form import render_change_password
     render_change_password()
     st.stop()
-
-import logging
-import requests
-from datetime import datetime
-
-_FLASK_PORT = os.environ.get("FLASK_PORT", "5000")
-API_BASE = f"http://localhost:{_FLASK_PORT}/api/v1"
-
-logger = logging.getLogger("claudeos.dashboard")
-
 
 def _get_headers() -> dict:
     token = st.session_state.get("jwt_token", "")
@@ -97,13 +106,7 @@ def _maybe_refresh_token() -> None:
                 timeout=3,
             )
             if r.ok:
-                new_token = r.json()["access_token"]
-                st.session_state["jwt_token"] = new_token
-                # Keep cookie in sync so refresh survives next page reload
-                _c = st.session_state.get("_cookies")
-                if _c:
-                    _c["jwt_token"] = new_token
-                    _c.save()
+                st.session_state["jwt_token"] = r.json()["access_token"]
     except Exception as e:
         logger.debug("Token refresh skipped: %s", e)
 
@@ -258,15 +261,17 @@ if st.sidebar.button("Logout", use_container_width=True):
         )
     except Exception:
         pass
-    # Clear persisted cookies before wiping session_state
-    _c = st.session_state.get("_cookies")
-    if _c:
-        for _k in ["jwt_token", "refresh_token", "username", "user_role", "user_namespace", "must_change_password"]:
-            try:
-                del _c[_k]
-            except KeyError:
-                pass
-        _c.save()
+    # Delete server-side session so the URL key becomes invalid
+    _sk = st.query_params.get(_SESSION_PARAM)
+    if _sk:
+        try:
+            requests.delete(f"{API_BASE}/auth/session/{_sk}", timeout=2)
+        except Exception:
+            pass
+        try:
+            del st.query_params[_SESSION_PARAM]
+        except Exception:
+            pass
     st.session_state.clear()
     st.rerun()
 

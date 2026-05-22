@@ -311,6 +311,71 @@ def reset_password():
     return jsonify({"message": "Password reset successful. You can now sign in."})
 
 
+# ── Dashboard session store (page-refresh persistence) ────────────────────────
+
+@auth_bp.post("/session")
+@require_auth
+def create_dashboard_session():
+    """Store session snapshot keyed by a random URL-safe token. No sensitive data in URL."""
+    from flask import g as _g
+    body = request.get_json(silent=True) or {}
+    refresh_token = body.get("refresh_token", "")
+    if not refresh_token:
+        return jsonify({"error": "refresh_token required"}), 400
+
+    auth_header = request.headers.get("Authorization", "")
+    access_token = auth_header[7:] if auth_header.startswith("Bearer ") else ""
+
+    key = secrets.token_urlsafe(32)
+    expires_at = (utcnow() + datetime.timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+
+    # Fetch must_change_password from user record if available
+    mcp = 0
+    if not _g.user_id.startswith("apikey:"):
+        user = get_user_by_id(_g.user_id)
+        mcp = int(bool(user and user.get("must_change_password")))
+
+    with get_db() as conn:
+        # Purge expired sessions (housekeeping)
+        conn.execute("DELETE FROM dashboard_sessions WHERE expires_at < datetime('now')")
+        conn.execute(
+            "INSERT INTO dashboard_sessions "
+            "(session_key, user_id, username, user_role, user_namespace, must_change_password, access_token, refresh_token, expires_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (key, _g.user_id, _g.username, _g.user_role, _g.user_namespace, mcp,
+             access_token, refresh_token, expires_at),
+        )
+    return jsonify({"session_key": key})
+
+
+@auth_bp.get("/session/<key>")
+def restore_dashboard_session(key):
+    """Return stored session data. Key acts as bearer credential — no other auth needed."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM dashboard_sessions WHERE session_key = ? AND expires_at > datetime('now')",
+            (key,),
+        ).fetchone()
+    if not row:
+        return jsonify({"error": "session not found or expired"}), 404
+    return jsonify({
+        "access_token":         row["access_token"],
+        "refresh_token":        row["refresh_token"],
+        "username":             row["username"],
+        "user_role":            row["user_role"],
+        "user_namespace":       row["user_namespace"],
+        "must_change_password": bool(row["must_change_password"]),
+    })
+
+
+@auth_bp.delete("/session/<key>")
+def delete_dashboard_session(key):
+    """Delete session on logout."""
+    with get_db() as conn:
+        conn.execute("DELETE FROM dashboard_sessions WHERE session_key = ?", (key,))
+    return jsonify({"message": "session deleted"})
+
+
 # ── Helper ────────────────────────────────────────────────────────────────────
 
 def _user_public(user: dict) -> dict:
