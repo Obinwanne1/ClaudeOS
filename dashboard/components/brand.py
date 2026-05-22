@@ -6,6 +6,7 @@ Light: clean white bg with gray borders, near-black text.
 """
 from html import escape as _esc
 import streamlit as st
+import streamlit.components.v1 as _components
 
 PRIMARY       = "#407E3C"
 ACCENT        = "#5a9e56"
@@ -532,36 +533,107 @@ def sidebar_logo():
 
 
 def theme_toggle():
-    """Simple branded button — fixed bottom-left."""
-    if st.button("COS-THEME-FLIP-TRIGGER", key="_cos_theme_flip_btn"):
+    """Fixed-position circular icon toggle — dark navy sun (dark mode) / light gray moon (light mode)."""
+    _MARKER = "COS-THEME-FLIP-TRIGGER"
+    if st.button(_MARKER, key="_cos_theme_flip_btn"):
         current = get_theme()
         st.session_state.theme = "dark" if current == "light" else "light"
         st.rerun()
 
-    st.html("""
+    current = get_theme()
+    is_dark = current == "dark"
+
+    if is_dark:
+        btn_bg     = "#111827"
+        btn_border = "none"
+        btn_shadow = "0 2px 12px rgba(0,0,0,0.55)"
+        icon_svg = (
+            "<svg width='22' height='22' viewBox='0 0 24 24' fill='none' "
+            "xmlns='http://www.w3.org/2000/svg'>"
+            "<circle cx='12' cy='12' r='3.5' fill='white'/>"
+            "<line x1='12' y1='1.5' x2='12' y2='5.5' stroke='white' stroke-width='2' stroke-linecap='round'/>"
+            "<line x1='12' y1='18.5' x2='12' y2='22.5' stroke='white' stroke-width='2' stroke-linecap='round'/>"
+            "<line x1='1.5' y1='12' x2='5.5' y2='12' stroke='white' stroke-width='2' stroke-linecap='round'/>"
+            "<line x1='18.5' y1='12' x2='22.5' y2='12' stroke='white' stroke-width='2' stroke-linecap='round'/>"
+            "<line x1='4.22' y1='4.22' x2='7.05' y2='7.05' stroke='white' stroke-width='2' stroke-linecap='round'/>"
+            "<line x1='16.95' y1='16.95' x2='19.78' y2='19.78' stroke='white' stroke-width='2' stroke-linecap='round'/>"
+            "<line x1='19.78' y1='4.22' x2='16.95' y2='7.05' stroke='white' stroke-width='2' stroke-linecap='round'/>"
+            "<line x1='7.05' y1='16.95' x2='4.22' y2='19.78' stroke='white' stroke-width='2' stroke-linecap='round'/>"
+            "</svg>"
+        )
+        dot_html = (
+            "<span style='position:absolute;width:6px;height:6px;"
+            "background:rgba(255,255,255,0.75);border-radius:50%;"
+            "bottom:7px;right:7px;'></span>"
+        )
+    else:
+        btn_bg     = "#f0f0f0"
+        btn_border = "1.5px solid #d9d9d9"
+        btn_shadow = "0 2px 8px rgba(0,0,0,0.13)"
+        icon_svg = (
+            "<svg width='20' height='20' viewBox='0 0 24 24' fill='none' "
+            "xmlns='http://www.w3.org/2000/svg'>"
+            "<path d='M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z' "
+            "fill='#374151' stroke='#374151' stroke-width='0.5'/>"
+            "</svg>"
+        )
+        dot_html = ""
+
+    btn_css = (
+        f"position:fixed;bottom:24px;left:16px;z-index:2147483647;"
+        f"width:44px;height:44px;border-radius:50%;"
+        f"display:flex;align-items:center;justify-content:center;"
+        f"background:{btn_bg};border:{btn_border};"
+        f"box-shadow:{btn_shadow};"
+        f"cursor:pointer;outline:none;"
+        f"transition:transform 0.15s ease,box-shadow 0.15s ease;"
+    )
+
+    _components.html(f"""
 <script>
-(function() {
-  function fixBtn() {
-    var btns = document.querySelectorAll('button');
-    for (var i = 0; i < btns.length; i++) {
-      if ((btns[i].innerText || btns[i].textContent || '').trim() === 'COS-THEME-FLIP-TRIGGER') {
-        var wrap = btns[i].closest('[data-testid="stButton"]') || btns[i].parentElement;
-        if (wrap) {
-          wrap.style.cssText = 'position:fixed!important;bottom:24px!important;left:16px!important;z-index:2147483647!important;margin:0!important;';
-        }
-        return true;
-      }
-    }
+(function() {{
+  var doc = window.parent.document;
+  var old = doc.getElementById('cos-theme-btn');
+  if (old) old.remove();
+
+  var btn = doc.createElement('button');
+  btn.id = 'cos-theme-btn';
+  btn.title = 'Toggle dark / light mode';
+  btn.type = 'button';
+  btn.style.cssText = '{btn_css}';
+  btn.style.position = 'fixed';
+  btn.innerHTML = `{icon_svg}{dot_html}`;
+
+  var MARKER = '{_MARKER}';
+  function findTrigger() {{
+    var all = doc.querySelectorAll('button');
+    for (var i = 0; i < all.length; i++) {{
+      if ((all[i].innerText || all[i].textContent || '').indexOf(MARKER) !== -1) return all[i];
+    }}
+    return null;
+  }}
+  function hideTrigger() {{
+    var t = findTrigger();
+    if (t) {{
+      var wrap = t.closest('[data-testid="stButton"]') || t.parentElement;
+      if (wrap) wrap.style.cssText = 'display:none!important;height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;';
+      return true;
+    }}
     return false;
-  }
-  if (!fixBtn()) {
-    var obs = new MutationObserver(function() { if (fixBtn()) obs.disconnect(); });
-    obs.observe(document.body, {childList: true, subtree: true});
-    setTimeout(function() { obs.disconnect(); }, 5000);
-  }
-})();
+  }}
+  btn.onmouseenter = function() {{ this.style.transform = 'scale(1.1)'; }};
+  btn.onmouseleave = function() {{ this.style.transform = 'scale(1)'; }};
+  btn.onclick = function() {{ var t = findTrigger(); if (t) t.click(); }};
+  hideTrigger();
+  setTimeout(hideTrigger, 100);
+  setTimeout(hideTrigger, 500);
+  var obs = new MutationObserver(function() {{ if (hideTrigger()) obs.disconnect(); }});
+  obs.observe(doc.body, {{childList: true, subtree: true}});
+  setTimeout(function() {{ obs.disconnect(); }}, 5000);
+  doc.body.appendChild(btn);
+}})();
 </script>
-""")
+""", height=0)
 
 
 def theme_toggle_topbar() -> None:
