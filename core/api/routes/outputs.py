@@ -97,7 +97,7 @@ def get_output(output_id: str):
     allowed_ns = effective_namespace(out.namespace)
     if allowed_ns and out.namespace != allowed_ns:
         return jsonify({"error": "Output not found"}), 404
-    return jsonify(_out_dict(out))
+    return jsonify(_out_dict(out, include_content=True))
 
 
 @outputs_bp.get("/<output_id>/content")
@@ -158,8 +158,8 @@ def delete_output(output_id: str):
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
-def _out_dict(o) -> dict:
-    return {
+def _out_dict(o, include_content: bool = False) -> dict:
+    d = {
         "id": o.id,
         "namespace": o.namespace,
         "title": o.title,
@@ -173,3 +173,6 @@ def _out_dict(o) -> dict:
         "workflow_run_id": o.workflow_run_id,
         "created_at": o.created_at,
     }
+    if include_content:
+        d["content"] = o.content
+    return d
