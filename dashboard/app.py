@@ -192,10 +192,21 @@ if role == "staff":
     pages.pop("Settings", None)
     pages.pop("Admin", None)
 
+# Ticket badge — fetch before radio so count shows in nav label (cached 30s)
+_ticket_stats = _cached_api_get(
+    "/tickets?status=open&limit=1",
+    token=st.session_state.get("jwt_token", ""),
+    timeout=3,
+)
+_open_ticket_count = (_ticket_stats or {}).get("count", 0)
+
 page = st.sidebar.radio(
     "Navigation",
     list(pages.keys()),
-    format_func=lambda p: f"{pages[p]}  {p}",
+    format_func=lambda p: (
+        f"{pages[p]}  {p} ({_open_ticket_count})" if p == "Tickets" and _open_ticket_count
+        else f"{pages[p]}  {p}"
+    ),
     label_visibility="collapsed",
 )
 
@@ -203,7 +214,14 @@ st.sidebar.markdown("---")
 
 # User info + logout
 _tv = get_theme_vars()
+_user_ns = st.session_state.get("user_namespace")
 st.sidebar.markdown(f"**{username}** ({role})")
+if _user_ns and role in ("client", "viewer"):
+    st.sidebar.markdown(
+        f'<div style="font-size:0.78rem;color:{PRIMARY};margin:-6px 0 4px;">🏢 {_user_ns}</div>',
+        unsafe_allow_html=True,
+    )
+
 if st.sidebar.button("Logout", use_container_width=True):
     try:
         requests.post(
