@@ -61,6 +61,7 @@ Layer 9: Ticketing System (SLA tiers, staff role, bulk ops)
 - Client one-per-namespace enforced in application layer
 - Never expose raw refresh tokens in logs or responses beyond initial issue
 - `effective_namespace()` in auth.py enforces client scoping — never trust client-supplied namespace
+  - Falls back to `requested` param if `g.user_namespace` is null (belt-and-suspenders for missing JWT namespace)
 - Username lookup uses `LOWER()` match — login is case-insensitive
 
 ## Database Tables (Auth Layer)
@@ -84,6 +85,8 @@ Layer 9: Ticketing System (SLA tiers, staff role, bulk ops)
 - Ticket assignees batch-fetched in a single `WHERE id IN (...)` query — not 1 per ticket
 - Ticket comments lazy-loaded: only fetched when user opens the "💬 Comments" toggle
 - `_cached_api_get` cache key includes JWT token — prevents cross-user cache pollution
+- `/agents/runs` excluded from `_READ_ONLY_PREFIXES` — user-scoped data, always bypasses cache and hits live API
+- `api_get_cached` has explicit `/agents/runs` guard before prefix check (startswith `/agents` would otherwise match)
 - Bulk session revoke: single `UPDATE ... WHERE id IN (...)` — not a per-session loop
 - Outputs bulk delete: single DB transaction via `delete_bulk()` in `outputs/manager.py`
 - Admin `/namespaces` fetched once in `render()`, passed to Users and API Keys tabs — not called twice
@@ -103,10 +106,12 @@ Layer 9: Ticketing System (SLA tiers, staff role, bulk ops)
 - `_build_css(t)` generates the full CSS string from theme vars — one call, entire app styled
 - `inject()` must be called on every page render (it re-injects fresh CSS matching current theme)
 - Password eye icon: `[data-testid="stTextInput"] button` + SVG `fill: {t['TEXT']}` override
-- Theme toggle: circular 44px icon button, no text label
+- Theme toggle: circular 44px icon button, no text label, fixed bottom-left
   - Dark mode: dark navy `#111827` circle + white 8-ray sun SVG + small white dot
   - Light mode: light gray `#f0f0f0` circle + dark crescent moon SVG
   - Hover scales 1.1×
+  - Implemented via `st.components.v1.html(height=0)` — uses `window.parent.document` to manipulate parent DOM
+  - `st.html()` is sandboxed (scripts blocked); `st.markdown` strips scripts — only `components.v1.html` works for parent DOM JS
 - Aurora background removed — no `@keyframes aurora`, no animated gradient layers, no `backdrop-filter: blur()` or `will-change: transform`
 
 ## Rules
@@ -166,3 +171,8 @@ python scripts/create_admin.py --username admin --password Admin123!
   - Circular icon theme toggle (no text label, 44px, dark navy / light gray)
   - Aurora background removed (GPU/CPU reduction)
   - 12 additional performance fixes (batch queries, EXISTS, bounded cache, executemany, lazy comments, scoped cache keys, index migration)
+- Post-Phase 9 Bug Fixes ✅
+  - Theme toggle: restored circular icon via `components.v1.html` (parent DOM access)
+  - `/agents/runs` removed from shared cache — prevents cross-user data leak on Overview
+  - Overview page explicitly passes `namespace=` for scoped users (same as Agents page)
+  - `effective_namespace()` fallback to requested param when `g.user_namespace` is null

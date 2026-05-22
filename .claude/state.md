@@ -1,6 +1,6 @@
 # ClaudeOS Phase State
 
-## Current Phase: 7 — Supabase Cloud Sync ✅ COMPLETE
+## Current Phase: 9 — All Phases Complete ✅
 
 ## Completed Phases
 - Phase 1: Core Infrastructure
@@ -47,5 +47,21 @@ SUPABASE_SERVICE_KEY=service_role_key_here
 ```
 Then run sync/supabase_schema.sql in Supabase SQL Editor.
 
-## All 7 Phases Complete
+## All 9 Phases Complete
 ClaudeOS is fully built. Architecture is stable.
+
+## Post-Phase Bug Fixes (2026-05-22)
+
+### Theme Toggle
+- Restored circular icon button (44px, bottom-left fixed)
+- `st.html()` is sandboxed — scripts cannot access parent DOM
+- `st.markdown` strips `<script>` tags
+- Fix: `st.components.v1.html(height=0)` — same-origin iframe, JS uses `window.parent.document`
+- Hides Streamlit trigger button via MutationObserver + CSS
+
+### Agent Runs Namespace Isolation (Overview)
+- Bug: `/agents/runs` was in `_READ_ONLY_PREFIXES` — cached globally, `/agents` prefix matched via `startswith`
+- Fix 1: removed `/agents/runs` from prefixes; added explicit bypass in `api_get_cached` before prefix check
+- Fix 2: `_overview.py` now builds `_runs_url` with `namespace={user_ns}` for scoped users
+- Fix 3: `effective_namespace()` in `core/auth.py` — fallback to `requested` param if `g.user_namespace` is null
+- Result: client users see only their namespace runs on Overview; admin sees all namespaces
