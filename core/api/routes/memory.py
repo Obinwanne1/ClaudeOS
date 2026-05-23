@@ -225,3 +225,42 @@ def agent_context(namespace: str):
     safe_ns = effective_namespace(namespace) or namespace
     context_str = engine.get_agent_context(safe_ns, min_confidence)
     return jsonify({"namespace": safe_ns, "context": context_str})
+
+
+@memory_bp.post("/consolidate")
+@require_auth
+def consolidate_memory():
+    """Trigger memory consolidation — Phase 11.1."""
+    from memory.consolidator import run_consolidation
+    body = request.get_json(silent=True) or {}
+    namespace = body.get("namespace")  # None = all namespaces
+    dry_run = bool(body.get("dry_run", False))
+    stats = run_consolidation(namespace=namespace, dry_run=dry_run)
+    return jsonify(stats)
+
+
+@memory_bp.get("/hybrid-search")
+@require_auth
+def hybrid_search():
+    """Hybrid BM25+vector search with RRF — Phase 11.2."""
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify({"error": "q param required"}), 400
+    namespace = effective_namespace(request.args.get("namespace", "global"))
+    top_k = min(int(request.args.get("top_k", 10)), 50)
+    from memory.retriever import hybrid_search as _hybrid
+    results = _hybrid(query=query, namespace=namespace or "global", top_k=top_k)
+    return jsonify({
+        "results": [_entry_dict(e) for e in results],
+        "count": len(results),
+        "query": query,
+        "namespace": namespace,
+    })
+
+
+def _entry_dict(e) -> dict:
+    return {
+        "id": e.id, "namespace": e.namespace, "category": e.category,
+        "key": e.key, "value": e.value, "confidence": e.confidence,
+        "tags": e.tags, "source": e.source,
+    }

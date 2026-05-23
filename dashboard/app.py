@@ -202,14 +202,15 @@ username = st.session_state.get("username", "")
 
 # Role-based page visibility
 pages = {
-    "Overview":  "🖥️",
-    "Agents":    "🤖",
-    "Memory":    "🧠",
-    "Workflows": "⚙️",
-    "Projects":  "📁",
-    "Outputs":   "📄",
-    "Tickets":   "🎫",
-    "Settings":  "🔧",
+    "Overview":       "🖥️",
+    "Agents":         "🤖",
+    "Memory":         "🧠",
+    "Workflows":      "⚙️",
+    "Projects":       "📁",
+    "Outputs":        "📄",
+    "Tickets":        "🎫",
+    "Observability":  "🔭",
+    "Settings":       "🔧",
 }
 
 if role == "admin":
@@ -218,6 +219,7 @@ if role == "admin":
 if role in ("client", "viewer"):
     pages.pop("Settings", None)
     pages.pop("Workflows", None)
+    pages.pop("Observability", None)
 
 if role == "staff":
     pages.pop("Memory", None)
@@ -225,6 +227,7 @@ if role == "staff":
     pages.pop("Projects", None)
     pages.pop("Settings", None)
     pages.pop("Admin", None)
+    pages.pop("Observability", None)
 
 # Ticket badge — fetch before radio so count shows in nav label (cached 30s)
 _ticket_stats = _cached_api_get(
@@ -296,27 +299,29 @@ st.sidebar.markdown(f'<div style="color:{_tv["TEXT_MUTED"]};font-size:0.75rem;ma
 import importlib
 
 _PAGE_MODULES = {
-    "Overview":  "dashboard._pages._overview",
-    "Agents":    "dashboard._pages._agents",
-    "Memory":    "dashboard._pages._memory",
-    "Workflows": "dashboard._pages._workflows",
-    "Projects":  "dashboard._pages._projects",
-    "Outputs":   "dashboard._pages._outputs",
-    "Tickets":   "dashboard._pages._tickets",
-    "Settings":  "dashboard._pages._settings",
-    "Admin":     "dashboard._pages._admin",
+    "Overview":      "dashboard._pages._overview",
+    "Agents":        "dashboard._pages._agents",
+    "Memory":        "dashboard._pages._memory",
+    "Workflows":     "dashboard._pages._workflows",
+    "Projects":      "dashboard._pages._projects",
+    "Outputs":       "dashboard._pages._outputs",
+    "Tickets":       "dashboard._pages._tickets",
+    "Observability": "dashboard._pages._observability",
+    "Settings":      "dashboard._pages._settings",
+    "Admin":         "dashboard._pages._admin",
 }
 
 _PAGE_GETTERS = {
-    "Overview":  api_get_cached,
-    "Agents":    api_get,
-    "Memory":    api_get,
-    "Workflows": api_get,
-    "Projects":  api_get,
-    "Outputs":   api_get_cached,
-    "Tickets":   api_get,
-    "Settings":  api_get,
-    "Admin":     api_get,
+    "Overview":      api_get_cached,
+    "Agents":        api_get,
+    "Memory":        api_get,
+    "Workflows":     api_get,
+    "Projects":      api_get,
+    "Outputs":       api_get_cached,
+    "Tickets":       api_get,
+    "Observability": api_get,
+    "Settings":      api_get,
+    "Admin":         api_get,
 }
 
 _mod = importlib.import_module(_PAGE_MODULES[page])

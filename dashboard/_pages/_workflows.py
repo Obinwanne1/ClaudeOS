@@ -4,9 +4,9 @@ from datetime import datetime
 
 
 def render(api_get, api_post, bulk_delete=None):
-    st.title("Workflow Engine")
+    st.title("⚙️ Workflow Engine")
 
-    tab_list, tab_runs, tab_scheduler = st.tabs(["Workflows", "Run History", "Scheduler"])
+    tab_list, tab_runs, tab_scheduler, tab_webhooks = st.tabs(["Workflows", "Run History", "Scheduler", "🔗 Webhooks"])
 
     with tab_list:
         _render_workflow_list(api_get, api_post)
@@ -16,6 +16,9 @@ def render(api_get, api_post, bulk_delete=None):
 
     with tab_scheduler:
         _render_scheduler(api_get, api_post)
+
+    with tab_webhooks:
+        _render_webhooks(api_get, api_post)
 
 
 def _render_workflow_list(api_get, api_post):
@@ -163,3 +166,79 @@ def _render_scheduler(api_get, api_post):
             st.success(f"Reloaded. {len(result.get('jobs', []))} jobs active.")
         else:
             st.error("Reload failed")
+
+
+def _render_webhooks(api_get, api_post):
+    """Webhook trigger management — Phase 12.1."""
+    from dashboard.components.brand import get_theme_vars, PRIMARY
+    tv = get_theme_vars()
+
+    st.subheader("🔗 Webhook Triggers")
+    st.markdown(
+        "Enable webhooks so external systems (GitHub, Stripe, Supabase, n8n) "
+        "can trigger workflows via HTTP POST."
+    )
+
+    data = api_get("/workflows?enabled=false")
+    workflows = data if isinstance(data, list) else []
+    if not workflows:
+        st.info("No workflows found.")
+        return
+
+    for wf in workflows:
+        with st.expander(f"**{wf['display_name']}** — `{wf['name']}`"):
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                st.markdown(f"**Trigger type:** `{wf.get('trigger_type','manual')}`")
+                st.markdown(f"**Namespace:** `{wf.get('namespace','global')}`")
+
+                # Show current webhook status
+                webhook_info = api_get(f"/workflows/{wf['name']}")
+                webhook_enabled = (webhook_info or {}).get("webhook_enabled", False)
+                webhook_url = (webhook_info or {}).get("webhook_url")
+
+                if webhook_enabled and webhook_url:
+                    st.markdown(
+                        f'<div style="background:{tv["SURFACE"]};border:1px solid #407E3C;'
+                        f'border-radius:8px;padding:10px 14px;margin:8px 0;">'
+                        f'<div style="color:#5a9e56;font-weight:600;margin-bottom:4px;">✅ Webhook Active</div>'
+                        f'<code style="font-size:0.78rem;word-break:break-all;">{webhook_url}</code>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
+                    st.caption("Include header: `X-Webhook-Secret: <your-secret>` in POST requests")
+                    st.caption("Body: `{\"context\": {\"key\": \"value\"}}`")
+
+            with col2:
+                if webhook_enabled:
+                    if st.button("🔄 Regenerate Secret", key=f"wh_regen_{wf['name']}", use_container_width=True):
+                        result = api_post(f"/workflows/{wf['name']}/webhook/enable", {})
+                        if result:
+                            st.success("New secret generated!")
+                            st.code(result.get("webhook_secret", ""), language=None)
+                            st.rerun()
+                    if st.button("❌ Disable", key=f"wh_dis_{wf['name']}", use_container_width=True):
+                        api_post(f"/workflows/{wf['name']}/webhook/disable", {})
+                        st.rerun()
+                else:
+                    if st.button("⚡ Enable Webhook", key=f"wh_en_{wf['name']}", use_container_width=True, type="primary"):
+                        result = api_post(f"/workflows/{wf['name']}/webhook/enable", {})
+                        if result:
+                            st.success("Webhook enabled!")
+                            st.markdown(f"**URL:** `{result.get('webhook_url','')}`")
+                            st.markdown("**Secret** (save this — shown once):")
+                            st.code(result.get("webhook_secret", ""), language=None)
+                            st.caption(result.get("usage", ""))
+                            st.rerun()
+                        else:
+                            st.error("Failed to enable webhook")
+
+    st.markdown("---")
+    st.markdown("**Example: trigger from curl**")
+    st.code(
+        'curl -X POST http://localhost:5000/api/v1/workflows/morning-briefing/trigger \\\n'
+        '  -H "X-Webhook-Secret: your-secret-here" \\\n'
+        '  -H "Content-Type: application/json" \\\n'
+        '  -d \'{"context": {"namespace": "global", "topic": "AI news"}}\'',
+        language="bash",
+    )

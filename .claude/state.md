@@ -47,8 +47,52 @@ SUPABASE_SERVICE_KEY=service_role_key_here
 ```
 Then run sync/supabase_schema.sql in Supabase SQL Editor.
 
-## All 9 Phases Complete
-ClaudeOS is fully built. Architecture is stable.
+## All 13 Phases Complete (2026-05-23)
+ClaudeOS is fully upgraded to state-of-the-art AI OS.
+
+## Phases 10–13 Summary
+
+### Phase 10: Real-Time Intelligence
+- **10.1 SSE Streaming** — `GET /api/v1/agents/<name>/stream` (text/event-stream). `execute_stream()` generator in executor. Dashboard streams token-by-token via requests SSE.
+- **10.2 Observability** — New `dashboard/_pages/_observability.py` with quality trends, latency percentiles (p50/p95/p99), per-agent token cost, memory health. Admin + operator only.
+- **10.3 LLM-as-Judge** — `agents/evaluator.py`. Async Haiku call after every run. Scores: task_completion×40% + factual_grounding×30% + conciseness×20% + safety×10%. Migration 014 adds eval columns to agent_runs.
+
+### Phase 11: Advanced Memory & Retrieval
+- **11.1 Consolidation** — `memory/consolidator.py`. Groups episodic entries by namespace+category, summarizes clusters via Haiku, archives sources. Runs every 4h via APScheduler.
+- **11.2 Hybrid BM25+Vector** — `memory/retriever.py`. BM25 (rank-bm25) + ChromaDB in parallel, merged via RRF (k=60). Falls back to FTS5 if rank-bm25 not installed.
+- **11.3 Tiered Context** — `memory/context_builder.py`. 3-tier injection: namespace summary (cached 5min) + recent interactions + query-relevant top-5. Replaces flat get_agent_context() in executor.
+- **11.4 Contextual Prefixing** — Memory writes now accept context_prefix. Migration 015 adds context_prefix + is_consolidated + archived columns.
+
+### Phase 12: Event-Driven + Protocol
+- **12.1 Webhooks** — `POST /workflows/<name>/webhook/enable` generates secret. `POST /workflows/<name>/trigger` public endpoint authenticated via X-Webhook-Secret header. Migration 016 adds webhook_secret + webhook_enabled to workflows. Dashboard "Webhooks" tab.
+- **12.2 MCP Server** — `mcp/server.py` exposes all 12 agents as MCP tools + memory search tool. Start via `scripts/start_mcp.ps1` (port 5100).
+- **12.3 A2A Cards** — `GET /api/v1/agents/<name>/.well-known/agent.json` returns A2A Agent Card per spec.
+
+### Phase 13: Multimodal + Dashboard
+- **13.1 Voice Input** — `st.audio_input` + local Whisper model. Optional: `pip install openai-whisper`.
+- **13.2 Image Analysis** — File uploader in agent chat. Base64 images injected as Claude API content blocks. Multi-file support.
+- **13.3 Live Dashboard** — Overview real-time feed: error alert strip, running-now indicator, eval score pills, auto-refresh toggle (8s interval).
+- **13.4 Multi-Turn Chat** — Full chat UI in Agents page (Chat tab). Per-agent conversation history in session_state. API messages list for multi-turn Claude calls. Migration 017 adds agent_conversations + agent_conversation_turns tables.
+
+### New Files (Phases 10–13)
+- `agents/evaluator.py`
+- `memory/context_builder.py`
+- `memory/retriever.py`
+- `memory/consolidator.py`
+- `mcp/__init__.py`
+- `mcp/server.py`
+- `dashboard/_pages/_observability.py`
+- `scripts/start_mcp.ps1`
+- `memory/db/migrations/014_agent_eval_scores.sql`
+- `memory/db/migrations/015_memory_upgrades.sql`
+- `memory/db/migrations/016_webhook_triggers.sql`
+- `memory/db/migrations/017_agent_conversations.sql`
+
+### New Packages
+- `rank-bm25==0.2.2` — hybrid BM25 retrieval
+- `plotly>=5.18.0` — observability charts
+- `anthropic>=0.40.0` — upgraded (streaming support)
+- Optional: `openai-whisper` (voice), `mcp` + `uvicorn` (MCP server)
 
 ## Post-Phase Bug Fixes (2026-05-22)
 

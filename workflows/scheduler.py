@@ -39,6 +39,7 @@ def init_scheduler() -> BackgroundScheduler:
         _load_scheduled_workflows()
         _register_reminder_job(_scheduler)
         _register_sync_job(_scheduler)
+        _register_consolidation_job(_scheduler)
         return _scheduler
 
 
@@ -212,6 +213,31 @@ def _run_sync_job() -> None:
         )
     except Exception as e:
         logger.error("Auto-sync job error: %s", e)
+
+
+def _register_consolidation_job(sched: BackgroundScheduler) -> None:
+    """Register memory consolidation job — runs every 4 hours."""
+    sched.add_job(
+        _run_consolidation_job,
+        trigger=IntervalTrigger(hours=4),
+        id="claudeos_memory_consolidation",
+        name="Memory Consolidation",
+        replace_existing=True,
+    )
+    logger.info("Memory consolidation job registered (every 4h)")
+
+
+def _run_consolidation_job() -> None:
+    try:
+        from memory.consolidator import run_consolidation
+        stats = run_consolidation()
+        logger.info(
+            "Memory consolidation: %d namespaces, %d clusters, %d archived → %d created",
+            stats.get("namespaces_processed", 0), stats.get("clusters_found", 0),
+            stats.get("entries_archived", 0), stats.get("entries_created", 0),
+        )
+    except Exception as e:
+        logger.error("Memory consolidation job error: %s", e)
 
 
 def _run_workflow_job(workflow_name: str, context: dict = None) -> Optional[str]:

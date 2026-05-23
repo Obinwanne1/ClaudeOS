@@ -1,6 +1,12 @@
-"""Workflow Engine REST API routes."""
+"""Workflow Engine REST API routes.
+
+Phase 12.1: Webhook-triggered workflow activation.
+"""
 from __future__ import annotations
 
+import hashlib
+import hmac
+import secrets
 import threading
 from flask import Blueprint, jsonify, request
 
@@ -137,6 +143,101 @@ def update_workflow(name: str):
             else:
                 unschedule_workflow(wf.name)
     return jsonify(_wf_summary(wf))
+
+
+# ── Webhook endpoints — Phase 12.1 ───────────────────────────────────────────
+
+@workflows_bp.post("/<name>/webhook/enable")
+@require_api_key
+def enable_webhook(name: str):
+    """Generate or regenerate a webhook secret for this workflow."""
+    from workflows.registry import get_by_name, upsert
+    wf = get_by_name(name)
+    if not wf:
+        return jsonify({"error": "Workflow not found"}), 404
+
+    secret = secrets.token_hex(32)
+    from core.database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE workflows SET webhook_secret=?, webhook_enabled=1 WHERE id=?",
+            (secret, wf.id),
+        )
+    from core.config import get_settings
+    port = get_settings().FLASK_PORT
+    return jsonify({
+        "webhook_enabled": True,
+        "webhook_secret": secret,
+        "webhook_url": f"http://localhost:{port}/api/v1/workflows/{name}/trigger",
+        "usage": "POST to webhook_url with header X-Webhook-Secret: <secret> and JSON body {context: {}}",
+    })
+
+
+@workflows_bp.post("/<name>/webhook/disable")
+@require_api_key
+def disable_webhook(name: str):
+    from workflows.registry import get_by_name
+    wf = get_by_name(name)
+    if not wf:
+        return jsonify({"error": "Workflow not found"}), 404
+    from core.database import get_db
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE workflows SET webhook_secret=NULL, webhook_enabled=0 WHERE id=?",
+            (wf.id,),
+        )
+    return jsonify({"webhook_enabled": False})
+
+
+@workflows_bp.post("/<name>/trigger")
+def webhook_trigger(name: str):
+    """Public webhook endpoint — no JWT required, authenticated via X-Webhook-Secret header.
+
+    External systems (GitHub, Stripe, Supabase, n8n, etc.) POST here to fire a workflow.
+    Body: {"context": {"key": "value", ...}}
+    Header: X-Webhook-Secret: <secret>
+    """
+    from workflows.registry import get_by_name
+    from workflows import pipeline
+    from core.database import get_db
+
+    # Lookup workflow + secret
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT webhook_secret, webhook_enabled FROM workflows WHERE name=?",
+            (name,),
+        ).fetchone()
+
+    if not row or not row["webhook_enabled"] or not row["webhook_secret"]:
+        return jsonify({"error": "Webhook not enabled for this workflow"}), 403
+
+    # Validate secret
+    provided = request.headers.get("X-Webhook-Secret", "")
+    if not hmac.compare_digest(provided, row["webhook_secret"]):
+        return jsonify({"error": "Invalid webhook secret"}), 403
+
+    wf = get_by_name(name)
+    if not wf or not wf.enabled:
+        return jsonify({"error": "Workflow not found or disabled"}), 404
+
+    body = request.get_json(silent=True) or {}
+    context = body.get("context", {})
+    context["namespace"] = context.get("namespace") or wf.namespace
+    context["trigger_source"] = "webhook"
+
+    run_id = pipeline.create_run_record(wf.id, "webhook", context)
+
+    def _run():
+        pipeline.run(wf, run_id, context, triggered_by="webhook")
+
+    threading.Thread(target=_run, daemon=True).start()
+
+    return jsonify({
+        "run_id": run_id,
+        "workflow": name,
+        "status": "running",
+        "triggered_by": "webhook",
+    }), 202
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
