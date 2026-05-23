@@ -84,39 +84,53 @@ def _render_quality(runs: list, tv: dict) -> None:
             st.warning(f"⚠️ Agent **{agent}** avg quality {avg:.1f}/5 — below threshold")
 
     st.markdown("---")
-    st.markdown("**Score distribution**")
-    score_vals = [r["eval_score"] for r in scored]
-    buckets = {"5 (Excellent)": 0, "4 (Good)": 0, "3 (Fair)": 0, "2 (Poor)": 0, "1 (Bad)": 0}
+    st.markdown("**Score distribution (0.5-step buckets)**")
+    score_vals = [float(r["eval_score"]) for r in scored]
+    # Fine-grained 0.5-step buckets show actual spread within each grade
+    labels = ["0–0.5", "0.5–1", "1–1.5", "1.5–2", "2–2.5", "2.5–3", "3–3.5", "3.5–4", "4–4.5", "4.5–5"]
+    thresholds = [0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.01]
+    counts = [0] * len(labels)
     for s in score_vals:
-        if s >= 4.5:
-            buckets["5 (Excellent)"] += 1
-        elif s >= 3.5:
-            buckets["4 (Good)"] += 1
-        elif s >= 2.5:
-            buckets["3 (Fair)"] += 1
-        elif s >= 1.5:
-            buckets["2 (Poor)"] += 1
-        else:
-            buckets["1 (Bad)"] += 1
+        for i in range(len(labels)):
+            if thresholds[i] <= s < thresholds[i + 1]:
+                counts[i] += 1
+                break
+    # Color: red for low scores, amber for mid, green for high
+    bar_colors = [
+        "#991b1b", "#ef4444", "#ef4444", "#ef4444",
+        "#f59e0b", "#f59e0b",
+        "#5a9e56", "#5a9e56", PRIMARY, PRIMARY,
+    ]
 
     try:
         import plotly.graph_objects as go
         fig = go.Figure(go.Bar(
-            x=list(buckets.keys()),
-            y=list(buckets.values()),
-            marker_color=[PRIMARY, "#5a9e56", "#f59e0b", "#ef4444", "#991b1b"],
+            x=labels,
+            y=counts,
+            marker_color=bar_colors,
+            text=counts,
+            textposition="outside",
         ))
         fig.update_layout(
             plot_bgcolor=tv["PLOT_BG"],
             paper_bgcolor=tv["PLOT_BG"],
             font_color=tv["TEXT"],
-            margin=dict(l=0, r=0, t=10, b=0),
-            height=250,
+            margin=dict(l=0, r=0, t=24, b=0),
+            height=280,
+            xaxis_title="Score range",
+            yaxis_title="Runs",
         )
         st.plotly_chart(fig, use_container_width=True)
+        # Summary stats
+        if score_vals:
+            avg = sum(score_vals) / len(score_vals)
+            mn = min(score_vals)
+            mx = max(score_vals)
+            st.caption(f"n={len(score_vals)} scored runs · avg {avg:.2f} · min {mn:.2f} · max {mx:.2f}")
     except ImportError:
-        for bucket, count in buckets.items():
-            st.markdown(f"**{bucket}:** {count}")
+        for label, count in zip(labels, counts):
+            if count:
+                st.markdown(f"**{label}:** {count}")
 
     # Eval dimension breakdown
     st.markdown("---")
