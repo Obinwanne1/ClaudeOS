@@ -94,8 +94,6 @@ def _render_chat_tab(agents: list, api_get, api_post):
             _ns_opts = [n["slug"] for n in _ns_data if isinstance(n, dict) and n.get("slug")] or ["global"]
         sel_ns = st.selectbox("Namespace", _ns_opts, key="chat_ns")
         save_out = st.checkbox("Save output", value=True, key="chat_save")
-        use_stream = st.checkbox("Stream response", value=True, key="chat_stream",
-                                  help="Show tokens as they arrive")
 
         st.markdown("---")
         st.markdown("**Attach**")
@@ -186,17 +184,12 @@ def _render_chat_tab(agents: list, api_get, api_post):
                 mt = _mime_type(uploaded.name)
                 images = [{"data": b64, "media_type": mt}]
 
-            # Dispatch agent
+            # Dispatch agent — always stream (non-blocking, logs run record)
             with st.chat_message("assistant", avatar="🤖"):
-                if use_stream:
-                    response_text, meta = _stream_response(
-                        sel_agent, prompt, sel_ns, api_messages, images, api_get,
-                        api_post=api_post, save_out=save_out,
-                    )
-                else:
-                    response_text, meta = _blocking_response(
-                        sel_agent, prompt, sel_ns, save_out, api_messages, images, api_post, api_get
-                    )
+                response_text, meta = _stream_response(
+                    sel_agent, prompt, sel_ns, api_messages, images, api_get,
+                    api_post=api_post, save_out=save_out,
+                )
 
                 if response_text:
                     history.append({

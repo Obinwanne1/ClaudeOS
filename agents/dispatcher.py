@@ -70,8 +70,8 @@ def dispatch(
             temperature=agent.temperature,
             context=request.context,
             session_id=request.session_id,
-            triggered_by="user",
-            workflow_run_id=None,
+            triggered_by=request.triggered_by,
+            workflow_run_id=request.workflow_run_id,
             save_output=request.save_output,
             agent_id=agent.id,
         )

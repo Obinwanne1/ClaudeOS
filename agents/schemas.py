@@ -91,3 +91,5 @@ class AgentDispatchRequest(BaseModel):
     context: dict = Field(default_factory=dict)
     session_id: Optional[str] = None
     save_output: bool = True
+    triggered_by: str = "user"
+    workflow_run_id: Optional[str] = None

@@ -174,7 +174,24 @@ def stream_agent(agent_name: str):
     if not agent.enabled:
         return jsonify({"error": "Agent is disabled"}), 400
 
+    # Create run record so streaming runs appear in history + observability
+    import time as _time
+    from agents.executor import create_run_record, _trigger_eval, _bg_pool, _update_run_status
+    from core.database import get_db
+    run_id = create_run_record(
+        agent_id=agent.id,
+        namespace=namespace,
+        prompt=prompt,
+        context=context,
+        session_id=None,
+        triggered_by="user",
+        workflow_run_id=None,
+    )
+    _update_run_status(run_id, "running")
+
     def _generate():
+        full_text = []
+        start = _time.monotonic()
         try:
             from agents.executor import execute_stream
             for chunk in execute_stream(
@@ -189,13 +206,32 @@ def stream_agent(agent_name: str):
                 messages=messages,
             ):
                 if isinstance(chunk, dict) and chunk.get("_done"):
-                    yield f"data: {json.dumps({'type': 'done', 'tokens_in': chunk['tokens_in'], 'tokens_out': chunk['tokens_out']})}\n\n"
+                    tokens_in = chunk["tokens_in"]
+                    tokens_out = chunk["tokens_out"]
+                    duration_ms = int((_time.monotonic() - start) * 1000)
+                    text = "".join(full_text)
+                    output = {"text": text, "model": agent.model, "stop_reason": "end_turn"}
+                    with get_db() as conn:
+                        conn.execute(
+                            """UPDATE agent_runs SET output=?, status='done', tokens_in=?,
+                               tokens_out=?, duration_ms=?, completed_at=? WHERE id=?""",
+                            (json.dumps(output), tokens_in, tokens_out,
+                             duration_ms, utcnow_str(), run_id),
+                        )
+                    _bg_pool.submit(_trigger_eval, run_id, prompt, text, "")
+                    yield f"data: {json.dumps({'type': 'done', 'run_id': run_id, 'tokens_in': tokens_in, 'tokens_out': tokens_out})}\n\n"
                 else:
+                    full_text.append(chunk)
                     payload = json.dumps({"type": "token", "text": chunk})
                     yield f"data: {payload}\n\n"
         except Exception as e:
-            payload = json.dumps({"type": "error", "message": str(e)})
-            yield f"data: {payload}\n\n"
+            duration_ms = int((_time.monotonic() - start) * 1000)
+            with get_db() as conn:
+                conn.execute(
+                    "UPDATE agent_runs SET status='failed', error=?, duration_ms=?, completed_at=? WHERE id=?",
+                    (str(e), duration_ms, utcnow_str(), run_id),
+                )
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
 
     return Response(
         stream_with_context(_generate()),
