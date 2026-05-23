@@ -1,7 +1,7 @@
 # ClaudeOS — Client Documentation
 
-**Version:** 9.0  
-**Last Updated:** 2026-05-22  
+**Version:** 13.0  
+**Last Updated:** 2026-05-23  
 **Brand:** #407E3C Green · White · #5a9e56 Accent
 
 ---
@@ -46,6 +46,7 @@ If self-registration is enabled by the admin:
 | View/work tickets | ✅ | ✅ | ✅ | ✅ | Assigned only |
 | Assign & advance tickets | ✅ | ✅ | ❌ | ❌ | Self-assign ✅ |
 | Admin Panel | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Observability Dashboard | ✅ | ✅ | ❌ | ❌ | ❌ |
 
 **Staff** is a dedicated support role. Staff users see only tickets assigned to them, can self-assign open tickets, and can advance ticket status. They do not have access to memory, agents, outputs, or admin functions.
 
@@ -53,13 +54,21 @@ If self-registration is enabled by the admin:
 
 ## Dashboard Pages
 
-### Overview
+### Overview (updated)
 The home page shows:
 - **System Status** — API and database health at a glance
 - **KPI Cards** — memory entries, agents, runs, workflows, outputs
-- **Recent Events** — last 8 agent run results with timestamps
+- **Recent Events** — last 8 agent run results with timestamps and eval score pills
 - **Quick Dispatch** — run any agent against any namespace with a prompt
 - **Memory by Namespace** — count of active memory entries per namespace
+- **Live auto-refresh toggle** — when enabled, the feed refreshes every 8 seconds
+- **Error alert strip** — red banner displayed when any recent run failed
+- **Running-now indicator** — yellow banner showing agents currently executing
+
+**Eval score pills** appear on each run entry, color-coded:
+- Green — score ≥ 4.0
+- Amber — score ≥ 2.5
+- Red — score < 2.5
 
 ### Memory
 Browse, search, write, and delete memory entries.
@@ -68,20 +77,41 @@ Browse, search, write, and delete memory entries.
 - Write entries with category (fact, preference, reminder, task), TTL, and confidence score
 - Reminder entries use a date/time picker for expiry
 - Search via FTS5 for instant keyword matching
+- Hybrid BM25+vector search available via the search toggle for higher-recall results
 - Bulk delete: select entries with checkboxes, then use the bulk toolbar to delete all selected
 
-### Agents
-- View all 12 registered agents with their descriptions and capabilities
-- Run any agent directly with a custom prompt and namespace
-- Live output polling — results auto-refresh every 3 seconds until done
-- Full run history with status, duration, and output preview
+### Agents (updated)
+The Agents page now has three tabs:
+
+#### Chat tab
+Conversational multi-turn chat with any agent. Each session maintains full conversation history per agent. Features:
+- **Streaming responses** — tokens appear as they arrive, no waiting for the full output
+- **Image/screenshot upload** — attach images for visual analysis (e.g. UI screenshots, charts, documents)
+- **Voice input** — click the microphone button, record audio, and the system auto-transcribes it into the prompt field
+- **Conversation history** — full back-and-forth exchange shown per agent; history persists for the session
+- **Eval score badges** — every assistant response shows its quality score after the async eval completes (~10 seconds)
+
+#### Catalog tab
+The original agent grid: all 12 registered agents with their descriptions, capabilities, and a quick-run form. Run any agent with a custom prompt and namespace. Live output polling auto-refreshes every 3 seconds until the run completes.
+
+#### Run History tab
+Full run history across all agents. Now includes:
+- Quality score column with color-coded pill
+- Eval dimension breakdown (task completion, factual grounding, conciseness, safety) expandable per row
+- Per-agent averages in the summary header
 - Bulk delete run history entries via checkbox selection
 
-### Workflows
+### Workflows (updated)
 - View all 7 configured pipelines
 - Trigger workflows manually
 - See last-run timestamps and schedules
 - Monitor pipeline steps and their statuses
+- **Webhooks tab** — enable a webhook URL per workflow so external systems can trigger it:
+  1. Open a workflow and click the **Webhooks** tab
+  2. Click **Enable Webhook** — a unique URL and secret are generated
+  3. Copy the webhook URL and secret
+  4. POST to the URL from any external system with `X-Webhook-Secret: <secret>` to fire the workflow
+  5. The webhook endpoint requires no JWT — authentication is via the secret header only
 
 ### Client Vault
 - **Namespaces** — view your namespace details, workspace stats (files, KB), and project count
@@ -110,6 +140,31 @@ The ticketing system provides a full support and task lifecycle within ClaudeOS.
 - **Resolution notes** — record resolution details when closing a ticket
 - **Bulk delete** — select multiple tickets and delete in one action
 - **Stats panel** — ticket counts broken down by status and priority
+
+### Observability (new — admin/operator only)
+Four sub-tabs providing full system visibility:
+
+#### Quality Scores
+- Per-agent average eval scores displayed as a ranked table
+- Distribution chart showing score spread across all runs
+- Dimension breakdown: task completion, factual grounding, conciseness, safety
+- Low-quality alert: red warning when any agent's average drops below 2.5
+
+#### Latency
+- p50, p95, and p99 latency across all runs
+- Per-agent average latency table sorted by slowest
+- Time-series chart showing latency trends over the past 7 days
+
+#### Token Cost
+- Total input and output token counts across all runs
+- Estimated USD cost based on current claude-sonnet-4-6 pricing
+- Per-agent breakdown: tokens used, cost, run count, avg cost per run
+
+#### Memory Health
+- Entry counts per namespace: total, active, consolidated, expired
+- Storage size estimate per namespace
+- Manual consolidation trigger button — runs the consolidation job immediately rather than waiting for the scheduled 4-hour window
+- Visual indicator when any namespace has not been consolidated in over 24 hours
 
 ### Settings (Admin/Operator)
 - System configuration
@@ -147,6 +202,96 @@ Your theme preference persists for your current session.
 
 ---
 
+## Quality Scoring
+
+Every agent run is automatically scored by Claude Haiku (LLM-as-Judge) on 4 dimensions. Scoring is fully asynchronous — it runs in the background after the run completes and does not add latency to the agent response.
+
+| Dimension | Scale | Weight | What it measures |
+|-----------|-------|--------|-----------------|
+| Task Completion | 0–5 | 40% | Did the output address the prompt fully? |
+| Factual Grounding | 0–5 | 30% | Are claims grounded in injected memory context? |
+| Conciseness | 0–5 | 20% | Appropriate length, no padding or repetition? |
+| Safety | pass/fail | 10% | No harmful, biased, or dangerous content? |
+
+**Overall score** = weighted average of the four dimensions. A safety fail caps the overall score at 1.0 regardless of other scores.
+
+Scores appear:
+- In **Run History** as a colored pill next to each run
+- In **Overview** as a pill on each recent event entry
+- In **Chat** as a badge below each assistant response (appears ~10 seconds after the response completes)
+- In **Observability → Quality Scores** as aggregated analytics
+
+Low-quality threshold: runs scoring below 2.5 are flagged. The Observability dashboard alerts when any agent's rolling average drops below this threshold.
+
+---
+
+## MCP Integration (Developers)
+
+ClaudeOS exposes all 12 agents as MCP (Model Context Protocol) tools. Any MCP-compatible client — Claude Desktop, Cursor, custom agents — can call your ClaudeOS agents as first-class tools without writing any custom integration code.
+
+**Start the MCP server:**
+```powershell
+.\scripts\start_mcp.ps1
+```
+
+The server starts on port 5100. Verify it is running:
+```powershell
+curl http://localhost:5100/mcp
+```
+
+**Add to Claude Desktop's config** (`%APPDATA%\Claude\claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "claudeos": {
+      "url": "http://localhost:5100/mcp"
+    }
+  }
+}
+```
+
+Restart Claude Desktop. All 12 agents will appear as available tools in the tool picker.
+
+**Install optional dependencies first if not already present:**
+```powershell
+pip install mcp uvicorn
+```
+
+**A2A Agent Cards**
+
+Each agent also exposes a machine-readable capability card for agent-to-agent discovery:
+```
+GET http://localhost:5000/api/v1/agents/<name>/.well-known/agent.json
+```
+The card describes the agent's name, description, accepted input schema, and output schema.
+
+---
+
+## Webhook API (Developers)
+
+Trigger workflows from external systems without a JWT token.
+
+**Step 1 — Enable the webhook**
+
+Open the Workflows page, select a workflow, click the **Webhooks** tab, and click **Enable Webhook**. A unique URL and HMAC secret are generated and displayed. Copy both.
+
+**Step 2 — Fire the workflow**
+
+```bash
+curl -X POST http://localhost:5000/api/v1/workflows/morning-briefing/trigger \
+  -H "X-Webhook-Secret: your-secret" \
+  -H "Content-Type: application/json" \
+  -d '{"context": {"namespace": "global", "topic": "AI news"}}'
+```
+
+The `context` object is passed as input to the first pipeline step. The webhook endpoint is public (no JWT required) — authentication is via the `X-Webhook-Secret` header only.
+
+**Step 3 — Verify execution**
+
+The response returns the run ID. Poll `GET /api/v1/agents/runs/<id>` to check status, or view the run in the **Run History** tab.
+
+---
+
 ## API Access (Developers)
 
 The REST API runs at `http://localhost:5000/api/v1/`.
@@ -179,9 +324,14 @@ curl http://localhost:5000/api/v1/memory \
 | GET | `/auth/me` | Current user info |
 | GET | `/memory` | List memory entries |
 | POST | `/memory` | Write a memory entry |
+| POST | `/memory/consolidate` | Trigger memory consolidation immediately |
+| GET | `/memory/hybrid-search` | Hybrid BM25+vector search with RRF reranking |
 | GET | `/agents` | List all agents |
 | POST | `/agents/{id}/run` | Run agent with prompt |
 | GET | `/agents/runs/{id}` | Poll run status and output |
+| GET | `/agents/{name}/stream` | SSE streaming response (token-by-token) |
+| GET | `/agents/{name}/.well-known/agent.json` | A2A Agent Card |
+| POST | `/agents/{name}/webhook/enable` | Enable webhook for agent |
 | GET | `/outputs` | List outputs |
 | DELETE | `/outputs/bulk` | Bulk delete outputs |
 | GET | `/tickets` | List tickets |
@@ -192,7 +342,7 @@ curl http://localhost:5000/api/v1/memory \
 | DELETE | `/tickets/bulk` | Bulk delete tickets |
 | GET | `/tickets/stats` | Ticket counts by status and priority |
 | GET | `/workflows` | List workflows |
-| POST | `/workflows/{id}/trigger` | Trigger a workflow |
+| POST | `/workflows/{name}/trigger` | Webhook trigger (public, X-Webhook-Secret auth) |
 | GET | `/system/status` | System health |
 | GET | `/health` | Public health check (no auth) |
 
@@ -206,9 +356,15 @@ curl http://localhost:5000/api/v1/memory \
 
 This kills any existing processes on :5000 and :8501, starts the Flask API via waitress, verifies `/health`, then starts the Streamlit dashboard.
 
+**Start MCP server (optional):**
+```powershell
+.\scripts\start_mcp.ps1
+```
+
 **First-time setup:**
 ```powershell
 pip install -r requirements.txt
+pip install rank-bm25 plotly
 python scripts/migrate.py
 python scripts/seed_agents.py
 python scripts/seed_workflows.py
@@ -247,6 +403,10 @@ Outputs and memory can be synced to Supabase for cloud backup and sharing.
 | Sync fails | Verify SUPABASE_URL and SUPABASE_SERVICE_KEY in .env; restart after changes |
 | Eye icon not visible | Light mode CSS — this is a known Streamlit quirk, fixed in latest build |
 | Ticket comments not loading | Click the "💬 Comments" toggle — comments load on demand |
+| Eval scores not appearing | Scores are async — wait ~10s after run completes; check API logs for Haiku errors |
+| Streaming not working | Ensure browser supports EventSource; check CORS settings in Flask config |
+| Voice input not working | Run `pip install openai-whisper`; first use downloads ~140MB model automatically |
+| MCP server not found | Run `pip install mcp uvicorn` then `.\scripts\start_mcp.ps1` |
 
 ---
 
@@ -254,4 +414,4 @@ Outputs and memory can be synced to Supabase for cloud backup and sharing.
 
 Contact your admin (Romanus Igwe) or open an issue in the project repository.
 
-**Stack versions:** Python 3.11+ · Flask 3.0 · Streamlit 1.38 · SQLite FTS5 · claude-sonnet-4-6
+**Stack versions:** Python 3.11+ · Flask 3.0 · Streamlit 1.38 · SQLite FTS5 · ChromaDB · claude-sonnet-4-6 · rank-bm25 · plotly
