@@ -87,11 +87,11 @@ def _render_chat_tab(agents: list, api_get, api_post):
 
         _role = st.session_state.get("user_role", "admin")
         _user_ns = st.session_state.get("user_namespace")
-        _ns_opts = (
-            [_user_ns]
-            if _role in ("client", "viewer") and _user_ns
-            else ["global", "reci-transport", "ivycandy-hair", "faiyke-ai", "personal"]
-        )
+        if _role in ("client", "viewer") and _user_ns:
+            _ns_opts = [_user_ns]
+        else:
+            _ns_data = api_get("/namespaces") or []
+            _ns_opts = [n["slug"] for n in _ns_data if isinstance(n, dict) and n.get("slug")] or ["global"]
         sel_ns = st.selectbox("Namespace", _ns_opts, key="chat_ns")
         save_out = st.checkbox("Save output", value=True, key="chat_save")
         use_stream = st.checkbox("Stream response", value=True, key="chat_stream",
@@ -190,7 +190,8 @@ def _render_chat_tab(agents: list, api_get, api_post):
             with st.chat_message("assistant", avatar="🤖"):
                 if use_stream:
                     response_text, meta = _stream_response(
-                        sel_agent, prompt, sel_ns, api_messages, images, api_get
+                        sel_agent, prompt, sel_ns, api_messages, images, api_get,
+                        api_post=api_post, save_out=save_out,
                     )
                 else:
                     response_text, meta = _blocking_response(
@@ -214,6 +215,8 @@ def _stream_response(
     messages: list,
     images,
     api_get,
+    api_post=None,
+    save_out: bool = False,
 ) -> tuple[str, dict]:
     """Stream SSE response from Flask SSE endpoint."""
     import os
@@ -226,18 +229,18 @@ def _stream_response(
         "namespace": namespace,
     }
     if messages:
-        params["context"] = json.dumps({"prior_turns": len(messages)})
+        params["messages"] = json.dumps(messages)
 
     url = f"http://localhost:{_FLASK_PORT}/api/v1/agents/{agent_name}/stream"
 
     placeholder = st.empty()
     full_text = ""
+    meta: dict = {"tokens_in": 0, "tokens_out": 0}
     start = time.monotonic()
 
     try:
         with requests.get(url, params=params, headers=headers, stream=True, timeout=120) as resp:
             if not resp.ok:
-                # Fallback: not a streaming-capable error, show message
                 st.error(f"Stream error: {resp.status_code}")
                 return "", {}
 
@@ -253,13 +256,26 @@ def _stream_response(
                     placeholder.markdown(full_text + "▌")
                 elif payload.get("type") == "done":
                     placeholder.markdown(full_text)
+                    meta["tokens_in"] = payload.get("tokens_in", 0)
+                    meta["tokens_out"] = payload.get("tokens_out", 0)
                     break
                 elif payload.get("type") == "error":
                     st.error(payload.get("message", "Stream error"))
                     return full_text, {}
 
-        duration_ms = int((time.monotonic() - start) * 1000)
-        return full_text, {"duration_ms": duration_ms, "tokens_in": 0, "tokens_out": 0}
+        meta["duration_ms"] = int((time.monotonic() - start) * 1000)
+
+        # Save output if requested (IN-02)
+        if save_out and full_text.strip() and api_post:
+            api_post("/outputs", {
+                "namespace": namespace,
+                "title": f"{agent_name} — {time.strftime('%Y-%m-%d %H:%M', time.gmtime())}",
+                "content": full_text,
+                "output_type": "report",
+                "tags": [agent_name, namespace],
+            })
+
+        return full_text, meta
 
     except Exception as e:
         st.error(f"Streaming failed: {e}")
@@ -328,8 +344,10 @@ def _blocking_response(
 
 def _transcribe_audio(audio_data) -> None:
     """Transcribe audio using Whisper and store in session state."""
-    if st.session_state.get("_last_audio_bytes") == audio_data.read(10):
+    check_bytes = audio_data.read(10)
+    if st.session_state.get("_last_audio_bytes") == check_bytes:
         return  # Same audio, already transcribed
+    st.session_state["_last_audio_bytes"] = check_bytes
     audio_data.seek(0)
 
     with st.spinner("Transcribing audio…"):

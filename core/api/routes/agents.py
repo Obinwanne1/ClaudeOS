@@ -162,6 +162,12 @@ def stream_agent(agent_name: str):
     except Exception:
         context = {}
 
+    messages_raw = request.args.get("messages")
+    try:
+        messages = json.loads(messages_raw) if messages_raw else None
+    except Exception:
+        messages = None
+
     agent = registry.get_by_name(agent_name)
     if not agent:
         return jsonify({"error": "Agent not found"}), 404
@@ -171,7 +177,6 @@ def stream_agent(agent_name: str):
     def _generate():
         try:
             from agents.executor import execute_stream
-            token_count = 0
             for chunk in execute_stream(
                 agent_name=agent.name,
                 system_prompt=agent.system_prompt,
@@ -181,11 +186,13 @@ def stream_agent(agent_name: str):
                 max_tokens=agent.max_tokens,
                 temperature=agent.temperature,
                 context=context,
+                messages=messages,
             ):
-                token_count += 1
-                payload = json.dumps({"type": "token", "text": chunk})
-                yield f"data: {payload}\n\n"
-            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                if isinstance(chunk, dict) and chunk.get("_done"):
+                    yield f"data: {json.dumps({'type': 'done', 'tokens_in': chunk['tokens_in'], 'tokens_out': chunk['tokens_out']})}\n\n"
+                else:
+                    payload = json.dumps({"type": "token", "text": chunk})
+                    yield f"data: {payload}\n\n"
         except Exception as e:
             payload = json.dumps({"type": "error", "message": str(e)})
             yield f"data: {payload}\n\n"

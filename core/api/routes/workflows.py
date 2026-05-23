@@ -211,9 +211,10 @@ def webhook_trigger(name: str):
     if not row or not row["webhook_enabled"] or not row["webhook_secret"]:
         return jsonify({"error": "Webhook not enabled for this workflow"}), 403
 
-    # Validate secret
+    # Validate secret — guard against empty-string bypass before compare_digest
     provided = request.headers.get("X-Webhook-Secret", "")
-    if not hmac.compare_digest(provided, row["webhook_secret"]):
+    stored = row["webhook_secret"] or ""
+    if not provided or not stored or not hmac.compare_digest(provided, stored):
         return jsonify({"error": "Invalid webhook secret"}), 403
 
     wf = get_by_name(name)

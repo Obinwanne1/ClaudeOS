@@ -214,6 +214,12 @@ def execute_stream(
     ) as stream:
         for text_chunk in stream.text_stream:
             yield text_chunk
+        final = stream.get_final_message()
+    yield {
+        "_done": True,
+        "tokens_in": final.usage.input_tokens,
+        "tokens_out": final.usage.output_tokens,
+    }
 
 
 def create_run_record(
