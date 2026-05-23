@@ -116,11 +116,13 @@ def _render_chat_tab(agents: list, api_get, api_post):
             _transcribe_audio(audio_data)
 
         st.markdown("---")
-        if st.button("Clear conversation", key="chat_clear", use_container_width=True):
-            conv_key = f"conv_{sel_agent}_{sel_ns}"
-            st.session_state.pop(conv_key, None)
-            st.session_state.pop(f"conv_id_{sel_agent}", None)
-            st.rerun()
+        def _do_clear():
+            _key = f"conv_{st.session_state.get('chat_agent', '')}_{st.session_state.get('chat_ns', '')}"
+            st.session_state.pop(_key, None)
+            st.session_state.pop(f"conv_id_{st.session_state.get('chat_agent', '')}", None)
+
+        st.button("Clear conversation", key="chat_clear",
+                  on_click=_do_clear, use_container_width=True)
 
         # Agent Card viewer
         with st.expander("🪪 Agent Card (A2A)"):
