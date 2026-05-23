@@ -626,8 +626,10 @@ Every deployment built by this skill includes all of the following. Nothing is c
 | `POST /auth/login` | JWT login |
 | `GET /agents` | List agents |
 | `POST /agents/<name>/run` | Run agent |
-| `GET /agents/<name>/stream` | SSE streaming response |
+| `GET /agents/<name>/stream` | SSE streaming response (token-by-token, bytes generator, direct_passthrough=True) |
 | `GET /agents/<name>/.well-known/agent.json` | A2A Agent Card |
+| `GET /agents/<name>/conversations` | List multi-turn conversation sessions |
+| `POST /agents/runs/<id>/cancel` | Cancel a pending/running run |
 | `GET /memory` | List memory |
 | `POST /memory` | Write memory |
 | `GET /memory/hybrid-search` | Hybrid BM25+vector search |
@@ -696,9 +698,13 @@ After the system is running, offer these optional additions:
 | Agents not found | Run `python scripts/seed_agents.py` |
 | ChromaDB warmup slow (30-60s) | Normal on first start — sentence-transformers model loading |
 | Eval scores not appearing | Async — wait ~10s; check ANTHROPIC_API_KEY in .env |
-| Streaming not working | Ensure Flask is running; check CORS; verify JWT token valid |
+| Streaming returns 500 | Flask is running but Connection hop-by-hop header rejected by waitress. Fix: `stream_agent` route must use `direct_passthrough=True` on the `Response` object and yield `bytes` (not strings) from the generator — this bypasses Werkzeug's automatic `Connection` header injection (PEP 3333) |
+| Streaming not working in browser | Ensure only one Flask process on port 5000 (`netstat -ano \| findstr :5000`); kill duplicates and restart |
+| Runs stuck as "running" | Old server crashed mid-stream. Fix: `UPDATE agent_runs SET status='failed', completed_at=NOW() WHERE status='running'` |
+| Runs not appearing in history | Streaming runs only appear in history if `create_run_record()` is called in the stream route before the generator starts — not inside the generator |
 | Voice input error | `pip install openai-whisper`; first use downloads ~140MB model |
 | MCP server not found | `pip install mcp uvicorn`; run `.\scripts\start_mcp.ps1` |
+| Port conflict on startup | Run `netstat -ano \| findstr :<PORT>` to find PID, then `taskkill /F /PID <PID>` for each process on the port |
 
 ---
 

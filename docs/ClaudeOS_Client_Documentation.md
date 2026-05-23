@@ -1,6 +1,6 @@
 # ClaudeOS — Client Documentation
 
-**Version:** 13.0  
+**Version:** 13.1  
 **Last Updated:** 2026-05-23  
 **Brand:** #407E3C Green · White · #5a9e56 Accent
 
@@ -54,7 +54,7 @@ If self-registration is enabled by the admin:
 
 ## Dashboard Pages
 
-### Overview (updated)
+### Overview
 The home page shows:
 - **System Status** — API and database health at a glance
 - **KPI Cards** — memory entries, agents, runs, workflows, outputs
@@ -80,16 +80,20 @@ Browse, search, write, and delete memory entries.
 - Hybrid BM25+vector search available via the search toggle for higher-recall results
 - Bulk delete: select entries with checkboxes, then use the bulk toolbar to delete all selected
 
-### Agents (updated)
-The Agents page now has three tabs:
+### Agents
+The Agents page has three tabs:
 
 #### Chat tab
 Conversational multi-turn chat with any agent. Each session maintains full conversation history per agent. Features:
-- **Streaming responses** — tokens appear as they arrive, no waiting for the full output
+- **Streaming responses** — tokens appear as they arrive, no waiting for the full output. Fully implemented via Server-Sent Events (SSE) with token-by-token rendering.
 - **Image/screenshot upload** — attach images for visual analysis (e.g. UI screenshots, charts, documents)
 - **Voice input** — click the microphone button, record audio, and the system auto-transcribes it into the prompt field
 - **Conversation history** — full back-and-forth exchange shown per agent; history persists for the session
+- **Clear conversation** — button resets the current conversation and starts a new session
 - **Eval score badges** — every assistant response shows its quality score after the async eval completes (~10 seconds)
+- **Token usage** — token count displayed after each response
+
+Every streaming chat run is saved to run history automatically, with output, tokens, and eval score recorded.
 
 #### Catalog tab
 The original agent grid: all 12 registered agents with their descriptions, capabilities, and a quick-run form. Run any agent with a custom prompt and namespace. Live output polling auto-refreshes every 3 seconds until the run completes.
@@ -101,7 +105,7 @@ Full run history across all agents. Now includes:
 - Per-agent averages in the summary header
 - Bulk delete run history entries via checkbox selection
 
-### Workflows (updated)
+### Workflows
 - View all 7 configured pipelines
 - Trigger workflows manually
 - See last-run timestamps and schedules
@@ -141,7 +145,7 @@ The ticketing system provides a full support and task lifecycle within ClaudeOS.
 - **Bulk delete** — select multiple tickets and delete in one action
 - **Stats panel** — ticket counts broken down by status and priority
 
-### Observability (new — admin/operator only)
+### Observability (admin/operator only)
 Four sub-tabs providing full system visibility:
 
 #### Quality Scores
@@ -225,6 +229,28 @@ Low-quality threshold: runs scoring below 2.5 are flagged. The Observability das
 
 ---
 
+## Advanced Memory
+
+### Hybrid BM25 + Vector Search
+Memory search uses two retrieval methods simultaneously:
+- **BM25** — keyword-based scoring; excellent for exact terms and technical queries
+- **Vector (ChromaDB)** — semantic similarity; excellent for concept-level retrieval
+
+Results from both are fused using Reciprocal Rank Fusion (RRF) before being returned. Enable hybrid search via the toggle on the Memory page for higher-recall results.
+
+### Memory Consolidation
+An automated job runs every 4 hours:
+1. Groups semantically similar memory entries per namespace
+2. Calls Claude to synthesize each cluster into a single, more concise summary entry
+3. Marks the originals as consolidated (they are archived, not deleted)
+
+This keeps memory stores lean and coherent over time. You can also trigger consolidation immediately from **Observability → Memory Health**.
+
+### Tiered Context Injection
+When an agent runs, only the most relevant memory entries are injected into its system prompt, ranked by relevance to the current query. This reduces token consumption by ~40% while maintaining context quality.
+
+---
+
 ## MCP Integration (Developers)
 
 ClaudeOS exposes all 12 agents as MCP (Model Context Protocol) tools. Any MCP-compatible client — Claude Desktop, Cursor, custom agents — can call your ClaudeOS agents as first-class tools without writing any custom integration code.
@@ -263,7 +289,7 @@ Each agent also exposes a machine-readable capability card for agent-to-agent di
 ```
 GET http://localhost:5000/api/v1/agents/<name>/.well-known/agent.json
 ```
-The card describes the agent's name, description, accepted input schema, and output schema.
+The card describes the agent's name, description, accepted input schema, output schema, and streaming/multi-turn capabilities. External orchestrators can use this endpoint to automatically discover and delegate to ClaudeOS agents.
 
 ---
 
@@ -292,6 +318,27 @@ The response returns the run ID. Poll `GET /api/v1/agents/runs/<id>` to check st
 
 ---
 
+## SSE Streaming API (Developers)
+
+Stream agent responses token-by-token via Server-Sent Events:
+
+```bash
+curl -N "http://localhost:5000/api/v1/agents/writing-agent/stream?prompt=Hello&namespace=global" \
+  -H "X-API-Key: your_api_key"
+```
+
+**Event types:**
+
+| Event type | Payload | Description |
+|-----------|---------|-------------|
+| `token` | `{"type": "token", "text": "..."}` | One text chunk as it arrives |
+| `done` | `{"type": "done", "run_id": "...", "tokens_in": N, "tokens_out": N}` | Stream complete; includes run ID and token counts |
+| `error` | `{"type": "error", "message": "..."}` | An error occurred; run marked as failed |
+
+Every stream run is saved to the database automatically — the run appears in Run History with `status=done`, output, and token counts recorded.
+
+---
+
 ## API Access (Developers)
 
 The REST API runs at `http://localhost:5000/api/v1/`.
@@ -308,7 +355,7 @@ curl http://localhost:5000/api/v1/agents \
   -H "Authorization: Bearer <access_token>"
 ```
 
-**Or use an API key (legacy/scripts):**
+**Or use an API key (scripts/automation):**
 ```bash
 curl http://localhost:5000/api/v1/memory \
   -H "X-API-Key: your_api_key"
@@ -327,11 +374,13 @@ curl http://localhost:5000/api/v1/memory \
 | POST | `/memory/consolidate` | Trigger memory consolidation immediately |
 | GET | `/memory/hybrid-search` | Hybrid BM25+vector search with RRF reranking |
 | GET | `/agents` | List all agents |
-| POST | `/agents/{id}/run` | Run agent with prompt |
+| POST | `/agents/{name}/run` | Dispatch agent run (async, returns run_id) |
 | GET | `/agents/runs/{id}` | Poll run status and output |
+| GET | `/agents/runs` | List all runs (filterable by namespace/status) |
 | GET | `/agents/{name}/stream` | SSE streaming response (token-by-token) |
 | GET | `/agents/{name}/.well-known/agent.json` | A2A Agent Card |
-| POST | `/agents/{name}/webhook/enable` | Enable webhook for agent |
+| GET | `/agents/{name}/conversations` | List multi-turn conversation sessions |
+| POST | `/agents/{name}/runs/{id}/cancel` | Cancel a pending/running run |
 | GET | `/outputs` | List outputs |
 | DELETE | `/outputs/bulk` | Bulk delete outputs |
 | GET | `/tickets` | List tickets |
@@ -342,8 +391,10 @@ curl http://localhost:5000/api/v1/memory \
 | DELETE | `/tickets/bulk` | Bulk delete tickets |
 | GET | `/tickets/stats` | Ticket counts by status and priority |
 | GET | `/workflows` | List workflows |
+| POST | `/workflows/{name}/run` | Trigger workflow manually |
 | POST | `/workflows/{name}/trigger` | Webhook trigger (public, X-Webhook-Secret auth) |
-| GET | `/system/status` | System health |
+| POST | `/workflows/{name}/webhook/enable` | Enable webhook + generate secret |
+| GET | `/system/status` | System health detail (auth required) |
 | GET | `/health` | Public health check (no auth) |
 
 ---
@@ -364,7 +415,6 @@ This kills any existing processes on :5000 and :8501, starts the Flask API via w
 **First-time setup:**
 ```powershell
 pip install -r requirements.txt
-pip install rank-bm25 plotly
 python scripts/migrate.py
 python scripts/seed_agents.py
 python scripts/seed_workflows.py
@@ -401,12 +451,14 @@ Outputs and memory can be synced to Supabase for cloud backup and sharing.
 | API returns 401 | Token expired — log out and log back in |
 | Output won't export | Try Markdown export; PDF may need wkhtmltopdf installed |
 | Sync fails | Verify SUPABASE_URL and SUPABASE_SERVICE_KEY in .env; restart after changes |
-| Eye icon not visible | Light mode CSS — this is a known Streamlit quirk, fixed in latest build |
 | Ticket comments not loading | Click the "💬 Comments" toggle — comments load on demand |
 | Eval scores not appearing | Scores are async — wait ~10s after run completes; check API logs for Haiku errors |
-| Streaming not working | Ensure browser supports EventSource; check CORS settings in Flask config |
+| Streaming returns error | Ensure only one Flask process is on port 5000; restart with `.\scripts\start.ps1` |
 | Voice input not working | Run `pip install openai-whisper`; first use downloads ~140MB model automatically |
 | MCP server not found | Run `pip install mcp uvicorn` then `.\scripts\start_mcp.ps1` |
+| Runs stuck as "running" | Restart server; stuck runs from crashed sessions are auto-cleaned on next health check |
+| Agents not responding | Check ANTHROPIC_API_KEY in .env; verify it is not expired or rate-limited |
+| ChromaDB slow on first start | Normal — sentence-transformers model loads on first request (~30-60s cold start) |
 
 ---
 
@@ -414,4 +466,4 @@ Outputs and memory can be synced to Supabase for cloud backup and sharing.
 
 Contact your admin (Romanus Igwe) or open an issue in the project repository.
 
-**Stack versions:** Python 3.11+ · Flask 3.0 · Streamlit 1.38 · SQLite FTS5 · ChromaDB · claude-sonnet-4-6 · rank-bm25 · plotly
+**Stack versions:** Python 3.11+ · Flask 3.0 · Streamlit 1.38 · SQLite FTS5 · ChromaDB · claude-sonnet-4-6 · Claude Haiku (eval) · rank-bm25 · plotly · waitress (WSGI)
