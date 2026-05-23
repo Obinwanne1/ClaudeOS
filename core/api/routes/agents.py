@@ -219,11 +219,11 @@ def stream_agent(agent_name: str):
                              duration_ms, utcnow_str(), run_id),
                         )
                     _bg_pool.submit(_trigger_eval, run_id, prompt, text, "")
-                    yield f"data: {json.dumps({'type': 'done', 'run_id': run_id, 'tokens_in': tokens_in, 'tokens_out': tokens_out})}\n\n"
+                    yield f"data: {json.dumps({'type': 'done', 'run_id': run_id, 'tokens_in': tokens_in, 'tokens_out': tokens_out})}\n\n".encode("utf-8")
                 else:
                     full_text.append(chunk)
                     payload = json.dumps({"type": "token", "text": chunk})
-                    yield f"data: {payload}\n\n"
+                    yield f"data: {payload}\n\n".encode("utf-8")
         except Exception as e:
             duration_ms = int((_time.monotonic() - start) * 1000)
             with get_db() as conn:
@@ -231,16 +231,17 @@ def stream_agent(agent_name: str):
                     "UPDATE agent_runs SET status='failed', error=?, duration_ms=?, completed_at=? WHERE id=?",
                     (str(e), duration_ms, utcnow_str(), run_id),
                 )
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n".encode("utf-8")
 
     return Response(
         stream_with_context(_generate()),
-        mimetype="text/event-stream",
+        status=200,
+        content_type="text/event-stream; charset=utf-8",
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
-            "Connection": "keep-alive",
         },
+        direct_passthrough=True,
     )
 
 
