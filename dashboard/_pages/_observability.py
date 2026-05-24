@@ -40,7 +40,7 @@ def render(api_get, api_post, bulk_delete=None):
         _render_tokens(runs, tv)
 
     with tab_memory:
-        _render_memory_health(api_get, tv)
+        _render_memory_health(api_get, api_post, tv)
 
 
 def _render_quality(runs: list, tv: dict) -> None:
@@ -231,7 +231,7 @@ def _render_tokens(runs: list, tv: dict) -> None:
     st.caption("Pricing based on Claude Sonnet 4.6 rates (~$3/M input, ~$15/M output). Actual costs may vary.")
 
 
-def _render_memory_health(api_get, tv: dict) -> None:
+def _render_memory_health(api_get, api_post, tv: dict) -> None:
     st.subheader("Memory System Health")
 
     ns_data = api_get("/memory/namespaces") or {}
