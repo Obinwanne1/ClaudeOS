@@ -237,9 +237,14 @@ _ticket_stats = _cached_api_get(
 )
 _open_ticket_count = (_ticket_stats.get("count", 0) if isinstance(_ticket_stats, dict) else 0)
 
+_page_list = list(pages.keys())
+_saved_page = st.session_state.get("nav_page")
+_page_index = _page_list.index(_saved_page) if _saved_page in _page_list else 0
 page = st.sidebar.radio(
     "Navigation",
-    list(pages.keys()),
+    _page_list,
+    index=_page_index,
+    key="nav_page",
     format_func=lambda p: (
         f"{pages[p]}  {p} ({_open_ticket_count})" if p == "Tickets" and _open_ticket_count
         else f"{pages[p]}  {p}"
