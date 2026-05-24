@@ -112,7 +112,7 @@ def list_scheduler_jobs():
 @require_api_key
 def reload_scheduler():
     """Reload scheduled workflows from DB (after enable/disable changes)."""
-    from workflows.scheduler import get_scheduler, _load_scheduled_workflows
+    from workflows.scheduler import get_scheduler, _load_scheduled_workflows, list_scheduled_jobs
     sched = get_scheduler()
     if not sched:
         return jsonify({"error": "Scheduler not running"}), 503
