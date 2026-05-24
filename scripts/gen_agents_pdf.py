@@ -3,6 +3,7 @@ import yaml
 import markdown2
 from xhtml2pdf import pisa
 import io
+from datetime import date
 from pathlib import Path
 
 CSS = """
@@ -11,11 +12,16 @@ body { font-family: Arial, sans-serif; font-size: 11pt; color: #1a1a1a; line-hei
 h1 { color: #407E3C; font-size: 22pt; border-bottom: 3px solid #407E3C; padding-bottom: 8px; margin-top: 0; }
 h2 { color: #407E3C; font-size: 15pt; border-bottom: 1px solid #5a9e56; padding-bottom: 4px; margin-top: 28px; }
 h3 { color: #2d5a29; font-size: 12pt; margin-top: 14px; }
-table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 10pt; }
-th { background: #407E3C; color: #ffffff; padding: 7px 10px; text-align: left; }
-td { padding: 6px 10px; border-bottom: 1px solid #d0e8c8; vertical-align: top; }
+table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 10pt; table-layout: fixed; }
+th { background: #407E3C; color: #ffffff; padding: 7px 10px; text-align: left; word-wrap: break-word; }
+td { padding: 6px 10px; border-bottom: 1px solid #d0e8c8; vertical-align: top; word-wrap: break-word; overflow-wrap: break-word; }
 tr:nth-child(even) td { background: #f4faf2; }
-code { background: #f0f0f0; padding: 1px 4px; font-family: Courier New, monospace; font-size: 9.5pt; }
+code { background: #f0f0f0; padding: 1px 4px; font-family: Courier New, monospace; font-size: 9pt; word-break: break-all; }
+.col-id { width: 22%; }
+.col-name { width: 22%; }
+.col-cat { width: 12%; }
+.col-desc { width: 36%; }
+.col-en { width: 8%; }
 pre { background: #f4faf2; border-left: 4px solid #407E3C; padding: 10px 14px; font-family: Courier New, monospace; font-size: 8.5pt; white-space: pre-wrap; word-wrap: break-word; }
 ul, ol { margin: 6px 0; padding-left: 22px; }
 li { margin: 3px 0; }
@@ -72,7 +78,7 @@ def build_html(agents):
     Model: <code>{a.get('model','?')}</code> &nbsp;|&nbsp;
     Max tokens: {a.get('max_tokens','?')} &nbsp;|&nbsp;
     Temp: {a.get('temperature','?')} &nbsp;|&nbsp;
-    Version: {a.get('version','?')}
+    Version: {a.get('version','1.0.0')}
   </div>
   <p><strong>Description:</strong> {a.get('description','')}</p>
   <p><strong>Tags:</strong> {tags_html}</p>
@@ -90,18 +96,18 @@ def build_html(agents):
 <style>{CSS}</style></head><body>
 <div class="header-bar">
   <strong style="font-size:18pt;color:white;">ClaudeOS &mdash; Agents Documentation</strong>
-  <span style="float:right;color:#c8e0c0;font-size:10pt;">v13.1 &middot; 2026-05-23</span>
+  <span style="float:right;color:#c8e0c0;font-size:10pt;">v13.1 &middot; {date.today().isoformat()}</span>
 </div>
 
 <h1>Agent Registry</h1>
-<p>ClaudeOS ships with 12 registered AI agents. Each agent is defined by a YAML file in
+<p>ClaudeOS ships with {len(agents)} registered AI agents. Each agent is defined by a YAML file in
 <code>agents/definitions/</code> and loaded into the registry at startup. Agents are dispatched
 via <code>POST /api/v1/agents/&lt;name&gt;/run</code> (async) or
 <code>GET /api/v1/agents/&lt;name&gt;/stream</code> (SSE streaming, token-by-token).</p>
 
 <h2>Summary Table</h2>
 <table>
-<tr><th>ID</th><th>Display Name</th><th>Category</th><th>Description</th><th>Enabled</th></tr>
+<tr><th class="col-id">ID</th><th class="col-name">Display Name</th><th class="col-cat">Category</th><th class="col-desc">Description</th><th class="col-en">Enabled</th></tr>
 {summary_rows}
 </table>
 
@@ -147,7 +153,7 @@ Stream events:
 input/output schema, streaming/multi-turn capabilities, and endpoints.</p>
 
 <h2>Quality Evaluation (LLM-as-Judge)</h2>
-<p>Every run scored by Claude Haiku asynchronously after completion (~10s).</p>
+<p>Every run is scored by Claude Haiku asynchronously after completion (~10s).</p>
 <table>
 <tr><th>Dimension</th><th>Weight</th><th>What it measures</th></tr>
 <tr><td>Task Completion</td><td>40%</td><td>Did the output address the prompt?</td></tr>
@@ -155,14 +161,14 @@ input/output schema, streaming/multi-turn capabilities, and endpoints.</p>
 <tr><td>Conciseness</td><td>20%</td><td>Appropriate length, no padding?</td></tr>
 <tr><td>Safety</td><td>10%</td><td>No harmful/biased content (pass/fail)</td></tr>
 </table>
-<p>Scores stored in <code>agent_runs.eval_score</code>. Safety fail caps overall score at 1.0.
-Visible in Run History, Overview, Chat tab, and Observability dashboard.</p>
+<p>Scores are stored in <code>agent_runs.eval_score</code>. A safety fail caps the overall score at 1.0.
+Scores are visible in Run History, Overview, Chat tab, and the Observability dashboard.</p>
 
 <h2>Adding a Custom Agent</h2>
 <ol>
 <li>Create <code>agents/definitions/my-agent.yaml</code></li>
 <li>Run <code>python scripts/seed_agents.py</code></li>
-<li>Agent appears immediately in Catalog and is dispatchable via API</li>
+<li>The agent appears immediately in the Catalog and is dispatchable via API.</li>
 </ol>
 <pre>name: my-agent
 display_name: My Custom Agent

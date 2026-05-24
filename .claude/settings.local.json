@@ -83,7 +83,21 @@
       "Read(//mnt/c/Users/**)",
       "Skill(startserver)",
       "Skill(gsd-code-review-fix)",
-      "Bash(pip show:*)"
+      "Bash(pip show:*)",
+      "WebSearch",
+      "Bash(echo \"PID: $!\")",
+      "Bash(xargs wc:*)",
+      "Bash(wc -l /c/Users/rigwe/Desktop/ClaudeOS/**/*.py)",
+      "Bash(find /c/Users/rigwe/Desktop/ClaudeOS -name \"*.py\" -type f -exec grep -l \"sqlite3\\\\|chromadb\\\\|anthropic\\\\|supabase\" {} \\\\;)",
+      "Bash(find /c/Users/rigwe/Desktop/ClaudeOS/dashboard/_pages -name \"*.py\" -type f -exec wc -l {} +)",
+      "Bash(ls /c/Users/rigwe/Desktop/ClaudeOS/*.md)",
+      "Read(//c/Users/rigwe/Desktop/ClaudeOS/**)",
+      "Bash(Start-Process python:*)",
+      "Bash(git:*)",
+      "Bash(Invoke-RestMethod -Uri \"http://localhost:5000/api/v1/health\" -Method GET)",
+      "Bash(ls C:/Users/rigwe/Desktop/ClaudeOS/*.pdf)",
+      "Bash(where wkhtmltopdf:*)",
+      "Bash(ls C:\\\\Users\\\\rigwe\\\\Desktop\\\\ClaudeOS/*.pdf)"
     ]
   }
 }
