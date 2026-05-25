@@ -274,6 +274,22 @@ def cancel_run(run_id: str):
     return jsonify({"cancelled": run_id})
 
 
+@agents_bp.delete("/runs/<run_id>")
+@require_auth
+def delete_run(run_id: str):
+    from core.database import get_db
+    run = dispatcher.get_run(run_id)
+    if not run:
+        return jsonify({"error": "Run not found"}), 404
+    # namespace scoping — clients can only delete their own
+    ns = effective_namespace(run.get("namespace"))
+    if g.user_role not in ("admin", "operator") and run.get("namespace") != g.user_namespace:
+        return jsonify({"error": "Forbidden"}), 403
+    with get_db() as conn:
+        conn.execute("DELETE FROM agent_runs WHERE id=?", (run_id,))
+    return jsonify({"deleted": run_id})
+
+
 @agents_bp.get("/runs")
 @require_auth
 def list_runs():

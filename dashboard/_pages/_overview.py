@@ -109,7 +109,7 @@ def render(api_get, api_post, bulk_delete=None):
                 st.code(".\\scripts\\start.ps1", language="powershell")
 
         # Live activity feed
-        _render_live_feed(runs_data, is_scoped, username)
+        _render_live_feed(runs_data, is_scoped, username, api_post)
 
     with col_right:
         st.subheader("Quick Dispatch")
@@ -160,7 +160,7 @@ def render(api_get, api_post, bulk_delete=None):
     _render_live_refresh_toggle()
 
 
-def _render_live_feed(runs_data, is_scoped: bool, username: str) -> None:
+def _render_live_feed(runs_data, is_scoped: bool, username: str, api_post=None) -> None:
     """Live activity feed — auto-refreshes every 8 seconds when live mode is on."""
     from dashboard.components.brand import get_theme_vars as _tv
     _t = _tv()
@@ -201,6 +201,7 @@ def _render_live_feed(runs_data, is_scoped: bool, username: str) -> None:
         with feed_placeholder.container():
             for run in runs[:10]:
                 _status = run.get("status", "?")
+                _run_id = run.get("id", "")
                 _icon = {"done": "✅", "failed": "❌", "running": "⏳", "pending": "⏸️"}.get(_status, "•")
                 _agent = (run.get("agent_id") or "")[:12]
                 _ns    = run.get("namespace", "global")
@@ -222,15 +223,35 @@ def _render_live_feed(runs_data, is_scoped: bool, username: str) -> None:
                 _ns_part = "" if is_scoped else f'<span style="color:{_muted};font-size:0.75rem;"> · {_ns}</span>'
                 _color = {"done": "#5a9e56", "failed": "#ef4444", "running": "#f59e0b", "pending": "#6b7280"}.get(_status, "#6b7280")
                 _pill = f"background:{_surf2};color:{_txt};padding:1px 6px;border-radius:4px;font-size:0.78rem;font-family:monospace;"
-                st.markdown(
-                    f'<div style="padding:7px 0;font-size:0.82rem;border-bottom:1px solid {_t["BORDER"]};">'
-                    f'<span style="color:{_color};font-weight:600;">{_icon} {_status}</span>'
-                    f'&nbsp;&nbsp;·&nbsp;&nbsp;<span style="{_pill}">{_agent}</span>{_ns_part}'
-                    f'&nbsp;&nbsp;{score_pill}'
-                    f'&nbsp;&nbsp;&nbsp;<span style="color:{_muted};font-size:0.75rem;">{_created}</span>'
-                    f'</div>',
-                    unsafe_allow_html=True,
-                )
+                if _status == "failed" and _run_id:
+                    _col_main, _col_btn = st.columns([10, 1])
+                    with _col_main:
+                        st.markdown(
+                            f'<div style="padding:7px 0;font-size:0.82rem;border-bottom:1px solid {_t["BORDER"]};">'
+                            f'<span style="color:{_color};font-weight:600;">{_icon} {_status}</span>'
+                            f'&nbsp;&nbsp;·&nbsp;&nbsp;<span style="{_pill}">{_agent}</span>{_ns_part}'
+                            f'&nbsp;&nbsp;{score_pill}'
+                            f'&nbsp;&nbsp;&nbsp;<span style="color:{_muted};font-size:0.75rem;">{_created}</span>'
+                            f'</div>',
+                            unsafe_allow_html=True,
+                        )
+                    with _col_btn:
+                        if st.button("🗑️", key=f"del_run_{_run_id}", help="Delete this failed run"):
+                            resp = api_post(f"/agents/runs/{_run_id}", method="DELETE")
+                            if resp is not None:
+                                st.rerun()
+                            else:
+                                st.error("Delete failed")
+                else:
+                    st.markdown(
+                        f'<div style="padding:7px 0;font-size:0.82rem;border-bottom:1px solid {_t["BORDER"]};">'
+                        f'<span style="color:{_color};font-weight:600;">{_icon} {_status}</span>'
+                        f'&nbsp;&nbsp;·&nbsp;&nbsp;<span style="{_pill}">{_agent}</span>{_ns_part}'
+                        f'&nbsp;&nbsp;{score_pill}'
+                        f'&nbsp;&nbsp;&nbsp;<span style="color:{_muted};font-size:0.75rem;">{_created}</span>'
+                        f'</div>',
+                        unsafe_allow_html=True,
+                    )
     else:
         st.info(
             f"👋 Welcome, **{username}**! No agent runs yet.\n\n"

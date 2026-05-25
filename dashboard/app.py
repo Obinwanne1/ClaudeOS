@@ -180,10 +180,13 @@ def bulk_delete(path: str, ids: list, timeout: int = 10) -> dict | None:
     return None
 
 
-def api_post(path: str, data: dict, timeout: int = 5, method: str = "POST") -> dict | None:
+def api_post(path: str, data: dict = None, timeout: int = 5, method: str = "POST") -> dict | None:
     try:
-        fn = {"POST": requests.post, "PATCH": requests.patch, "PUT": requests.put}.get(method, requests.post)
-        r = fn(f"{API_BASE}{path}", json=data, headers=_get_headers(), timeout=timeout)
+        fn = {"POST": requests.post, "PATCH": requests.patch, "PUT": requests.put, "DELETE": requests.delete}.get(method, requests.post)
+        kwargs = {"headers": _get_headers(), "timeout": timeout}
+        if method != "DELETE" and data is not None:
+            kwargs["json"] = data
+        r = fn(f"{API_BASE}{path}", **kwargs)
         if r.status_code == 401:
             _handle_401()
         if r.ok:
@@ -238,6 +241,10 @@ _ticket_stats = _cached_api_get(
 _open_ticket_count = (_ticket_stats.get("count", 0) if isinstance(_ticket_stats, dict) else 0)
 
 _page_list = list(pages.keys())
+# Restore nav page if theme toggle rerun pruned the un-rendered widget state key
+if "_nav_page_bak" in st.session_state and "nav_page" not in st.session_state:
+    st.session_state["nav_page"] = st.session_state["_nav_page_bak"]
+    del st.session_state["_nav_page_bak"]
 _saved_page = st.session_state.get("nav_page")
 _page_index = _page_list.index(_saved_page) if _saved_page in _page_list else 0
 page = st.sidebar.radio(
