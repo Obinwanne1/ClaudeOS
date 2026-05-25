@@ -25,7 +25,13 @@ logger = logging.getLogger("claudeos.memory.context_builder")
 
 # In-process cache: (namespace) → (summary_str, expiry)
 _ns_summary_cache: dict[str, tuple[str, float]] = {}
-_NS_CACHE_TTL = 300.0  # 5 minutes
+_NS_CACHE_TTL = 300.0   # 5 minutes
+_NS_CACHE_MAX = 50      # max namespaces before eviction
+
+# Cache for recent interactions (DB hit on every agent call without this)
+_recent_cache: dict[str, tuple[str, float]] = {}
+_RECENT_CACHE_TTL = 30.0  # 30 seconds — short TTL, activity changes fast
+_RECENT_CACHE_MAX = 50
 
 
 def build_context(
@@ -96,6 +102,9 @@ def _get_namespace_summary(namespace: str) -> str:
             result = "\n".join(lines)
 
         _ns_summary_cache[namespace] = (result, time.monotonic() + _NS_CACHE_TTL)
+        if len(_ns_summary_cache) > _NS_CACHE_MAX:
+            for k in list(_ns_summary_cache.keys())[:_NS_CACHE_MAX // 5]:
+                _ns_summary_cache.pop(k, None)
         return result
     except Exception as e:
         logger.warning("namespace summary failed for %s: %s", namespace, e)
@@ -103,34 +112,44 @@ def _get_namespace_summary(namespace: str) -> str:
 
 
 def _get_recent_interactions(namespace: str, budget_chars: int = 600) -> str:
-    """Return last 3 completed agent runs summary for this namespace."""
+    """Return last 3 completed agent runs summary for this namespace. Cached 30s."""
+    cached = _recent_cache.get(namespace)
+    if cached:
+        result, expiry = cached
+        if time.monotonic() < expiry:
+            return result[:budget_chars]
+
     try:
         from core.database import get_db
         import json
 
         with get_db() as conn:
             rows = conn.execute(
-                """SELECT agent_id, input, output, created_at FROM agent_runs
+                """SELECT agent_id, input, created_at FROM agent_runs
                    WHERE namespace = ? AND status = 'done'
                    ORDER BY created_at DESC LIMIT 3""",
                 (namespace,),
             ).fetchall()
 
         if not rows:
-            return ""
+            result = ""
+        else:
+            lines = ["## Recent Activity"]
+            for row in rows:
+                agent_id = (row["agent_id"] or "")[:12]
+                created = (row["created_at"] or "")[:16]
+                try:
+                    inp = json.loads(row["input"] or "{}") if isinstance(row["input"], str) else (row["input"] or {})
+                    prompt_preview = (inp.get("prompt", "") or "")[:80]
+                except Exception:
+                    prompt_preview = ""
+                lines.append(f"- [{created}] {agent_id}: {prompt_preview}...")
+            result = "\n".join(lines)
 
-        lines = ["## Recent Activity"]
-        for row in rows:
-            agent_id = (row["agent_id"] or "")[:12]
-            created = (row["created_at"] or "")[:16]
-            try:
-                inp = json.loads(row["input"] or "{}") if isinstance(row["input"], str) else (row["input"] or {})
-                prompt_preview = (inp.get("prompt", "") or "")[:80]
-            except Exception:
-                prompt_preview = ""
-            lines.append(f"- [{created}] {agent_id}: {prompt_preview}...")
-
-        result = "\n".join(lines)
+        _recent_cache[namespace] = (result, time.monotonic() + _RECENT_CACHE_TTL)
+        if len(_recent_cache) > _RECENT_CACHE_MAX:
+            for k in list(_recent_cache.keys())[:_RECENT_CACHE_MAX // 5]:
+                _recent_cache.pop(k, None)
         return result[:budget_chars]
     except Exception as e:
         logger.warning("recent interactions failed for %s: %s", namespace, e)

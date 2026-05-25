@@ -349,6 +349,7 @@ def create_dashboard_session():
 
 
 @auth_bp.get("/session/<key>")
+@limiter.limit("20 per minute")
 def restore_dashboard_session(key):
     """Return stored session data. Key acts as bearer credential — no other auth needed."""
     with get_db() as conn:

@@ -2,6 +2,7 @@
 import streamlit as st
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from html import escape as _esc
 from dashboard.components.brand import aurora_hero, PRIMARY
 
 
@@ -37,7 +38,7 @@ def render(api_get, api_post, bulk_delete=None):
             f'background:rgba(64,126,60,0.12);border:1px solid {PRIMARY};'
             f'border-radius:8px;padding:6px 14px;margin-bottom:12px;font-size:0.85rem;">'
             f'<span style="color:{PRIMARY};font-weight:700;">🏢 Workspace</span>'
-            f'<span style="color:inherit;">{user_ns}</span></div>',
+            f'<span style="color:inherit;">{_esc(user_ns)}</span></div>',
             unsafe_allow_html=True,
         )
 
@@ -205,8 +206,8 @@ def _render_live_feed(runs_data, is_scoped: bool, username: str, api_post=None) 
                 _status = run.get("status", "?")
                 _run_id = run.get("id", "")
                 _icon = {"done": "✅", "failed": "❌", "running": "⏳", "pending": "⏸️"}.get(_status, "•")
-                _agent = (run.get("agent_id") or "")[:12]
-                _ns    = run.get("namespace", "global")
+                _agent = _esc((run.get("agent_id") or "")[:12])
+                _ns    = _esc(run.get("namespace", "global"))
                 _raw   = run.get("created_at", "")
                 eval_score = run.get("eval_score")
                 score_pill = ""

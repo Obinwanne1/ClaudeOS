@@ -40,9 +40,14 @@ logger = logging.getLogger("claudeos.memory.engine")
 # max_workers=2: one for upserts, one for log events; keeps GIL pressure low.
 _bg_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="mem-bg")
 
+# Dedicated pool for parallel search ("both" mode) — separate from _bg_pool so
+# fire-and-forget upserts don't block blocking search futures.
+_search_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="mem-search")
+
 # In-process TTL cache for get_agent_context: key → (result_str, expiry_epoch)
 _context_cache: dict[tuple, tuple[str, float]] = {}
 _CONTEXT_CACHE_TTL = 60.0  # seconds
+_CONTEXT_CACHE_MAX = 100   # max entries — evict oldest 20% when exceeded
 
 
 def write(
@@ -146,12 +151,12 @@ def list_entries(
 def update(entry_id: str, update_data: MemoryEntryUpdate) -> Optional[MemoryEntry]:
     entry = store.update(entry_id, update_data)
     if entry and update_data.value is not None:
-        # Re-embed on value change
-        vector_store.upsert(
-            memory_id=entry.id,
-            namespace=entry.namespace,
-            text=f"{entry.key}: {entry.value}",
-            metadata={"namespace": entry.namespace, "category": entry.category, "key": entry.key},
+        # Re-embed async — sentence-transformer inference (~50-200ms) must not block caller
+        _bg_pool.submit(
+            vector_store.upsert,
+            entry.id, entry.namespace,
+            f"{entry.key}: {entry.value}",
+            {"namespace": entry.namespace, "category": entry.category, "key": entry.key},
         )
     return entry
 
@@ -208,14 +213,12 @@ def search(req: MemorySearchRequest) -> list[MemoryEntry]:
     if req.mode == "semantic":
         ns = req.namespace or "global"
         return search_semantic(req.query, ns, req.top_k, req.min_confidence)
-    # "both" — run FTS5 + ChromaDB concurrently, merge, dedupe by id
-    from concurrent.futures import ThreadPoolExecutor
+    # "both" — run FTS5 + ChromaDB concurrently via module-level pool (no per-call allocation)
     sem_ns = req.namespace or "global"
-    with ThreadPoolExecutor(max_workers=2) as ex:
-        t_fut = ex.submit(search_text, req.query, req.namespace, req.category, req.top_k)
-        s_fut = ex.submit(search_semantic, req.query, sem_ns, req.top_k, req.min_confidence)
-        text_results = t_fut.result()
-        sem_results = s_fut.result()
+    t_fut = _search_pool.submit(search_text, req.query, req.namespace, req.category, req.top_k)
+    s_fut = _search_pool.submit(search_semantic, req.query, sem_ns, req.top_k, req.min_confidence)
+    text_results = t_fut.result()
+    sem_results = s_fut.result()
     seen: set[str] = set()
     merged: list[MemoryEntry] = []
     for e in text_results + sem_results:
@@ -275,6 +278,10 @@ def get_agent_context(namespace: str, min_confidence: float = 0.8) -> str:
         result = "\n".join(lines)
 
     _context_cache[cache_key] = (result, time.monotonic() + _CONTEXT_CACHE_TTL)
+    # Evict oldest 20% when over limit — dicts preserve insertion order (Python 3.7+)
+    if len(_context_cache) > _CONTEXT_CACHE_MAX:
+        for k in list(_context_cache.keys())[:_CONTEXT_CACHE_MAX // 5]:
+            _context_cache.pop(k, None)
     return result
 
 

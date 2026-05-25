@@ -358,10 +358,10 @@ def require_role(*allowed_roles: str):
 
 def effective_namespace(requested: Optional[str] = None) -> Optional[str]:
     """Return the namespace to query based on caller's role.
-    Clients/viewers are always restricted to their own namespace.
-    Falls back to requested param if g.user_namespace is null (belt-and-suspenders).
+    Clients/viewers are always restricted to their own namespace — never trust caller value.
+    Improperly provisioned client/viewer accounts with no namespace return None (no data).
     """
     role = getattr(g, "user_role", "admin")
     if role in ("client", "viewer"):
-        return getattr(g, "user_namespace", None) or requested
+        return getattr(g, "user_namespace", None)  # HI-04: removed `or requested` fallback
     return requested

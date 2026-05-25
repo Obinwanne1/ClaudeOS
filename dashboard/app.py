@@ -46,6 +46,9 @@ def _restore_session_from_url() -> bool:
             st.session_state["user_role"]            = data["user_role"]
             st.session_state["user_namespace"]       = data.get("user_namespace") or None
             st.session_state["must_change_password"] = data.get("must_change_password", False)
+            # Session restored from URL = user already logged in before = onboarding already seen.
+            # Without this, every refresh shows onboarding from slide 1 again.
+            st.session_state["_onboarding_done"] = True
             # Restore last active page from URL so browser refresh lands on same page
             _page_from_url = st.query_params.get("page")
             if _page_from_url:
@@ -209,8 +212,8 @@ def bulk_delete(path: str, ids: list, timeout: int = 10) -> dict | None:
             _handle_401()
         if r.ok:
             return r.json()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("bulk_delete %s failed: %s", path, e)
     return None
 
 

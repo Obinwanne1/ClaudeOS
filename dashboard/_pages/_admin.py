@@ -121,11 +121,15 @@ def _render_users(api_get, api_post, ns_data=None):
                 with col2:
                     if sel_user.get("is_active"):
                         if st.button("Deactivate", key=f"deact_{uid}", use_container_width=True):
-                            _req.delete(
+                            _resp = _req.delete(
                                 f"{_API_BASE}/admin/users/{uid}",
                                 headers=_auth_headers(), timeout=5,
                             )
-                            st.success("Deactivated.")
+                            if _resp.ok:
+                                st.success("Deactivated.")
+                            else:
+                                _err = (_resp.json().get("error", f"HTTP {_resp.status_code}") if _resp.content else f"HTTP {_resp.status_code}")
+                                st.error(f"Failed: {_err}")
                             st.rerun()
                     else:
                         if st.button("Reactivate", key=f"react_{uid}", use_container_width=True):

@@ -337,19 +337,20 @@ def _blocking_response(
 
 def _transcribe_audio(audio_data) -> None:
     """Transcribe audio using Whisper and store in session state."""
-    check_bytes = audio_data.read(10)
-    if st.session_state.get("_last_audio_bytes") == check_bytes:
+    import hashlib
+    audio_bytes = audio_data.read()
+    audio_hash = hashlib.md5(audio_bytes).digest()
+    if st.session_state.get("_last_audio_hash") == audio_hash:
         return  # Same audio, already transcribed
-    st.session_state["_last_audio_bytes"] = check_bytes
-    audio_data.seek(0)
+    st.session_state["_last_audio_hash"] = audio_hash
 
     with st.spinner("Transcribing audio…"):
         try:
             import tempfile, os
-            # Save to temp file
+            # Save to temp file (audio_bytes already read — no second .read() needed)
             suffix = ".wav"
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                tmp.write(audio_data.read())
+                tmp.write(audio_bytes)
                 tmp_path = tmp.name
             try:
                 import whisper

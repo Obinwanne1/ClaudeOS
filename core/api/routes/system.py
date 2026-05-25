@@ -61,21 +61,23 @@ def stats():
     try:
         with get_db() as conn:
             if ns:
-                # Scoped counts — client/viewer see only their namespace
-                counts = {
-                    "memory_entries": conn.execute("SELECT COUNT(*) FROM memory_entries WHERE namespace=?", (ns,)).fetchone()[0],
-                    "agents":         conn.execute("SELECT COUNT(*) FROM agents WHERE enabled=1").fetchone()[0],
-                    "agent_runs":     conn.execute("SELECT COUNT(*) FROM agent_runs WHERE namespace=?", (ns,)).fetchone()[0],
-                    "workflows":      conn.execute("SELECT COUNT(*) FROM workflows").fetchone()[0],
-                    "outputs":        conn.execute("SELECT COUNT(*) FROM outputs WHERE namespace=?", (ns,)).fetchone()[0],
-                    "projects":       conn.execute(
-                        "SELECT COUNT(*) FROM projects p "
-                        "JOIN namespaces n ON p.namespace_id=n.id WHERE n.slug=?", (ns,)
-                    ).fetchone()[0],
-                    "open_tickets":   conn.execute(
-                        "SELECT COUNT(*) FROM tickets WHERE namespace=? AND status NOT IN ('resolved','closed','completed')", (ns,)
-                    ).fetchone()[0],
-                }
+                # Scoped counts — 2 queries instead of 7 sequential round-trips
+                rows = conn.execute(
+                    """SELECT
+                         (SELECT COUNT(*) FROM memory_entries WHERE namespace=?) AS memory_entries,
+                         (SELECT COUNT(*) FROM agents WHERE enabled=1)           AS agents,
+                         (SELECT COUNT(*) FROM agent_runs WHERE namespace=?)      AS agent_runs,
+                         (SELECT COUNT(*) FROM workflows)                         AS workflows,
+                         (SELECT COUNT(*) FROM outputs WHERE namespace=?)         AS outputs,
+                         (SELECT COUNT(*) FROM projects p
+                            JOIN namespaces n ON p.namespace_id=n.id
+                            WHERE n.slug=?)                                       AS projects,
+                         (SELECT COUNT(*) FROM tickets
+                            WHERE namespace=?
+                              AND status NOT IN ('resolved','closed','completed')) AS open_tickets""",
+                    (ns, ns, ns, ns, ns),
+                ).fetchone()
+                counts = dict(rows)
             else:
                 # Global counts — admin/operator see everything
                 tables = ["memory_entries", "agents", "agent_runs", "workflows", "workflow_runs",
@@ -150,13 +152,15 @@ def namespace_stats():
                 (ns,),
             ).fetchone()[0]
 
-            # Workflow success rate (last 30 days) — graceful if table missing
+            # Workflow success rate (last 30 days) — scoped via workflows.namespace join
             wf_total, wf_ok = 0, 0
             try:
                 wf_row = conn.execute(
-                    "SELECT COUNT(*), SUM(CASE WHEN status='done' THEN 1 ELSE 0 END) "
-                    "FROM workflow_runs WHERE created_at>=?",
-                    (month_ago,),
+                    "SELECT COUNT(*), SUM(CASE WHEN wr.status='done' THEN 1 ELSE 0 END) "
+                    "FROM workflow_runs wr "
+                    "JOIN workflows w ON wr.workflow_id=w.id "
+                    "WHERE w.namespace=? AND wr.created_at>=?",
+                    (ns, month_ago),
                 ).fetchone()
                 wf_total, wf_ok = wf_row[0], (wf_row[1] or 0)
             except Exception:
