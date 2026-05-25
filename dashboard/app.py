@@ -46,6 +46,10 @@ def _restore_session_from_url() -> bool:
             st.session_state["user_role"]            = data["user_role"]
             st.session_state["user_namespace"]       = data.get("user_namespace") or None
             st.session_state["must_change_password"] = data.get("must_change_password", False)
+            # Restore last active page from URL so browser refresh lands on same page
+            _page_from_url = st.query_params.get("page")
+            if _page_from_url:
+                st.session_state["nav_page"] = _page_from_url
             return True
         # Expired / invalid key — purge from URL so login page shows cleanly
         try:
@@ -292,6 +296,13 @@ page = st.sidebar.radio(
     ),
     label_visibility="collapsed",
 )
+
+# Persist current page in URL — survives browser refresh
+try:
+    if st.query_params.get("page") != page:
+        st.query_params["page"] = page
+except Exception:
+    pass
 
 st.sidebar.markdown("---")
 
