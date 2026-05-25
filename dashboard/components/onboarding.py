@@ -1,57 +1,91 @@
-"""First-login onboarding modal — 5-slide walkthrough for client/viewer roles.
+"""First-login onboarding walkthrough — full-page takeover per slide.
 
-Shown once per session (not per login — dismissed state lives in session_state).
-Only rendered for client/viewer roles; admin/operator skip it.
+Each slide occupies the ENTIRE page. Nothing else renders until the user
+clicks through (or skips). Uses st.stop() to block the rest of app.py.
+
+Only shown for client/viewer roles, once per session.
 """
 import streamlit as st
-from dashboard.components.brand import get_theme_vars, get_ns_brand
+from dashboard.components.brand import get_theme_vars, get_ns_brand, PRIMARY, ACCENT
 
 _SLIDES = [
     {
         "icon": "🖥️",
+        "step_label": "Welcome",
         "title": "Welcome to your AI Workspace",
         "body": (
-            "Your intelligent workspace is ready. This platform puts powerful AI agents, "
-            "smart memory, and streamlined support at your fingertips — all in one place."
+            "Your intelligent workspace is now active. Over the next 4 steps, "
+            "this tour will walk you through the 4 key areas you'll use every day.\n\n"
+            "**Read each step carefully** — by the end you'll know exactly where to go "
+            "and what each section does for your business."
         ),
+        "action": None,
         "tip": None,
     },
     {
         "icon": "🤖",
-        "title": "Chat with AI Agents",
+        "step_label": "Agents",
+        "title": "Step 1 — Chat with AI Agents",
         "body": (
-            "Go to **Agents → Chat** to talk with AI agents built for your business. "
-            "Ask questions, generate content, analyse data, or automate tasks."
+            "Go to **Agents → Chat** in the left sidebar to talk with AI agents "
+            "built specifically for your business.\n\n"
+            "You can:\n"
+            "- Ask business questions and get instant answers\n"
+            "- Generate reports, emails, summaries, and content\n"
+            "- Upload images or screenshots for analysis\n"
+            "- Have multi-turn conversations (the agent remembers what you said)"
         ),
-        "tip": "Tip: agents remember context across your workspace — the more you use them, the smarter they get.",
+        "action": "After this tour → click **Agents** in the sidebar, then **Chat** tab.",
+        "tip": "Agents remember context from your Memory page — the more context you store, the smarter they respond.",
     },
     {
         "icon": "🧠",
-        "title": "Your AI Has Memory",
+        "step_label": "Memory",
+        "title": "Step 2 — Your AI Memory Bank",
         "body": (
-            "The **Memory** page stores important context your agents use. "
-            "Add key facts about your business, clients, or preferences — "
-            "agents automatically draw on this when answering."
+            "Go to **Memory** in the sidebar. This is where you store important facts "
+            "your agents will automatically use when answering.\n\n"
+            "Examples of what to add:\n"
+            "- Your business name, location, services, pricing\n"
+            "- Key clients and their preferences\n"
+            "- Standard operating procedures or policies\n"
+            "- Any context you want agents to always know"
         ),
-        "tip": "Tip: well-structured memory cuts response costs by up to 40%.",
+        "action": "After this tour → go to **Memory → Add Entry** and add at least one fact about your business.",
+        "tip": "Well-structured memory reduces AI costs by up to 40% by cutting down on repeated context.",
     },
     {
         "icon": "🎫",
-        "title": "Need Help? Raise a Ticket",
+        "step_label": "Tickets",
+        "title": "Step 3 — Support Tickets",
         "body": (
-            "The **Tickets** page is your support channel. "
-            "Describe any issue or request — the team will be notified and respond with an SLA."
+            "Go to **Tickets** in the sidebar whenever you need help or have a request.\n\n"
+            "How it works:\n"
+            "1. Click **New Ticket** and describe your issue or request\n"
+            "2. Choose a priority (P1 = urgent, P4 = low)\n"
+            "3. The support team is notified by email automatically\n"
+            "4. You'll be emailed when your ticket is resolved\n\n"
+            "**SLA guarantees:** P1 = 4h · P2 = 8h · P3 = 24h · P4 = 72h"
         ),
-        "tip": "Tip: P1 tickets get a 4-hour response guarantee.",
+        "action": "After this tour → go to **Tickets** to see any open issues or create your first ticket.",
+        "tip": None,
     },
     {
         "icon": "📊",
-        "title": "Track Your AI Usage",
+        "step_label": "Usage",
+        "title": "Step 4 — Your Usage Dashboard",
         "body": (
-            "The **Usage** page shows your AI activity, token costs, quality scores, "
-            "and your Namespace Pulse Score — a single number that shows how well your AI workspace is performing."
+            "Go to **Usage** in the sidebar to see how your AI workspace is performing.\n\n"
+            "What you'll see:\n"
+            "- **AI runs** and estimated cost for the last 30 days\n"
+            "- **Namespace Pulse Score** — a 0–100 health score for your workspace\n"
+            "- Recent agent activity with quality scores\n"
+            "- Memory freshness and consolidation status\n\n"
+            "The Pulse Score combines: quality (40%) + ticket resolution (30%) + "
+            "memory freshness (20%) + workflow health (10%)."
         ),
-        "tip": None,
+        "action": "After this tour → check your **Usage** page to see your current Pulse Score.",
+        "tip": "A Pulse Score above 75 means your AI workspace is running optimally.",
     },
 ]
 
@@ -59,66 +93,125 @@ _TOTAL = len(_SLIDES)
 
 
 def maybe_show_onboarding(role: str) -> None:
-    """Call once per render (after auth gate). Renders the modal if needed."""
+    """Call after auth gate. If active, renders full-page slide and calls st.stop()."""
     if role not in ("client", "viewer"):
         return
     if st.session_state.get("_onboarding_done"):
         return
-    _render_modal()
+    _render_slide()
+    st.stop()  # nothing else on the page renders until tour is done
 
 
-def _render_modal() -> None:
+def _render_slide() -> None:
     t = get_theme_vars()
     brand = get_ns_brand()
-    _p = (brand.get("color") or "#407E3C").strip()
-    _a = (brand.get("accent_color") or "#5a9e56").strip()
+    _p = (brand.get("color") or PRIMARY).strip() or PRIMARY
+    _a = (brand.get("accent_color") or ACCENT).strip() or ACCENT
+    company = (brand.get("company_name") or "").strip()
+    icon_ns = (brand.get("icon") or "").strip()
 
     slide_idx = st.session_state.get("_onboarding_slide", 0)
     slide = _SLIDES[slide_idx]
+    is_last = slide_idx == _TOTAL - 1
 
-    # Backdrop overlay
+    # ── Header ────────────────────────────────────────────────────────────────
+    if company:
+        st.markdown(
+            f'<div style="text-align:center;padding:12px 0 4px;">'
+            f'<span style="font-size:1.1rem;font-weight:800;color:{_p};">'
+            f'{icon_ns + " " if icon_ns else ""}{company}</span>'
+            f'<span style="font-size:0.65rem;color:{t["TEXT_MUTED"]};margin-left:8px;'
+            f'letter-spacing:1px;">POWERED BY CLAUDEOS</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            f'<div style="text-align:center;padding:12px 0 4px;">'
+            f'<span style="font-size:1.1rem;font-weight:800;color:{_p};letter-spacing:2px;">'
+            f'CLAUDE<span style="color:{_a};">OS</span></span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+    # ── Progress bar + step label ─────────────────────────────────────────────
+    st.progress((slide_idx) / (_TOTAL - 1) if _TOTAL > 1 else 1.0)
+
+    _step_labels = [s["step_label"] for s in _SLIDES]
+    _dot_row = ""
+    for i, lbl in enumerate(_step_labels):
+        _active = i == slide_idx
+        _done = i < slide_idx
+        _dot_color = _p if _active else ("#5a9e56" if _done else t["BORDER"])
+        _txt_color = _p if _active else (t["TEXT_MUTED"])
+        _weight = "700" if _active else "400"
+        _dot_row += (
+            f'<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;">'
+            f'<div style="width:10px;height:10px;border-radius:50%;background:{_dot_color};'
+            f'{"box-shadow:0 0 0 3px " + _p + "44;" if _active else ""}"></div>'
+            f'<span style="font-size:0.65rem;color:{_txt_color};font-weight:{_weight};'
+            f'white-space:nowrap;">{lbl}</span>'
+            f'</div>'
+        )
     st.markdown(
-        f'<div style="position:fixed;top:0;left:0;width:100vw;height:100vh;'
-        f'background:rgba(0,0,0,0.55);z-index:9998;pointer-events:none;"></div>',
+        f'<div style="display:flex;justify-content:space-between;'
+        f'padding:8px 0 4px;margin-bottom:4px;">{_dot_row}</div>',
         unsafe_allow_html=True,
     )
 
-    # Modal card
+    st.markdown("---")
+
+    # ── Slide content ─────────────────────────────────────────────────────────
+    _, col_content, _ = st.columns([1, 4, 1])
+    with col_content:
+        st.markdown(
+            f'<div style="text-align:center;padding:8px 0 16px;">'
+            f'<span style="font-size:3.5rem;">{slide["icon"]}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f'<h2 style="text-align:center;color:{t["TEXT"]};font-size:1.5rem;'
+            f'font-weight:800;margin-bottom:20px;">{slide["title"]}</h2>',
+            unsafe_allow_html=True,
+        )
+
+        # Body text (supports markdown)
+        st.markdown(slide["body"])
+
+        # Action callout
+        if slide["action"]:
+            st.markdown(
+                f'<div style="background:{_p}18;border-left:4px solid {_p};'
+                f'border-radius:0 8px 8px 0;padding:12px 16px;margin:20px 0 0;'
+                f'font-size:0.88rem;color:{t["TEXT"]};">'
+                f'<strong style="color:{_p};">👉 What to do next:</strong><br>'
+                f'{slide["action"]}'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+        # Tip
+        if slide["tip"]:
+            st.markdown(
+                f'<div style="background:{t["SURFACE2"]};border:1px solid {t["BORDER"]};'
+                f'border-radius:8px;padding:10px 14px;margin-top:16px;'
+                f'font-size:0.8rem;color:{t["TEXT_MUTED"]};font-style:italic;">'
+                f'💡 {slide["tip"]}'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+    st.markdown("---")
+
+    # ── Navigation ────────────────────────────────────────────────────────────
     st.markdown(
-        f'<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);'
-        f'z-index:9999;background:{t["SURFACE"]};border:1px solid {t["BORDER"]};'
-        f'border-radius:16px;padding:36px 40px;min-width:380px;max-width:480px;'
-        f'box-shadow:0 20px 60px rgba(0,0,0,0.4);">'
-        # Progress dots
-        f'<div style="display:flex;gap:6px;justify-content:center;margin-bottom:24px;">'
-        + "".join(
-            f'<div style="width:8px;height:8px;border-radius:50%;'
-            f'background:{"" + _p if i == slide_idx else t["BORDER"]};"></div>'
-            for i in range(_TOTAL)
-        )
-        + f'</div>'
-        # Icon + content
-        f'<div style="text-align:center;">'
-        f'<div style="font-size:3rem;margin-bottom:12px;">{slide["icon"]}</div>'
-        f'<h2 style="margin:0 0 12px;color:{t["TEXT"]};font-size:1.15rem;'
-        f'font-family:Poppins,sans-serif;font-weight:700;">{slide["title"]}</h2>'
-        f'<p style="color:{t["TEXT_MUTED"]};font-size:0.9rem;line-height:1.6;margin:0 0 12px;">'
-        f'{slide["body"]}</p>'
-        + (
-            f'<p style="background:{_p}15;border:1px solid {_p}30;border-radius:8px;'
-            f'padding:8px 12px;font-size:0.8rem;color:{t["TEXT_MUTED"]};font-style:italic;">'
-            f'{slide["tip"]}</p>'
-            if slide["tip"] else ""
-        )
-        + f'</div>'
-        f'<div style="font-size:0.72rem;color:{t["TEXT_MUTED"]};text-align:center;margin-top:16px;">'
-        f'{slide_idx + 1} of {_TOTAL}</div>'
-        f'</div>',
+        f'<div style="text-align:center;color:{t["TEXT_MUTED"]};font-size:0.8rem;'
+        f'margin-bottom:12px;">Step {slide_idx + 1} of {_TOTAL}</div>',
         unsafe_allow_html=True,
     )
 
-    # Navigation buttons
-    col_skip, col_prev, col_next = st.columns([2, 1, 1])
+    col_skip, col_prev, col_spacer, col_next = st.columns([2, 1, 2, 2])
 
     with col_skip:
         if st.button("Skip tour", key="_ob_skip", use_container_width=True):
@@ -133,8 +226,7 @@ def _render_modal() -> None:
                 st.rerun()
 
     with col_next:
-        is_last = slide_idx == _TOTAL - 1
-        label = "Get started →" if is_last else "Next →"
+        label = "Enter Dashboard →" if is_last else f"Next: {_SLIDES[slide_idx + 1]['step_label']} →"
         if st.button(label, key="_ob_next", use_container_width=True, type="primary"):
             if is_last:
                 st.session_state["_onboarding_done"] = True
