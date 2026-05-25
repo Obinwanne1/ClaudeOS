@@ -20,21 +20,26 @@ from email.mime.text import MIMEText
 
 logger = logging.getLogger("claudeos.notifications")
 
-_SMTP_HOST = os.environ.get("SMTP_HOST", "")
-_SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
-_SMTP_USER = os.environ.get("SMTP_USER", "")
-_SMTP_PASS = os.environ.get("SMTP_PASSWORD", "")
-_SMTP_FROM = os.environ.get("SMTP_FROM", _SMTP_USER)
+def _smtp_config() -> tuple[str, int, str, str, str]:
+    """Read SMTP config from env at call time — safe even if dotenv loads after import."""
+    host = os.environ.get("SMTP_HOST", "")
+    port = int(os.environ.get("SMTP_PORT", "587") or "587")
+    user = os.environ.get("SMTP_USER", "")
+    pwd  = os.environ.get("SMTP_PASSWORD", "")
+    frm  = os.environ.get("SMTP_FROM", user)
+    return host, port, user, pwd, frm
 
 
 def _is_configured() -> bool:
-    return bool(_SMTP_HOST and _SMTP_USER and _SMTP_PASS)
+    h, _, u, p, _ = _smtp_config()
+    return bool(h and u and p)
 
 
 def send_email(to: str, subject: str, body_html: str) -> bool:
     """Send HTML email. Returns True on success, False on failure.
     Never raises — all errors are logged as warnings."""
-    if not _is_configured():
+    host, port, user, pwd, frm = _smtp_config()
+    if not (host and user and pwd):
         logger.debug("SMTP not configured — skipping notification to %s", to)
         return False
     if not to or "@" not in to:
@@ -43,20 +48,20 @@ def send_email(to: str, subject: str, body_html: str) -> bool:
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"]    = _SMTP_FROM
+        msg["From"]    = frm
         msg["To"]      = to
         msg.attach(MIMEText(body_html, "html", "utf-8"))
 
-        if _SMTP_PORT == 465:
-            with smtplib.SMTP_SSL(_SMTP_HOST, _SMTP_PORT, timeout=10) as smtp:
-                smtp.login(_SMTP_USER, _SMTP_PASS)
-                smtp.sendmail(_SMTP_FROM, [to], msg.as_string())
+        if port == 465:
+            with smtplib.SMTP_SSL(host, port, timeout=10) as smtp:
+                smtp.login(user, pwd)
+                smtp.sendmail(frm, [to], msg.as_string())
         else:
-            with smtplib.SMTP(_SMTP_HOST, _SMTP_PORT, timeout=10) as smtp:
+            with smtplib.SMTP(host, port, timeout=10) as smtp:
                 smtp.ehlo()
                 smtp.starttls()
-                smtp.login(_SMTP_USER, _SMTP_PASS)
-                smtp.sendmail(_SMTP_FROM, [to], msg.as_string())
+                smtp.login(user, pwd)
+                smtp.sendmail(frm, [to], msg.as_string())
 
         logger.info("Email sent to %s: %s", to, subject)
         return True

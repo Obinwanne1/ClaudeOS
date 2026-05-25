@@ -78,13 +78,15 @@ def render(api_get, api_post, bulk_delete=None):
     with col_pulse:
         st.subheader("Namespace Pulse")
         pulse = data.get("pulse_score", 0.0)
+        _no_data = runs == 0 and data.get("memory_count", 0) == 0
         _pulse_color = (
-            "#5a9e56" if pulse >= 75
-            else ("#f59e0b" if pulse >= 50 else "#ef4444")
+            "#6b7280" if _no_data
+            else ("#5a9e56" if pulse >= 75 else ("#f59e0b" if pulse >= 50 else "#ef4444"))
         )
         _pulse_label = (
-            "Excellent" if pulse >= 85
-            else ("Good" if pulse >= 70 else ("Fair" if pulse >= 50 else "Needs Attention"))
+            "Getting Started" if _no_data
+            else ("Excellent" if pulse >= 85
+                  else ("Good" if pulse >= 70 else ("Fair" if pulse >= 50 else "Needs Attention")))
         )
 
         # Circular gauge (pure HTML/CSS — no chart lib)

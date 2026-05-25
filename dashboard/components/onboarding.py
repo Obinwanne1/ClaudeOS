@@ -135,7 +135,7 @@ def _render_slide() -> None:
         )
 
     # ── Progress bar + step label ─────────────────────────────────────────────
-    st.progress((slide_idx) / (_TOTAL - 1) if _TOTAL > 1 else 1.0)
+    st.progress((slide_idx + 1) / _TOTAL)
 
     _step_labels = [s["step_label"] for s in _SLIDES]
     _dot_row = ""

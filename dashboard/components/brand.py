@@ -84,7 +84,11 @@ def _ns_brand_css(brand: dict) -> str:
     color = (brand.get("color") or "").strip()
     if not color or not color.startswith("#"):
         return ""
-    accent = (brand.get("accent_color") or color).strip()
+    # Accent: explicit accent_color > auto-lighten via opacity trick on same hue
+    raw_accent = (brand.get("accent_color") or "").strip()
+    accent = raw_accent if (raw_accent and raw_accent.startswith("#")) else color
+    # Hover: use accent if distinct, otherwise lighten via a CSS filter
+    hover_extra = "" if accent != color else "filter: brightness(1.15) !important;"
     return f"""<style>
 /* ── Namespace brand color override ── */
 .stButton > button,
@@ -97,6 +101,7 @@ button[kind="primary"], button[kind="secondary"] {{
 button[data-testid="baseButton-secondary"]:hover,
 button[data-testid="baseButton-primary"]:hover {{
     background-color: {accent} !important;
+    {hover_extra}
 }}
 button[data-baseweb="tab"][aria-selected="true"] {{
     color: {color} !important;

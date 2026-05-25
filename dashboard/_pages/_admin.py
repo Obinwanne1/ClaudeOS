@@ -48,7 +48,7 @@ def render(api_get, api_post, bulk_delete=None):
         _render_security(api_get, api_post)
 
     with tab_branding:
-        _render_branding(api_get, api_post)
+        _render_branding(api_get, api_post, ns_data)
 
 
 # ── Users ─────────────────────────────────────────────────────────────────────
@@ -395,7 +395,7 @@ def _render_security(api_get, api_post):
 
 # ── Namespace Branding ────────────────────────────────────────────────────────
 
-def _render_branding(api_get, api_post):
+def _render_branding(api_get, api_post, ns_data=None):
     """Per-client namespace branding — company name, colors, icon."""
     from dashboard.components.brand import get_theme_vars
     t = get_theme_vars()
@@ -404,7 +404,8 @@ def _render_branding(api_get, api_post):
     st.caption("Customize each client workspace — company name, brand colors, and icon. "
                "Clients see their own branding when they log in.")
 
-    ns_list = api_get("/namespaces?enabled=false") or []
+    # Reuse ns_data fetched at top of render() — include disabled namespaces too
+    ns_list = ns_data if ns_data is not None else (api_get("/namespaces?enabled=false") or [])
     if not ns_list:
         st.info("No namespaces found.")
         return
