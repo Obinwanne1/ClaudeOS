@@ -46,21 +46,24 @@ def render(api_get, api_post, bulk_delete=None):
         f"/agents/runs?limit=10&namespace={user_ns}" if is_scoped and user_ns
         else "/agents/runs?limit=10"
     )
+    # /system/stats MUST be called on the main Streamlit thread — ThreadPoolExecutor
+    # workers don't inherit st.session_state, causing JWT to be missing and the
+    # dev API key (namespace=global) to be used instead → global counts for clients.
+    stats = api_get("/system/stats")
+
     _calls = {
         "status":     "/system/status",
-        "stats":      "/system/stats",
         "agents":     "/agents",
         "runs":       _runs_url,
         "namespaces": "/memory/namespaces",
     }
     results: dict = {}
-    with ThreadPoolExecutor(max_workers=5) as ex:
+    with ThreadPoolExecutor(max_workers=4) as ex:
         futures = {ex.submit(api_get, path): key for key, path in _calls.items()}
         for f in as_completed(futures):
             results[futures[f]] = f.result()
 
     status      = results.get("status")
-    stats       = results.get("stats")
     agents_data = results.get("agents")
     runs_data   = results.get("runs")
     counts = stats.get("counts", {}) if stats else {}
