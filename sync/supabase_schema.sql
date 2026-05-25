@@ -42,8 +42,18 @@ create table if not exists agent_runs (
     triggered_by    text default 'user',
     workflow_run_id text,
     created_at      timestamptz default now(),
-    completed_at    timestamptz
+    completed_at    timestamptz,
+    eval_score      real,
+    eval_reasoning  text,
+    eval_dimensions text,
+    eval_at         timestamptz
 );
+
+-- Migration: add eval columns if upgrading from pre-Phase-10 schema
+alter table agent_runs add column if not exists eval_score      real;
+alter table agent_runs add column if not exists eval_reasoning  text;
+alter table agent_runs add column if not exists eval_dimensions text;
+alter table agent_runs add column if not exists eval_at         timestamptz;
 create index if not exists idx_ar_namespace on agent_runs(namespace);
 create index if not exists idx_ar_created on agent_runs(created_at);
 

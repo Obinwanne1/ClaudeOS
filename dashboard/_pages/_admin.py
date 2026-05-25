@@ -300,6 +300,14 @@ def _render_sessions(api_get, api_post):
 
     sessions = api_get("/admin/sessions") or []
     if sessions:
+        # ── User filter ───────────────────────────────────────────────────────
+        all_users = sorted({s.get("username", "") for s in sessions if s.get("username")})
+        filter_users = st.multiselect(
+            "Filter by user", all_users, default=[], key="sess_filter_users",
+            placeholder="All users"
+        )
+        visible = [s for s in sessions if not filter_users or s.get("username") in filter_users]
+
         rows = [{
             "ID":        s["id"][:8] + "...",
             "User":      s.get("username", ""),
@@ -307,17 +315,18 @@ def _render_sessions(api_get, api_post):
             "Created":   (s.get("created_at") or "")[:16],
             "Last Used": (s.get("last_used_at") or "")[:16],
             "Expires":   (s.get("expires_at") or "")[:16],
-        } for s in sessions]
+        } for s in visible]
+        st.caption(f"{len(visible)} of {len(sessions)} session(s)")
         st.dataframe(rows, use_container_width=True)
 
         sess_labels = [
             f"{s.get('username','')} — {s['id'][:8]} ({s.get('ip_address') or 'no IP'})"
-            for s in sessions
+            for s in visible
         ]
         sel_sess_labels = st.multiselect("Select session(s) to revoke", sess_labels, key="sel_sess_multi")
         if sel_sess_labels:
             sel_indices = [sess_labels.index(l) for l in sel_sess_labels]
-            sel_sess_ids = [sessions[i]["id"] for i in sel_indices]
+            sel_sess_ids = [visible[i]["id"] for i in sel_indices]
             verb = f"Revoke {len(sel_sess_labels)} session(s)"
             if st.button(verb, key="revoke_sess_btn"):
                 st.session_state["bulk_confirm_sess"] = True
