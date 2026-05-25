@@ -68,7 +68,10 @@ def stats():
                     "agent_runs":     conn.execute("SELECT COUNT(*) FROM agent_runs WHERE namespace=?", (ns,)).fetchone()[0],
                     "workflows":      conn.execute("SELECT COUNT(*) FROM workflows").fetchone()[0],
                     "outputs":        conn.execute("SELECT COUNT(*) FROM outputs WHERE namespace=?", (ns,)).fetchone()[0],
-                    "projects":       conn.execute("SELECT COUNT(*) FROM projects WHERE namespace=?", (ns,)).fetchone()[0],
+                    "projects":       conn.execute(
+                        "SELECT COUNT(*) FROM projects p "
+                        "JOIN namespaces n ON p.namespace_id=n.id WHERE n.slug=?", (ns,)
+                    ).fetchone()[0],
                     "open_tickets":   conn.execute(
                         "SELECT COUNT(*) FROM tickets WHERE namespace=? AND status NOT IN ('resolved','closed','completed')", (ns,)
                     ).fetchone()[0],
