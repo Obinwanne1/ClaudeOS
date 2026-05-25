@@ -73,9 +73,157 @@ def get_theme_vars() -> dict:
 
 def get_ns_brand() -> dict:
     """Return namespace branding overrides stored in session_state.
-    Keys: color, icon, company_name, accent_color.
+    Keys: color, icon, company_name, accent_color, bg_color.
     Empty dict when admin/operator or no branding configured."""
     return st.session_state.get("ns_brand") or {}
+
+
+# ── Custom background helpers ─────────────────────────────────────────────────
+
+def _luminance(hex_color: str) -> float:
+    """WCAG 2.1 relative luminance (0 = black, 1 = white)."""
+    try:
+        h = hex_color.lstrip("#")
+        r, g, b = int(h[0:2], 16)/255, int(h[2:4], 16)/255, int(h[4:6], 16)/255
+        def lin(c):
+            return c/12.92 if c <= 0.04045 else ((c+0.055)/1.055)**2.4
+        return 0.2126*lin(r) + 0.7152*lin(g) + 0.0722*lin(b)
+    except Exception:
+        return 0.0
+
+
+def _mix(hex_color: str, with_white: bool, amount: float) -> str:
+    """Mix hex_color toward white (with_white=True) or black (False) by amount 0-1."""
+    try:
+        h = hex_color.lstrip("#")
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+        if with_white:
+            r = min(255, int(r + (255-r)*amount))
+            g = min(255, int(g + (255-g)*amount))
+            b = min(255, int(b + (255-b)*amount))
+        else:
+            r = max(0, int(r*(1-amount)))
+            g = max(0, int(g*(1-amount)))
+            b = max(0, int(b*(1-amount)))
+        return f"#{r:02x}{g:02x}{b:02x}"
+    except Exception:
+        return hex_color
+
+
+def _custom_bg_css(bg_hex: str) -> str:
+    """CSS override for custom background with auto-derived contrast text/surface colors."""
+    if not bg_hex or not bg_hex.startswith("#") or len(bg_hex) not in (4, 7):
+        return ""
+    lum = _luminance(bg_hex)
+    is_light = lum > 0.45  # bias toward dark text for ambiguous mid-tones
+
+    if is_light:
+        TEXT      = "#1A1A1A"
+        T_MUTED   = "#6B7280"
+        SURFACE   = _mix(bg_hex, False, 0.05)
+        SURFACE2  = _mix(bg_hex, False, 0.09)
+        BORDER    = "rgba(0,0,0,0.13)"
+        INP_BG    = bg_hex
+        INP_TEXT  = "#1A1A1A"
+    else:
+        TEXT      = "#E8F5E8"
+        T_MUTED   = "#9CA3AF"
+        SURFACE   = _mix(bg_hex, True, 0.08)
+        SURFACE2  = _mix(bg_hex, True, 0.04)
+        BORDER    = "rgba(255,255,255,0.12)"
+        INP_BG    = SURFACE
+        INP_TEXT  = "#E8F5E8"
+
+    return f"""<style>
+/* ── Custom background override ── */
+html, body, .stApp, [class*="css"] {{
+    background-color: {bg_hex} !important;
+    color: {TEXT} !important;
+}}
+[data-testid="stAppViewContainer"],
+[data-testid="stAppViewBlockContainer"] {{
+    background-color: {bg_hex} !important;
+}}
+section[data-testid="stSidebar"],
+section[data-testid="stSidebar"] > div {{
+    background-color: {SURFACE2} !important;
+    border-right: 1px solid {BORDER} !important;
+}}
+section[data-testid="stSidebar"],
+section[data-testid="stSidebar"] *:not(button):not(button *):not(svg):not(svg *) {{
+    color: {TEXT} !important;
+    -webkit-text-fill-color: {TEXT} !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] * {{
+    color: {TEXT} !important;
+    -webkit-text-fill-color: {TEXT} !important;
+    opacity: 1 !important;
+}}
+.stApp h1,.stApp h2,.stApp h3,.stApp h4,.stApp h5,.stApp h6 {{
+    color: {TEXT} !important;
+}}
+.stApp p, .stApp li, .stApp label,
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] li,
+[data-testid="stMarkdownContainer"] span,
+[data-testid="stText"] {{
+    color: {TEXT} !important;
+}}
+[data-testid="stCaptionContainer"] p {{
+    color: {T_MUTED} !important;
+}}
+[data-testid="metric-container"],
+[data-testid="metric-container"] * {{
+    background-color: {SURFACE} !important;
+    color: {TEXT} !important;
+}}
+label[data-testid="stMetricLabel"],label[data-testid="stMetricLabel"] *,
+div[data-testid="stMetricLabel"],div[data-testid="stMetricLabel"] *,
+[data-testid="stMetricValue"],[data-testid="stMetricValue"] * {{
+    color: {TEXT} !important;
+    -webkit-text-fill-color: {TEXT} !important;
+    opacity: 1 !important;
+    filter: none !important;
+}}
+input, textarea,
+.stTextInput input, .stTextArea textarea,
+div[data-baseweb="select"] > div,
+div[data-baseweb="input"] > div {{
+    background-color: {INP_BG} !important;
+    color: {INP_TEXT} !important;
+    border-color: {BORDER} !important;
+}}
+ul[data-testid="stSelectboxVirtualDropdown"] li, li[role="option"] {{
+    background-color: {SURFACE} !important;
+    color: {TEXT} !important;
+}}
+button[data-baseweb="tab"] {{ color: {T_MUTED} !important; }}
+.aurora-hero-card {{
+    background: {SURFACE} !important;
+    border-color: {BORDER} !important;
+}}
+[data-testid="stMarkdownContainer"] pre,
+[data-testid="stMarkdownContainer"] pre code,
+[data-testid="stMarkdownContainer"] code {{
+    background-color: {SURFACE2} !important;
+    color: {TEXT} !important;
+    border-color: {BORDER} !important;
+}}
+.stDataFrame, iframe {{ background-color: {SURFACE} !important; }}
+hr {{ border-color: {BORDER} !important; }}
+::-webkit-scrollbar-track {{ background: {bg_hex}; }}
+::-webkit-scrollbar-thumb {{ background: {BORDER}; }}
+div[data-testid="stToggle"] {{
+    background: {SURFACE} !important;
+    border-color: {BORDER} !important;
+}}
+div[data-testid="stToggle"] p {{ color: {T_MUTED} !important; }}
+div[data-testid="stToggle"] span[data-testid="stToggleSlider"] {{
+    background-color: {BORDER} !important;
+    border-color: {BORDER} !important;
+}}
+</style>"""
 
 
 def _ns_brand_css(brand: dict) -> str:
@@ -565,6 +713,14 @@ def inject():
         override = _ns_brand_css(brand)
         if override:
             st.markdown(override, unsafe_allow_html=True)
+    # Custom background — personal (session) takes priority over namespace bg_color
+    _bg = st.session_state.get("custom_bg", "").strip()
+    if not _bg:
+        _bg = (brand.get("bg_color") or "").strip()
+    if _bg and _bg.startswith("#"):
+        bg_css = _custom_bg_css(_bg)
+        if bg_css:
+            st.markdown(bg_css, unsafe_allow_html=True)
 
 
 def sidebar_logo():

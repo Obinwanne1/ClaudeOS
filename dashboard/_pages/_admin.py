@@ -432,11 +432,21 @@ def _render_branding(api_get, api_post, ns_data=None):
                                          key="brand_color")
         accent_color  = st.color_picker("Accent color", value=current_meta.get("accent_color", brand_color),
                                          key="brand_accent")
+        use_custom_bg = st.checkbox("Custom page background",
+                                     value=bool(current_meta.get("bg_color")),
+                                     key="brand_use_bg")
+        bg_color = ""
+        if use_custom_bg:
+            bg_color = st.color_picker("Background color",
+                                        value=current_meta.get("bg_color") or "#0A1F0A",
+                                        key="brand_bg")
+            st.caption("Text colors auto-adjust for readability.")
 
         if st.button("Save Branding", type="primary", use_container_width=True, key="brand_save"):
             new_meta = {**current_meta,
                         "company_name": company_name.strip(),
-                        "accent_color": accent_color}
+                        "accent_color": accent_color,
+                        "bg_color":     bg_color if use_custom_bg else ""}
             r = api_post(f"/namespaces/{sel_slug}", {
                 "color":    brand_color,
                 "icon":     icon_emoji.strip(),
@@ -453,9 +463,19 @@ def _render_branding(api_get, api_post, ns_data=None):
         _a = st.session_state.get("brand_accent", current_meta.get("accent_color", _c))
         _icon = st.session_state.get("brand_icon", ns_obj.get("icon") or "🏢")
         _name = st.session_state.get("brand_company", current_meta.get("company_name", sel_slug))
-        _surf = t["SURFACE"]
+        # Preview background: custom bg if set, else theme surface
+        _use_bg_now = st.session_state.get("brand_use_bg", bool(current_meta.get("bg_color")))
+        _bg_now = st.session_state.get("brand_bg", current_meta.get("bg_color", "")) if _use_bg_now else ""
+        from dashboard.components.brand import _luminance
+        if _bg_now and _bg_now.startswith("#"):
+            _surf = _bg_now
+            _text_on_bg = "#1A1A1A" if _luminance(_bg_now) > 0.45 else "#E8F5E8"
+            _muted = "#6B7280" if _luminance(_bg_now) > 0.45 else "#9CA3AF"
+        else:
+            _surf = t["SURFACE"]
+            _text_on_bg = t["TEXT"]
+            _muted = t["TEXT_MUTED"]
         _bord = t["BORDER"]
-        _muted = t["TEXT_MUTED"]
         _preview_html = (
             f'<div style="background:{_surf};border:1px solid {_bord};'
             f'border-radius:10px;padding:16px 20px;">'
@@ -464,7 +484,8 @@ def _render_branding(api_get, api_post, ns_data=None):
             f'{_icon} {_name}</div>'
             f'<div style="font-size:0.6rem;color:{_muted};letter-spacing:1px;margin-top:2px;">'
             f'POWERED BY <span style="color:{_a};font-weight:700;">CLAUDEOS</span></div>'
-            f'<div style="margin-top:12px;">'
+            f'<div style="margin-top:8px;font-size:0.78rem;color:{_text_on_bg};">Sample text — readable on this background.</div>'
+            f'<div style="margin-top:10px;">'
             f'<span style="background:{_c};color:#fff;border-radius:6px;'
             f'padding:6px 14px;font-size:0.8rem;font-weight:600;">Button</span>'
             f'&nbsp;&nbsp;'

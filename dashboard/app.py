@@ -136,6 +136,7 @@ if _role_now in ("client", "viewer") and _ns_now:
                     "icon":         (_nd.get("icon") or "").strip(),
                     "company_name": (_nm.get("company_name") or "").strip(),
                     "accent_color": (_nm.get("accent_color") or "").strip(),
+                    "bg_color":     (_nm.get("bg_color") or "").strip(),
                 }
                 st.session_state["_ns_brand_loaded"] = True
                 st.rerun()  # re-render so inject() at top picks up brand
@@ -339,6 +340,23 @@ if st.sidebar.button("Logout", use_container_width=True):
             pass
     st.session_state.clear()
     st.rerun()
+
+st.sidebar.markdown("---")
+
+# Background color picker — all logged-in users
+with st.sidebar.expander("🎨 Background color", expanded=False):
+    _has_bg = bool(st.session_state.get("custom_bg"))
+    _use_bg = st.checkbox("Use custom background", value=_has_bg, key="sidebar_use_bg")
+    if _use_bg:
+        _picked = st.color_picker(
+            "Color",
+            value=st.session_state.get("custom_bg", "#0A1F0A"),
+            key="sidebar_bg_color",
+        )
+        st.session_state["custom_bg"] = _picked
+        st.caption("Text auto-adjusts for readability.")
+    else:
+        st.session_state.pop("custom_bg", None)
 
 st.sidebar.markdown("---")
 
