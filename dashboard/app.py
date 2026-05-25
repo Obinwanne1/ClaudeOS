@@ -113,6 +113,35 @@ def _maybe_refresh_token() -> None:
 
 _maybe_refresh_token()
 
+# ── Namespace brand loading (client/viewer only) ──────────────────────────────
+_role_now = st.session_state.get("user_role", "")
+_ns_now   = st.session_state.get("user_namespace")
+if _role_now in ("client", "viewer") and _ns_now:
+    if not st.session_state.get("_ns_brand_loaded"):
+        try:
+            _nb = requests.get(
+                f"{API_BASE}/namespaces/{_ns_now}",
+                headers={"Authorization": f"Bearer {st.session_state.get('jwt_token','')}"},
+                timeout=2,
+            )
+            if _nb.ok:
+                _nd = _nb.json()
+                _nm = _nd.get("metadata") or {}
+                st.session_state["ns_brand"] = {
+                    "color":        (_nd.get("color") or "").strip(),
+                    "icon":         (_nd.get("icon") or "").strip(),
+                    "company_name": (_nm.get("company_name") or "").strip(),
+                    "accent_color": (_nm.get("accent_color") or "").strip(),
+                }
+                st.session_state["_ns_brand_loaded"] = True
+                st.rerun()  # re-render so inject() at top picks up brand
+        except Exception:
+            st.session_state["_ns_brand_loaded"] = True  # don't retry on failure
+elif _role_now in ("admin", "operator"):
+    # Admin sees ClaudeOS branding — clear any leftover ns_brand
+    st.session_state.pop("ns_brand", None)
+    st.session_state.pop("_ns_brand_loaded", None)
+
 
 def _handle_401() -> None:
     st.session_state.clear()
@@ -196,6 +225,10 @@ def api_post(path: str, data: dict = None, timeout: int = 5, method: str = "POST
     return None
 
 
+# ── Onboarding modal (client/viewer first-login) ──────────────────────────────
+from dashboard.components.onboarding import maybe_show_onboarding
+maybe_show_onboarding(st.session_state.get("user_role", "viewer"))
+
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 sidebar_logo()
 st.sidebar.markdown("---")
@@ -223,6 +256,7 @@ if role in ("client", "viewer"):
     pages.pop("Settings", None)
     pages.pop("Workflows", None)
     pages.pop("Observability", None)
+    pages["Usage"] = "📊"  # client-facing usage + pulse dashboard
 
 if role == "staff":
     pages.pop("Memory", None)
@@ -321,6 +355,7 @@ _PAGE_MODULES = {
     "Observability": "dashboard._pages._observability",
     "Settings":      "dashboard._pages._settings",
     "Admin":         "dashboard._pages._admin",
+    "Usage":         "dashboard._pages._usage",
 }
 
 _PAGE_GETTERS = {
@@ -334,6 +369,7 @@ _PAGE_GETTERS = {
     "Observability": api_get,
     "Settings":      api_get,
     "Admin":         api_get,
+    "Usage":         api_get_cached,
 }
 
 _mod = importlib.import_module(_PAGE_MODULES[page])

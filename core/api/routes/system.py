@@ -91,6 +91,119 @@ def stats():
     return jsonify({"timestamp": utcnow_str(), "counts": counts, "namespace": ns})
 
 
+@system_bp.get("/system/namespace-stats")
+@require_auth
+def namespace_stats():
+    """Per-namespace usage metrics for the Client Usage Dashboard.
+    Clients can only query their own namespace; admins can pass ?namespace=slug."""
+    requested = request.args.get("namespace")
+    ns = effective_namespace(requested)
+    if not ns:
+        return jsonify({"error": "namespace required"}), 400
+
+    # 30-day window for cost/runs
+    from datetime import datetime, timedelta
+    month_ago = (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S")
+    week_ago  = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S")
+
+    try:
+        with get_db() as conn:
+            # Token usage (last 30 days)
+            tok = conn.execute(
+                """SELECT COALESCE(SUM(tokens_in),0), COALESCE(SUM(tokens_out),0),
+                          COUNT(*), COALESCE(AVG(eval_score),0)
+                   FROM agent_runs WHERE namespace=? AND created_at>=? AND status='done'""",
+                (ns, month_ago),
+            ).fetchone()
+            tokens_in, tokens_out, run_count, eval_avg = tok[0], tok[1], tok[2], tok[3]
+
+            # Cost estimate (Claude Sonnet 4.6 pricing)
+            cost_usd = round((tokens_in / 1_000_000 * 3.0) + (tokens_out / 1_000_000 * 15.0), 4)
+
+            # Ticket resolution rate (last 30 days)
+            t_total = conn.execute(
+                "SELECT COUNT(*) FROM tickets WHERE namespace=? AND created_at>=?",
+                (ns, month_ago),
+            ).fetchone()[0]
+            t_closed = conn.execute(
+                "SELECT COUNT(*) FROM tickets WHERE namespace=? AND created_at>=? "
+                "AND status IN ('completed','closed','resolved')",
+                (ns, month_ago),
+            ).fetchone()[0]
+
+            # Memory freshness (entries updated in last 7 days)
+            m_total = conn.execute(
+                "SELECT COUNT(*) FROM memory_entries WHERE namespace=? AND archived=0",
+                (ns,),
+            ).fetchone()[0]
+            m_fresh = conn.execute(
+                "SELECT COUNT(*) FROM memory_entries WHERE namespace=? AND archived=0 AND updated_at>=?",
+                (ns, week_ago),
+            ).fetchone()[0]
+
+            # Memory last consolidated
+            last_cons = conn.execute(
+                "SELECT MAX(updated_at) FROM memory_entries WHERE namespace=? AND is_consolidated=1",
+                (ns,),
+            ).fetchone()[0]
+
+            # Workflow success rate (last 30 days) — graceful if table missing
+            wf_total, wf_ok = 0, 0
+            try:
+                wf_row = conn.execute(
+                    "SELECT COUNT(*), SUM(CASE WHEN status='done' THEN 1 ELSE 0 END) "
+                    "FROM workflow_runs WHERE created_at>=?",
+                    (month_ago,),
+                ).fetchone()
+                wf_total, wf_ok = wf_row[0], (wf_row[1] or 0)
+            except Exception:
+                pass
+
+            # Output count
+            out_count = conn.execute(
+                "SELECT COUNT(*) FROM outputs WHERE namespace=?", (ns,)
+            ).fetchone()[0]
+
+            # Recent runs (last 10 for activity feed)
+            recent_rows = conn.execute(
+                """SELECT id, agent_id, status, eval_score, created_at, duration_ms
+                   FROM agent_runs WHERE namespace=? ORDER BY created_at DESC LIMIT 10""",
+                (ns,),
+            ).fetchall()
+            recent_runs = [dict(r) for r in recent_rows]
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    # Namespace Pulse Score (0–100 composite)
+    q_score  = min((eval_avg / 5.0) * 100, 100) if eval_avg else 50
+    t_score  = (t_closed / t_total * 100) if t_total else 100
+    m_score  = (m_fresh / m_total * 100) if m_total else 100
+    wf_score = (wf_ok / wf_total * 100) if wf_total else 100
+    pulse    = round(q_score * 0.40 + t_score * 0.30 + m_score * 0.20 + wf_score * 0.10, 1)
+
+    return jsonify({
+        "namespace":      ns,
+        "period_days":    30,
+        "tokens_in":      tokens_in,
+        "tokens_out":     tokens_out,
+        "cost_usd":       cost_usd,
+        "run_count":      run_count,
+        "eval_avg":       round(eval_avg, 2),
+        "ticket_total":   t_total,
+        "tickets_closed": t_closed,
+        "memory_count":   m_total,
+        "memory_fresh":   m_fresh,
+        "last_consolidated": last_cons,
+        "workflow_total": wf_total,
+        "workflow_ok":    wf_ok,
+        "output_count":   out_count,
+        "pulse_score":    pulse,
+        "recent_runs":    recent_runs,
+        "timestamp":      utcnow_str(),
+    })
+
+
 @system_bp.get("/system/events")
 @require_auth
 def events():

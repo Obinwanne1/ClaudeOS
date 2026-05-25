@@ -13,6 +13,7 @@ from flask import Blueprint, jsonify, request
 from core.auth import require_auth, effective_namespace
 require_api_key = require_auth  # alias
 from core.utils import utcnow_str
+from core.api.limiter import limiter
 
 workflows_bp = Blueprint("workflows", __name__, url_prefix="/api/v1/workflows")
 
@@ -40,6 +41,7 @@ def get_workflow(name: str):
 
 @workflows_bp.post("/<name>/run")
 @require_api_key
+@limiter.limit("20 per minute")
 def trigger_workflow(name: str):
     """Trigger a workflow run immediately. Returns run_id."""
     from workflows.registry import get_by_name
@@ -190,6 +192,7 @@ def disable_webhook(name: str):
 
 
 @workflows_bp.post("/<name>/trigger")
+@limiter.limit("10 per minute")
 def webhook_trigger(name: str):
     """Public webhook endpoint — no JWT required, authenticated via X-Webhook-Secret header.
 

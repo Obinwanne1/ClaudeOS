@@ -71,6 +71,42 @@ def get_theme_vars() -> dict:
     return THEMES[get_theme()]
 
 
+def get_ns_brand() -> dict:
+    """Return namespace branding overrides stored in session_state.
+    Keys: color, icon, company_name, accent_color.
+    Empty dict when admin/operator or no branding configured."""
+    return st.session_state.get("ns_brand") or {}
+
+
+def _ns_brand_css(brand: dict) -> str:
+    """Minimal CSS block that overrides primary accent with namespace brand color.
+    Injected AFTER the main theme CSS so specificity wins."""
+    color = (brand.get("color") or "").strip()
+    if not color or not color.startswith("#"):
+        return ""
+    accent = (brand.get("accent_color") or color).strip()
+    return f"""<style>
+/* ── Namespace brand color override ── */
+.stButton > button,
+button[data-testid="baseButton-secondary"],
+button[data-testid="baseButton-primary"],
+button[kind="primary"], button[kind="secondary"] {{
+    background-color: {color} !important;
+}}
+.stButton > button:hover,
+button[data-testid="baseButton-secondary"]:hover,
+button[data-testid="baseButton-primary"]:hover {{
+    background-color: {accent} !important;
+}}
+button[data-baseweb="tab"][aria-selected="true"] {{
+    color: {color} !important;
+    border-bottom: 3px solid {color} !important;
+}}
+[data-testid="metric-container"] {{ border-left: 4px solid {color} !important; }}
+.badge-ok {{ background: {color}33 !important; border-color: {color}66 !important; }}
+</style>"""
+
+
 @st.cache_data(max_entries=2)
 def _build_css(theme_key: str) -> str:
     t = THEMES[theme_key]
@@ -518,11 +554,39 @@ def inject():
     _CURRENT_THEME = t
     SURFACE = t["SURFACE"]
     st.markdown(_build_css(theme_key), unsafe_allow_html=True)
+    # Namespace brand color override (client/viewer workspaces)
+    brand = get_ns_brand()
+    if brand:
+        override = _ns_brand_css(brand)
+        if override:
+            st.markdown(override, unsafe_allow_html=True)
 
 
 def sidebar_logo():
     t = THEMES[get_theme()]
-    st.sidebar.markdown(f"""
+    brand = get_ns_brand()
+    company = (brand.get("company_name") or "").strip()
+    icon = (brand.get("icon") or "").strip()
+    b_color = (brand.get("color") or "").strip()
+    b_accent = (brand.get("accent_color") or b_color or "").strip()
+
+    if company:
+        # Namespace-branded workspace — show client company identity
+        c1 = b_color if b_color else t["LOGO1"]
+        c2 = b_accent if b_accent else t["LOGO2"]
+        st.sidebar.markdown(f"""
+<div style="padding:1rem 0.5rem;text-align:center;">
+  <div style="font-size:1.35rem;font-weight:800;color:{c1};
+              letter-spacing:1px;font-family:'Poppins',sans-serif;line-height:1.2;">
+    {icon + " " if icon else ""}{_esc(company)}
+  </div>
+  <div style="font-size:0.62rem;color:{t['TEXT_MUTED']};letter-spacing:1px;margin-top:3px;">
+    POWERED BY <span style="color:{c2};font-weight:700;">CLAUDEOS</span>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+    else:
+        st.sidebar.markdown(f"""
 <div style="padding:1rem 0.5rem;text-align:center;">
   <div style="font-size:1.5rem;font-weight:800;color:{t['LOGO1']};letter-spacing:2px;font-family:'Poppins',sans-serif;">
     CLAUDE<span style="color:{t['LOGO2']};">OS</span>
@@ -537,6 +601,10 @@ def theme_toggle():
     _MARKER = "COS-THEME-FLIP-TRIGGER"
     if st.button(_MARKER, key="_cos_theme_flip_btn"):
         current = get_theme()
+        # Preserve nav page — st.rerun() interrupts the run before the sidebar
+        # radio renders, which causes Streamlit to prune its widget state key.
+        if "nav_page" in st.session_state:
+            st.session_state["_nav_page_bak"] = st.session_state["nav_page"]
         st.session_state.theme = "dark" if current == "light" else "light"
         st.rerun()
 
@@ -641,6 +709,26 @@ def theme_toggle_topbar() -> None:
     theme_toggle()
 
 
+def empty_state(icon: str, title: str, body: str = "") -> None:
+    """Render a centered empty-state card — use when a list/feed has no items."""
+    t = THEMES[get_theme()]
+    brand = get_ns_brand()
+    _p = (brand.get("color") or PRIMARY).strip() or PRIMARY
+    body_html = (
+        f'<p style="color:{t["TEXT_MUTED"]};font-size:0.88rem;margin:6px 0 0;">{_esc(body)}</p>'
+        if body else ""
+    )
+    st.markdown(
+        f'<div style="text-align:center;padding:40px 24px;background:{t["SURFACE"]};'
+        f'border:1px solid {t["BORDER"]};border-radius:12px;margin:8px 0;">'
+        f'<div style="font-size:2.4rem;margin-bottom:10px;">{icon}</div>'
+        f'<div style="font-size:1rem;font-weight:700;color:{t["TEXT"]};">{_esc(title)}</div>'
+        f'{body_html}'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+
 def badge(text: str, kind: str = "ok") -> str:
     _SAFE_KINDS = {"ok", "error", "pending", "warning", "info"}
     safe_kind = kind if kind in _SAFE_KINDS else "ok"
@@ -661,9 +749,12 @@ def aurora_hero(title: str, subtitle: str = "", pill: str = "") -> None:
     pill     = _esc(pill)
 
     t = THEMES[get_theme()]
+    brand = get_ns_brand()
+    _p = (brand.get("color") or PRIMARY).strip() or PRIMARY
+    _a = (brand.get("accent_color") or ACCENT).strip() or ACCENT
     pill_html = (
-        f'<span style="display:inline-block;background:{PRIMARY}33;color:{ACCENT};'
-        f'border:1px solid {PRIMARY}55;border-radius:20px;padding:2px 12px;'
+        f'<span style="display:inline-block;background:{_p}33;color:{_a};'
+        f'border:1px solid {_p}55;border-radius:20px;padding:2px 12px;'
         f'font-size:0.72rem;font-weight:600;letter-spacing:0.05em;margin-bottom:0.75rem;">'
         f'{pill}</span>'
     ) if pill else ""

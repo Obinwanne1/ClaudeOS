@@ -10,6 +10,7 @@ from agents import registry, dispatcher
 from agents.schemas import AgentDispatchRequest
 from core.auth import require_auth, effective_namespace
 from core.utils import utcnow_str
+from core.api.limiter import limiter
 
 agents_bp = Blueprint("agents", __name__, url_prefix="/api/v1/agents")
 
@@ -113,6 +114,7 @@ def agent_card(agent_name: str):
 
 @agents_bp.post("/<agent_name>/run")
 @require_auth
+@limiter.limit("30 per minute")
 def run_agent(agent_name: str):
     data = request.get_json(silent=True)
     if not data:
@@ -141,6 +143,7 @@ def run_agent(agent_name: str):
 
 @agents_bp.get("/<agent_name>/stream")
 @require_auth
+@limiter.limit("20 per minute")
 def stream_agent(agent_name: str):
     """SSE streaming endpoint — Phase 10.1.
 

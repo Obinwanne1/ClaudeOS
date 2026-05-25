@@ -121,11 +121,10 @@ def render(api_get, api_post, bulk_delete=None):
                 selected_ns = user_ns
                 st.caption(f"Namespace: **{user_ns}**")
             else:
-                selected_ns = st.selectbox(
-                    "Namespace",
-                    ["global", "reci-transport", "ivycandy-hair", "faiyke-ai", "personal"],
-                    key="quick_ns",
-                )
+                # Dynamic namespace list from already-fetched /memory/namespaces
+                ns_data_q = results.get("namespaces")
+                _ns_opts = sorted(ns_data_q["namespaces"].keys()) if ns_data_q and ns_data_q.get("namespaces") else ["global"]
+                selected_ns = st.selectbox("Namespace", _ns_opts, key="quick_ns")
 
             prompt = st.text_area("Prompt", height=100, key="quick_prompt",
                                   placeholder="What should this agent do?")
@@ -236,12 +235,19 @@ def _render_live_feed(runs_data, is_scoped: bool, username: str, api_post=None) 
                             unsafe_allow_html=True,
                         )
                     with _col_btn:
-                        if st.button("🗑️", key=f"del_run_{_run_id}", help="Delete this failed run"):
-                            resp = api_post(f"/agents/runs/{_run_id}", method="DELETE")
-                            if resp is not None:
+                        _confirm_key = f"confirm_del_{_run_id}"
+                        if st.session_state.get(_confirm_key):
+                            if st.button("✓", key=f"del_confirm_{_run_id}", help="Confirm delete"):
+                                resp = api_post(f"/agents/runs/{_run_id}", method="DELETE")
+                                st.session_state.pop(_confirm_key, None)
+                                if resp is not None:
+                                    st.rerun()
+                                else:
+                                    st.error("Delete failed")
+                        else:
+                            if st.button("🗑️", key=f"del_run_{_run_id}", help="Delete this failed run"):
+                                st.session_state[_confirm_key] = True
                                 st.rerun()
-                            else:
-                                st.error("Delete failed")
                 else:
                     st.markdown(
                         f'<div style="padding:7px 0;font-size:0.82rem;border-bottom:1px solid {_t["BORDER"]};">'
@@ -253,9 +259,11 @@ def _render_live_feed(runs_data, is_scoped: bool, username: str, api_post=None) 
                         unsafe_allow_html=True,
                     )
     else:
-        st.info(
-            f"👋 Welcome, **{username}**! No agent runs yet.\n\n"
-            "Use **Quick Dispatch** on the right or go to **Agents → Chat**."
+        from dashboard.components.brand import empty_state
+        empty_state(
+            icon="🤖",
+            title=f"Welcome, {username}!",
+            body="No agent runs yet. Use Quick Dispatch on the right or go to Agents → Chat.",
         )
 
     if live_on:

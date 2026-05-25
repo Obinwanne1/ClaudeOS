@@ -228,6 +228,9 @@ def create_ticket():
             (ticket_id, ns, g.username, title, description, category, priority, now, now),
         )
 
+    # Notify any pre-assigned staff (not common on create, but future-proof)
+    _maybe_notify_assignment(ticket_id, title, g.username, ns, priority, [])
+
     return jsonify({
         "id": ticket_id, "namespace": ns, "created_by": g.username,
         "title": title, "description": description, "status": "open",
@@ -346,7 +349,29 @@ def update_ticket(ticket_id: str):
     with get_db() as conn:
         conn.execute(f"UPDATE tickets SET {', '.join(sets)} WHERE id = ?", params)
 
-    return jsonify(_get_ticket_by_id(ticket_id))
+    updated = _get_ticket_by_id(ticket_id)
+
+    # Email creator when ticket reaches completed or closed
+    new_status = body.get("status") if body else None
+    if new_status in ("completed", "closed") and updated:
+        _maybe_notify_resolution(
+            ticket=updated,
+            resolved_by=g.username,
+            resolution=body.get("resolution", ""),
+        )
+
+    # Email new assignees when assigned_to changes
+    if "assigned_to" in body and body["assigned_to"] and updated:
+        _maybe_notify_assignment(
+            ticket_id=ticket_id,
+            title=updated["title"],
+            creator=updated["created_by"],
+            namespace=updated["namespace"],
+            priority=updated["priority"],
+            new_assignees=[body["assigned_to"]],
+        )
+
+    return jsonify(updated)
 
 
 # ── Self-assign ────────────────────────────────────────────────────────────────
@@ -608,3 +633,65 @@ def assignable_staff():
             "SELECT username, role, namespace FROM users WHERE role IN ('admin','operator','staff') AND is_active = 1 ORDER BY username",
         ).fetchall()
     return jsonify([{"username": r["username"], "role": r["role"], "namespace": r["namespace"]} for r in rows])
+
+
+# ── Notification helpers ───────────────────────────────────────────────────────
+
+def _get_user_email(username: str) -> str | None:
+    """Fetch email for a username. Returns None if not found or no email."""
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT email FROM users WHERE username = ? AND is_active = 1",
+                (username,),
+            ).fetchone()
+        return row["email"] if row and row["email"] else None
+    except Exception:
+        return None
+
+
+def _maybe_notify_assignment(
+    ticket_id: str,
+    title: str,
+    creator: str,
+    namespace: str,
+    priority: int,
+    new_assignees: list[str],
+) -> None:
+    """Fire-and-forget email to each new assignee."""
+    try:
+        from core.notifications import notify_ticket_created
+        for assignee in new_assignees:
+            if assignee == creator:
+                continue  # skip self-assignment notification
+            email = _get_user_email(assignee)
+            if email:
+                notify_ticket_created(
+                    assignee_email=email,
+                    ticket_id=ticket_id,
+                    title=title,
+                    creator=creator,
+                    namespace=namespace,
+                    priority=priority,
+                )
+    except Exception as e:
+        logger.warning("Assignment notification failed: %s", e)
+
+
+def _maybe_notify_resolution(ticket: dict, resolved_by: str, resolution: str) -> None:
+    """Fire-and-forget email to ticket creator on resolution."""
+    try:
+        from core.notifications import notify_ticket_resolved
+        creator = ticket.get("created_by", "")
+        if creator and creator != resolved_by:
+            email = _get_user_email(creator)
+            if email:
+                notify_ticket_resolved(
+                    creator_email=email,
+                    ticket_id=ticket["id"],
+                    title=ticket["title"],
+                    resolved_by=resolved_by,
+                    resolution=resolution or "",
+                )
+    except Exception as e:
+        logger.warning("Resolution notification failed: %s", e)

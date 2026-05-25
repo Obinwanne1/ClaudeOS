@@ -28,8 +28,8 @@ def render(api_get, api_post, bulk_delete=None):
     # Fetch namespaces once — shared by Users + API Keys tabs
     ns_data = api_get("/namespaces") or []
 
-    tab_users, tab_keys, tab_audit, tab_sessions, tab_security = st.tabs([
-        "Users", "API Keys", "Audit Log", "Sessions", "Security"
+    tab_users, tab_keys, tab_audit, tab_sessions, tab_security, tab_branding = st.tabs([
+        "Users", "API Keys", "Audit Log", "Sessions", "Security", "Branding"
     ])
 
     with tab_users:
@@ -46,6 +46,9 @@ def render(api_get, api_post, bulk_delete=None):
 
     with tab_security:
         _render_security(api_get, api_post)
+
+    with tab_branding:
+        _render_branding(api_get, api_post)
 
 
 # ── Users ─────────────────────────────────────────────────────────────────────
@@ -388,3 +391,84 @@ def _render_security(api_get, api_post):
             st.success("Settings saved.")
         else:
             st.error("Save failed.")
+
+
+# ── Namespace Branding ────────────────────────────────────────────────────────
+
+def _render_branding(api_get, api_post):
+    """Per-client namespace branding — company name, colors, icon."""
+    from dashboard.components.brand import get_theme_vars
+    t = get_theme_vars()
+
+    st.subheader("Namespace Branding")
+    st.caption("Customize each client workspace — company name, brand colors, and icon. "
+               "Clients see their own branding when they log in.")
+
+    ns_list = api_get("/namespaces?enabled=false") or []
+    if not ns_list:
+        st.info("No namespaces found.")
+        return
+
+    ns_names = [n["slug"] for n in ns_list]
+    sel_slug = st.selectbox("Select namespace to brand", ns_names, key="brand_ns_sel")
+    ns_obj = next((n for n in ns_list if n["slug"] == sel_slug), None)
+    if not ns_obj:
+        return
+
+    current_meta = ns_obj.get("metadata") or {}
+    current_color = ns_obj.get("color") or "#407E3C"
+
+    st.markdown("---")
+    col_form, col_preview = st.columns([3, 2])
+
+    with col_form:
+        st.markdown("**Brand Settings**")
+        company_name  = st.text_input("Company name", value=current_meta.get("company_name", ""),
+                                       key="brand_company", placeholder="e.g. Reci Transport")
+        icon_emoji    = st.text_input("Icon (emoji)", value=ns_obj.get("icon") or "🏢",
+                                       key="brand_icon", max_chars=4)
+        brand_color   = st.color_picker("Primary brand color", value=current_color,
+                                         key="brand_color")
+        accent_color  = st.color_picker("Accent color", value=current_meta.get("accent_color", brand_color),
+                                         key="brand_accent")
+
+        if st.button("Save Branding", type="primary", use_container_width=True, key="brand_save"):
+            new_meta = {**current_meta,
+                        "company_name": company_name.strip(),
+                        "accent_color": accent_color}
+            r = api_post(f"/namespaces/{sel_slug}", {
+                "color":    brand_color,
+                "icon":     icon_emoji.strip(),
+                "metadata": new_meta,
+            }, method="PATCH")
+            if r:
+                st.success(f"Branding saved for **{sel_slug}**. Clients will see it on next login.")
+            else:
+                st.error("Save failed — check API.")
+
+    with col_preview:
+        st.markdown("**Live Preview**")
+        _c = brand_color if "brand_color" in st.session_state else current_color
+        _a = st.session_state.get("brand_accent", current_meta.get("accent_color", _c))
+        _icon = st.session_state.get("brand_icon", ns_obj.get("icon") or "🏢")
+        _name = st.session_state.get("brand_company", current_meta.get("company_name", sel_slug))
+        _surf = t["SURFACE"]
+        _bord = t["BORDER"]
+        _muted = t["TEXT_MUTED"]
+        _preview_html = (
+            f'<div style="background:{_surf};border:1px solid {_bord};'
+            f'border-radius:10px;padding:16px 20px;">'
+            f'<div style="font-size:1.2rem;font-weight:800;color:{_c};'
+            f'font-family:Poppins,sans-serif;letter-spacing:1px;">'
+            f'{_icon} {_name}</div>'
+            f'<div style="font-size:0.6rem;color:{_muted};letter-spacing:1px;margin-top:2px;">'
+            f'POWERED BY <span style="color:{_a};font-weight:700;">CLAUDEOS</span></div>'
+            f'<div style="margin-top:12px;">'
+            f'<span style="background:{_c};color:#fff;border-radius:6px;'
+            f'padding:6px 14px;font-size:0.8rem;font-weight:600;">Button</span>'
+            f'&nbsp;&nbsp;'
+            f'<span style="background:{_c}33;color:{_a};border:1px solid {_c}55;'
+            f'border-radius:20px;padding:2px 10px;font-size:0.72rem;font-weight:600;">Badge</span>'
+            f'</div></div>'
+        )
+        st.markdown(_preview_html, unsafe_allow_html=True)

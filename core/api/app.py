@@ -16,8 +16,12 @@ def create_app() -> Flask:
     app = Flask(__name__)
     app.config["SECRET_KEY"] = settings.CLAUDEOS_SECRET_KEY
 
-    # CORS — allow dashboard origin
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
+    # CORS — restrict to configured origins (never wildcard in production)
+    import os as _os
+    _origins = [o.strip() for o in _os.environ.get(
+        "ALLOWED_ORIGINS", "http://localhost:8501"
+    ).split(",") if o.strip()]
+    CORS(app, resources={r"/api/*": {"origins": _origins}})
 
     # Logging
     _setup_logging(settings)
@@ -25,6 +29,15 @@ def create_app() -> Flask:
     # Rate limiter
     from core.api.limiter import limiter
     limiter.init_app(app)
+
+    # Security response headers
+    @app.after_request
+    def _security_headers(response):
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
 
     # Middleware
     register_middleware(app)

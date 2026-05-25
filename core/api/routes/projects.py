@@ -190,6 +190,7 @@ def _ns_dict(ns) -> dict:
         "type": ns.type,
         "color": ns.color,
         "icon": ns.icon,
+        "metadata": ns.metadata if isinstance(ns.metadata, dict) else {},
         "enabled": ns.enabled,
         "created_at": ns.created_at,
     }

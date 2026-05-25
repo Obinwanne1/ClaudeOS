@@ -9,6 +9,11 @@ def render(api_get, api_post, bulk_delete=None):
     st.title("🔧  Settings")
     st.markdown("---")
 
+    # ── Email Notifications ────────────────────────────────────
+    _render_email_settings()
+
+    st.markdown("---")
+
     # ── Supabase Sync ──────────────────────────────────────────
     st.subheader("☁️  Supabase Cloud Sync")
 
@@ -138,6 +143,48 @@ def render(api_get, api_post, bulk_delete=None):
     st.markdown("---")
     with st.expander("📋  Supabase SQL Schema"):
         _show_schema_snippet()
+
+
+def _render_email_settings():
+    import os
+    from pathlib import Path
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).parent.parent.parent / ".env")
+
+    st.subheader("📧  Email Notifications")
+    smtp_host = os.environ.get("SMTP_HOST", "")
+    smtp_user = os.environ.get("SMTP_USER", "")
+
+    if smtp_host and smtp_user:
+        st.markdown(
+            f'<span style="background:#407E3C;color:#fff;padding:3px 10px;'
+            f'border-radius:12px;font-size:0.8rem;">● Configured ({smtp_user})</span>',
+            unsafe_allow_html=True,
+        )
+        st.caption("Ticket assignment + resolution emails are active.")
+        notify_email = os.environ.get("NOTIFY_EMAIL", smtp_user)
+        if st.button("Send test email", key="smtp_test"):
+            try:
+                from core.notifications import send_test_email
+                ok = send_test_email(notify_email)
+                if ok:
+                    st.success(f"Test email sent to {notify_email}")
+                else:
+                    st.error("Send failed — check SMTP credentials in .env")
+            except Exception as e:
+                st.error(f"Error: {e}")
+    else:
+        st.markdown(
+            '<span style="background:#6b7280;color:#fff;padding:3px 10px;'
+            'border-radius:12px;font-size:0.8rem;">● Not Configured</span>',
+            unsafe_allow_html=True,
+        )
+        st.info(
+            "Add these to your `.env` to enable ticket email notifications:\n\n"
+            "```\nSMTP_HOST=smtp.gmail.com\nSMTP_PORT=587\n"
+            "SMTP_USER=you@gmail.com\nSMTP_PASSWORD=your-app-password\n"
+            "NOTIFY_EMAIL=you@gmail.com\n```"
+        )
 
 
 def _show_schema_snippet():
