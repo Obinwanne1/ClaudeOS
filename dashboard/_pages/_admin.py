@@ -28,8 +28,8 @@ def render(api_get, api_post, bulk_delete=None):
     # Fetch namespaces once — shared by Users + API Keys tabs
     ns_data = api_get("/namespaces") or []
 
-    tab_users, tab_keys, tab_audit, tab_sessions, tab_security, tab_branding = st.tabs([
-        "Users", "API Keys", "Audit Log", "Sessions", "Security", "Branding"
+    tab_users, tab_keys, tab_audit, tab_sessions, tab_security, tab_branding, tab_onboarding = st.tabs([
+        "Users", "API Keys", "Audit Log", "Sessions", "Security", "Branding", "Client Onboarding"
     ])
 
     with tab_users:
@@ -49,6 +49,9 @@ def render(api_get, api_post, bulk_delete=None):
 
     with tab_branding:
         _render_branding(api_get, api_post, ns_data)
+
+    with tab_onboarding:
+        _render_client_onboarding(api_get, api_post, ns_data)
 
 
 # ── Users ─────────────────────────────────────────────────────────────────────
@@ -503,3 +506,86 @@ def _render_branding(api_get, api_post, ns_data=None):
             f'</div></div>'
         )
         st.markdown(_preview_html, unsafe_allow_html=True)
+
+
+# ── Client Onboarding ─────────────────────────────────────────────────────────
+
+_CLIENT_SCHEMA = [
+    ("client.business_name",  "fact",       "Business Name",         "Full legal or trading name"),
+    ("client.industry",       "fact",       "Industry / Sector",     "e.g. Beauty, Logistics, Tech"),
+    ("client.location",       "fact",       "Location",              "City, Country"),
+    ("client.owner_name",     "fact",       "Owner / Contact Name",  "Primary person to address"),
+    ("client.owner_email",    "fact",       "Contact Email",         "For notifications and follow-up"),
+    ("client.primary_goal",   "context",    "Primary Goal",          "Main reason for using ClaudeOS"),
+    ("client.active_projects","context",    "Active Projects",       "Current projects (comma-separated)"),
+    ("client.ai_use_cases",   "context",    "AI Use Cases",          "What agents are used for"),
+    ("client.brand_colors",   "preference", "Brand Colors",          "Primary hex color(s), e.g. #407E3C"),
+    ("client.tone",           "preference", "Communication Tone",    "formal / casual / technical"),
+    ("client.language",       "preference", "Language",              "Preferred language for responses"),
+    ("client.timezone",       "preference", "Timezone",              "e.g. Africa/Lagos, Europe/London"),
+    ("client.avoid",          "preference", "Avoid",                 "Topics or styles agents should avoid"),
+    ("client.sla_tier",       "fact",       "Default SLA Tier",      "P1 / P2 / P3 / P4"),
+]
+
+
+def _render_client_onboarding(api_get, api_post, ns_data=None):
+    st.subheader("Client Onboarding Schema")
+    st.caption("Fill in the standard profile for each client namespace. Agents use this context automatically.")
+
+    # Build namespace list (client namespaces only)
+    namespaces = ns_data if isinstance(ns_data, list) else []
+    client_ns = [n["slug"] for n in namespaces if n.get("type") == "client" and n.get("slug")]
+    if not client_ns:
+        # Fallback: all namespaces
+        client_ns = [n["slug"] for n in namespaces if n.get("slug")]
+    if not client_ns:
+        st.info("No client namespaces found.")
+        return
+
+    sel_ns = st.selectbox("Select namespace", client_ns, key="ob_ns_sel")
+
+    # Fetch existing entries for this namespace
+    existing_data = api_get(f"/memory?namespace={sel_ns}&limit=200") or {}
+    entries = existing_data.get("entries", [])
+    existing = {e["key"]: e for e in entries if e["key"].startswith("client.")}
+
+    st.markdown("---")
+    st.markdown(f"**{sel_ns}** — {len(existing)}/{len(_CLIENT_SCHEMA)} fields populated")
+
+    with st.form(key=f"ob_form_{sel_ns}"):
+        field_vals: dict[str, str] = {}
+        for key, category, label, placeholder in _CLIENT_SCHEMA:
+            current = existing.get(key, {}).get("value", "")
+            field_vals[key] = st.text_input(
+                label,
+                value=current,
+                placeholder=placeholder,
+                key=f"ob_{sel_ns}_{key}",
+            )
+
+        submitted = st.form_submit_button("Save All Fields", type="primary", use_container_width=True)
+
+    if submitted:
+        saved = 0
+        for key, category, label, _ in _CLIENT_SCHEMA:
+            val = field_vals[key].strip()
+            if not val:
+                continue
+            if key in existing:
+                # Update existing entry
+                entry_id = existing[key]["id"]
+                r = api_post(f"/memory/{entry_id}", {"value": val, "category": category}, method="PUT")
+            else:
+                # Create new entry
+                r = api_post("/memory", {
+                    "namespace": sel_ns,
+                    "category": category,
+                    "key": key,
+                    "value": val,
+                    "confidence": 0.9,
+                    "tags": "onboarding,client-schema",
+                })
+            if r:
+                saved += 1
+        st.success(f"Saved {saved} field(s) for **{sel_ns}**.")
+        st.rerun()
