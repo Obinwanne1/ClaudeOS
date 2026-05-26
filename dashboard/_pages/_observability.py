@@ -18,14 +18,21 @@ def render(api_get, api_post, bulk_delete=None):
     user_ns = st.session_state.get("user_namespace")
     is_scoped = role in ("client", "viewer") and bool(user_ns)
 
-    tab_quality, tab_latency, tab_tokens, tab_memory = st.tabs(
-        ["⭐ Quality Scores", "⏱ Latency", "💰 Token Cost", "🧠 Memory Health"]
-    )
+    tabs = ["⭐ Quality Scores", "⏱ Latency", "💰 Token Cost", "🧠 Memory Health"]
+    if not is_scoped:
+        tabs.append("🌐 Namespace Usage")
+
+    tab_objs = st.tabs(tabs)
+    tab_quality  = tab_objs[0]
+    tab_latency  = tab_objs[1]
+    tab_tokens   = tab_objs[2]
+    tab_memory   = tab_objs[3]
+    tab_ns       = tab_objs[4] if not is_scoped else None
 
     # Fetch run data
     _runs_url = (
         f"/agents/runs?limit=100&namespace={user_ns}" if is_scoped
-        else "/agents/runs?limit=100"
+        else "/agents/runs?limit=500"
     )
     runs_data = api_get(_runs_url) or {}
     runs = runs_data.get("runs", [])
@@ -41,6 +48,10 @@ def render(api_get, api_post, bulk_delete=None):
 
     with tab_memory:
         _render_memory_health(api_get, api_post, tv)
+
+    if tab_ns:
+        with tab_ns:
+            _render_namespace_usage(runs, api_get, tv)
 
 
 def _render_quality(runs: list, tv: dict) -> None:
@@ -268,3 +279,82 @@ def _render_memory_health(api_get, api_post, tv: dict) -> None:
             )
         else:
             st.error("Consolidation endpoint not available")
+
+
+def _render_namespace_usage(runs: list, api_get, tv: dict) -> None:
+    st.subheader("Namespace Usage Comparison")
+    st.caption("Aggregated across all namespaces — token consumption, run count, cost, and quality.")
+
+    done = [r for r in runs if r.get("status") == "done"]
+    if not done:
+        st.info("No completed runs yet.")
+        return
+
+    from collections import defaultdict
+    ns_stats: dict[str, dict] = defaultdict(lambda: {
+        "runs": 0, "tokens_in": 0, "tokens_out": 0, "scores": []
+    })
+    for r in done:
+        ns = r.get("namespace") or "global"
+        ns_stats[ns]["runs"] += 1
+        ns_stats[ns]["tokens_in"]  += r.get("tokens_in", 0) or 0
+        ns_stats[ns]["tokens_out"] += r.get("tokens_out", 0) or 0
+        if r.get("eval_score") is not None:
+            ns_stats[ns]["scores"].append(r["eval_score"])
+
+    # Memory counts
+    mem_data = api_get("/memory/namespaces") or {}
+    mem_counts = mem_data.get("namespaces", {})
+
+    # Build table
+    rows = []
+    total_cost = 0.0
+    for ns, s in sorted(ns_stats.items(), key=lambda x: -(x[1]["tokens_in"] + x[1]["tokens_out"])):
+        cost = (s["tokens_in"] / 1_000_000 * 3.0) + (s["tokens_out"] / 1_000_000 * 15.0)
+        total_cost += cost
+        avg_score = f"{sum(s['scores'])/len(s['scores']):.2f}" if s["scores"] else "—"
+        rows.append({
+            "Namespace":      ns,
+            "Runs":           s["runs"],
+            "Input Tokens":   f"{s['tokens_in']:,}",
+            "Output Tokens":  f"{s['tokens_out']:,}",
+            "Est. Cost (USD)": f"${cost:.4f}",
+            "Avg Quality":    avg_score,
+            "Memory Entries": mem_counts.get(ns, 0),
+        })
+
+    # Top-line metrics
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total Runs",       sum(s["runs"] for s in ns_stats.values()))
+    c2.metric("Total Namespaces", len(ns_stats))
+    c3.metric("Total Tokens",     f"{sum(s['tokens_in']+s['tokens_out'] for s in ns_stats.values()):,}")
+    c4.metric("Total Est. Cost",  f"${total_cost:.4f}")
+
+    st.markdown("---")
+    st.dataframe(rows, use_container_width=True)
+
+    # Bar chart — tokens by namespace
+    if len(rows) > 1:
+        try:
+            import plotly.graph_objects as go
+            ns_labels = [r["Namespace"] for r in rows]
+            tok_in  = [ns_stats[r["Namespace"]]["tokens_in"]  for r in rows]
+            tok_out = [ns_stats[r["Namespace"]]["tokens_out"] for r in rows]
+            fig = go.Figure(data=[
+                go.Bar(name="Input Tokens",  x=ns_labels, y=tok_in,  marker_color=PRIMARY),
+                go.Bar(name="Output Tokens", x=ns_labels, y=tok_out, marker_color="#5a9e56"),
+            ])
+            fig.update_layout(
+                barmode="stack",
+                title="Token Consumption by Namespace",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font_color=tv["TEXT"],
+                legend=dict(bgcolor="rgba(0,0,0,0)"),
+                margin=dict(l=0, r=0, t=40, b=0),
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        except ImportError:
+            pass
+
+    st.caption("Token pricing: ~$3/M input, ~$15/M output (Claude Sonnet 4.6). Actual costs may vary.")
