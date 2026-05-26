@@ -51,9 +51,10 @@ def build_context(
     """
     char_budget = max_tokens * 4
     parts: list[str] = []
+    seen_keys: set[str] = set()  # deduplicate entries across tiers
 
     # Tier 1: namespace summary (cheap, cached)
-    summary = _get_namespace_summary(namespace)
+    summary, seen_keys = _get_namespace_summary(namespace)
     if summary:
         parts.append(summary)
         char_budget -= len(summary)
@@ -65,9 +66,9 @@ def build_context(
             parts.append(recent)
             char_budget -= len(recent)
 
-    # Tier 3: query-relevant memories (hybrid retrieval)
+    # Tier 3: query-relevant memories (hybrid retrieval) — skip keys already in Tier 1
     if char_budget > 300 and query.strip():
-        relevant = _get_relevant_memories(namespace, query, budget_chars=char_budget)
+        relevant = _get_relevant_memories(namespace, query, budget_chars=char_budget, exclude_keys=seen_keys)
         if relevant:
             parts.append(relevant)
 
@@ -77,38 +78,42 @@ def build_context(
     return "\n\n".join(parts)
 
 
-def _get_namespace_summary(namespace: str) -> str:
-    """Return cached namespace summary paragraph."""
+def _get_namespace_summary(namespace: str) -> tuple[str, set[str]]:
+    """Return cached namespace summary paragraph and set of included keys."""
     cached = _ns_summary_cache.get(namespace)
     if cached:
         result, expiry = cached
         if time.monotonic() < expiry:
-            return result
+            # Re-derive seen keys from cached text (cheap string parse)
+            seen = {line.split("] ", 1)[-1].split(":")[0].strip()
+                    for line in result.splitlines() if line.startswith("- [")}
+            return result, seen
 
     try:
         from memory import store
-        # Get top high-confidence entries as summary base
         entries = store.get_context_for_agent(namespace, min_confidence=0.85, limit=8)
         global_entries = store.get_context_for_agent("global", min_confidence=0.85, limit=4)
 
         all_entries = entries + [e for e in global_entries if e.namespace == "global"]
+        seen: set[str] = set()
         if not all_entries:
             result = ""
         else:
             lines = [f"## Namespace Context [{namespace}]"]
             for e in all_entries[:10]:
-                ns_label = f" [global]" if e.namespace == "global" else ""
+                ns_label = " [global]" if e.namespace == "global" else ""
                 lines.append(f"- [{e.category}]{ns_label} {e.key}: {e.value}")
+                seen.add(e.key)
             result = "\n".join(lines)
 
         _ns_summary_cache[namespace] = (result, time.monotonic() + _NS_CACHE_TTL)
         if len(_ns_summary_cache) > _NS_CACHE_MAX:
             for k in list(_ns_summary_cache.keys())[:_NS_CACHE_MAX // 5]:
                 _ns_summary_cache.pop(k, None)
-        return result
+        return result, seen
     except Exception as e:
         logger.warning("namespace summary failed for %s: %s", namespace, e)
-        return ""
+        return "", set()
 
 
 def _get_recent_interactions(namespace: str, budget_chars: int = 600) -> str:
@@ -156,8 +161,9 @@ def _get_recent_interactions(namespace: str, budget_chars: int = 600) -> str:
         return ""
 
 
-def _get_relevant_memories(namespace: str, query: str, budget_chars: int = 800) -> str:
-    """Return top-5 memories most semantically relevant to the query."""
+def _get_relevant_memories(namespace: str, query: str, budget_chars: int = 800, exclude_keys: set[str] | None = None) -> str:
+    """Return top-5 memories most semantically relevant to the query, excluding already-injected keys."""
+    _skip = exclude_keys or set()
     try:
         from memory.retriever import hybrid_search
 
@@ -167,6 +173,8 @@ def _get_relevant_memories(namespace: str, query: str, budget_chars: int = 800) 
 
         lines = ["## Relevant Memory"]
         for e in hits:
+            if e.key in _skip:
+                continue
             line = f"- [{e.category}] {e.key}: {e.value}"
             if len("\n".join(lines)) + len(line) > budget_chars:
                 break
@@ -175,7 +183,6 @@ def _get_relevant_memories(namespace: str, query: str, budget_chars: int = 800) 
         return "\n".join(lines) if len(lines) > 1 else ""
     except Exception as e:
         logger.debug("relevant memories failed for %s: %s", namespace, e)
-        # Fallback to basic search
         try:
             from memory import engine as mem
             entries = mem.search_semantic(query, namespace, top_k=5, min_confidence=0.5)
@@ -183,7 +190,8 @@ def _get_relevant_memories(namespace: str, query: str, budget_chars: int = 800) 
                 return ""
             lines = ["## Relevant Memory"]
             for e in entries:
-                lines.append(f"- [{e.category}] {e.key}: {e.value}")
-            return "\n".join(lines)
+                if e.key not in _skip:
+                    lines.append(f"- [{e.category}] {e.key}: {e.value}")
+            return "\n".join(lines) if len(lines) > 1 else ""
         except Exception:
             return ""
