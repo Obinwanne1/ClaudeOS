@@ -94,7 +94,19 @@ def _get_namespace_summary(namespace: str) -> tuple[str, set[str]]:
         entries = store.get_context_for_agent(namespace, min_confidence=0.85, limit=8)
         global_entries = store.get_context_for_agent("global", min_confidence=0.85, limit=4)
 
-        all_entries = entries + [e for e in global_entries if e.namespace == "global"]
+        # Deduplicate by key — when namespace=="global", entries and global_entries overlap
+        _seen_keys: set[str] = set()
+        all_entries = []
+        for e in entries:
+            if e.key not in _seen_keys:
+                all_entries.append(e)
+                _seen_keys.add(e.key)
+        if namespace != "global":
+            for e in global_entries:
+                if e.namespace == "global" and e.key not in _seen_keys:
+                    all_entries.append(e)
+                    _seen_keys.add(e.key)
+
         seen: set[str] = set()
         if not all_entries:
             result = ""
