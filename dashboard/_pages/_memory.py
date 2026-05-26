@@ -5,7 +5,7 @@ from dashboard.components.brand import get_theme_vars
 
 _API_BASE = "http://localhost:5000/api/v1"
 
-NAMESPACES = ["global", "reci-transport", "ivycandy-hair", "faiyke-ai", "personal"]
+NAMESPACES: list[str] = []  # populated dynamically from API
 CATEGORIES = ["fact", "decision", "context", "preference", "reminder", "insight"]
 
 
@@ -14,12 +14,12 @@ def _auth_headers() -> dict:
     return {"Authorization": f"Bearer {token}"} if token else {}
 
 
-def _available_namespaces() -> list[str]:
+def _available_namespaces(all_ns: list[str] | None = None) -> list[str]:
     role    = st.session_state.get("user_role", "admin")
     user_ns = st.session_state.get("user_namespace")
     if role in ("client", "viewer") and user_ns:
         return [user_ns]
-    return NAMESPACES
+    return sorted(all_ns or NAMESPACES)
 
 
 def _bulk_toolbar(ids: list, label: str, bulk_delete_fn, endpoint: str):
@@ -62,17 +62,18 @@ def _bulk_toolbar(ids: list, label: str, bulk_delete_fn, endpoint: str):
 def render(api_get, api_post, bulk_delete=None):
     st.title("🧠 Memory")
 
-    role         = st.session_state.get("user_role", "admin")
-    available_ns = _available_namespaces()
+    role = st.session_state.get("user_role", "admin")
 
     ns_data = api_get("/memory/namespaces")
     counts  = ns_data.get("namespaces", {}) if ns_data else {}
+    available_ns = _available_namespaces(all_ns=list(counts.keys()))
     total   = sum(counts.get(ns, 0) for ns in available_ns)
     st.markdown(f"**{total} total entries** across {len(available_ns)} namespace(s)")
 
-    cols = st.columns(len(available_ns))
-    for col, ns in zip(cols, available_ns):
-        col.metric(ns, counts.get(ns, 0))
+    if available_ns:
+        cols = st.columns(min(len(available_ns), 6))
+        for col, ns in zip(cols, available_ns):
+            col.metric(ns, counts.get(ns, 0))
 
     st.markdown("---")
 
