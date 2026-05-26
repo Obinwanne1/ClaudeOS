@@ -809,7 +809,7 @@ def theme_toggle():
         dot_html = ""
 
     btn_css = (
-        f"position:fixed;bottom:24px;left:16px;z-index:2147483647;"
+        f"position:fixed;bottom:24px;left:220px;z-index:2147483647;"
         f"width:44px;height:44px;border-radius:50%;"
         f"display:flex;align-items:center;justify-content:center;"
         f"background:{btn_bg};border:{btn_border};"
