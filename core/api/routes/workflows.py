@@ -103,6 +103,31 @@ def get_run(run_id: str):
     return jsonify(run)
 
 
+@workflows_bp.delete("/runs/<run_id>")
+@require_api_key
+def delete_run(run_id: str):
+    from core.database import get_db
+    with get_db() as conn:
+        result = conn.execute("DELETE FROM workflow_runs WHERE id=?", (run_id,))
+    if result.rowcount == 0:
+        return jsonify({"error": "Run not found"}), 404
+    return jsonify({"deleted": run_id})
+
+
+@workflows_bp.delete("/runs")
+@require_api_key
+def bulk_delete_runs():
+    body = request.get_json(silent=True) or {}
+    ids = body.get("ids", [])
+    if not ids:
+        return jsonify({"error": "No ids provided"}), 400
+    from core.database import get_db
+    placeholders = ",".join("?" * len(ids))
+    with get_db() as conn:
+        conn.execute(f"DELETE FROM workflow_runs WHERE id IN ({placeholders})", ids)
+    return jsonify({"deleted": len(ids)})
+
+
 @workflows_bp.get("/scheduler/jobs")
 @require_api_key
 def list_scheduler_jobs():

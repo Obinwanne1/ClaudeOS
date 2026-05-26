@@ -221,7 +221,7 @@ def api_post(path: str, data: dict = None, timeout: int = 5, method: str = "POST
     try:
         fn = {"POST": requests.post, "PATCH": requests.patch, "PUT": requests.put, "DELETE": requests.delete}.get(method, requests.post)
         kwargs = {"headers": _get_headers(), "timeout": timeout}
-        if method != "DELETE" and data is not None:
+        if data is not None:
             kwargs["json"] = data
         r = fn(f"{API_BASE}{path}", **kwargs)
         if r.status_code == 401:

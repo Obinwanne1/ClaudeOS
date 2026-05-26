@@ -12,7 +12,7 @@ def render(api_get, api_post, bulk_delete=None):
         _render_workflow_list(api_get, api_post)
 
     with tab_runs:
-        _render_run_history(api_get)
+        _render_run_history(api_get, api_post)
 
     with tab_scheduler:
         _render_scheduler(api_get, api_post)
@@ -97,7 +97,7 @@ def _render_workflow_list(api_get, api_post):
                     st.rerun()
 
 
-def _render_run_history(api_get):
+def _render_run_history(api_get, api_post=None):
     col1, col2 = st.columns([3, 1])
     with col1:
         st.subheader("Recent Runs")
@@ -113,33 +113,80 @@ def _render_run_history(api_get):
 
     status_icons = {"done": "✅", "failed": "❌", "running": "⏳", "pending": "⏸️"}
 
+    # Bulk delete toolbar
+    if api_post:
+        sel_key = "wf_runs_selected"
+        if sel_key not in st.session_state:
+            st.session_state[sel_key] = set()
+
+        bcol1, bcol2, bcol3 = st.columns([2, 2, 4])
+        with bcol1:
+            if st.button("☑ Select failed", use_container_width=True):
+                st.session_state[sel_key] = {r["id"] for r in runs_data if r.get("status") == "failed" and r.get("id")}
+                st.rerun()
+        with bcol2:
+            if st.button("✖ Clear selection", use_container_width=True):
+                st.session_state[sel_key] = set()
+                st.rerun()
+        with bcol3:
+            n_sel = len(st.session_state[sel_key])
+            if n_sel and st.button(f"🗑️ Delete selected ({n_sel})", use_container_width=True, type="primary"):
+                result = api_post("/workflows/runs", data={"ids": list(st.session_state[sel_key])}, method="DELETE")
+                if result:
+                    st.session_state[sel_key] = set()
+                    st.success(f"Deleted {result.get('deleted', n_sel)} runs.")
+                    st.rerun()
+                else:
+                    st.error("Bulk delete failed.")
+        st.markdown("---")
+
     for run in runs_data[:30]:
+        full_run_id = run.get("id", "")
         sicon = status_icons.get(run.get("status", ""), "•")
         wf_id = run.get("workflow_id", "")[:8]
-        run_id = run.get("id", "")[:8]
+        run_id_short = full_run_id[:8]
         started = (run.get("started_at") or "")[:16]
         dur = run.get("duration_ms")
         dur_str = f"{dur}ms" if dur else "—"
         ns = run.get("context", {}).get("namespace", "global") if isinstance(run.get("context"), dict) else "global"
 
-        with st.expander(f"{sicon} `{run_id}…` · workflow `{wf_id}…` · `{ns}` · {started} · {dur_str}"):
-            steps = run.get("steps_log") or []
-            if steps:
-                step_rows = []
-                for s in steps:
-                    step_rows.append({
-                        "Step": s.get("step_id", ""),
-                        "Agent": s.get("agent_name", ""),
-                        "Status": s.get("status", ""),
-                        "Tokens": f"{s.get('tokens_in',0)}+{s.get('tokens_out',0)}",
-                        "ms": s.get("duration_ms", 0),
-                    })
-                st.table(step_rows)
-            if run.get("error"):
-                st.error(run["error"])
-            if run.get("output"):
-                st.markdown("**Output preview:**")
-                st.text(str(run["output"])[:500])
+        row_col, chk_col = st.columns([11, 1])
+        with chk_col:
+            if api_post and full_run_id:
+                checked = full_run_id in st.session_state.get("wf_runs_selected", set())
+                if st.checkbox("", value=checked, key=f"chk_{full_run_id}", label_visibility="collapsed"):
+                    st.session_state.setdefault("wf_runs_selected", set()).add(full_run_id)
+                else:
+                    st.session_state.setdefault("wf_runs_selected", set()).discard(full_run_id)
+
+        with row_col:
+            with st.expander(f"{sicon} `{run_id_short}…` · workflow `{wf_id}…` · `{ns}` · {started} · {dur_str}"):
+                steps = run.get("steps_log") or []
+                if steps:
+                    step_rows = []
+                    for s in steps:
+                        step_rows.append({
+                            "Step": s.get("step_id", ""),
+                            "Agent": s.get("agent_name", ""),
+                            "Status": s.get("status", ""),
+                            "Tokens": f"{s.get('tokens_in',0)}+{s.get('tokens_out',0)}",
+                            "ms": s.get("duration_ms", 0),
+                        })
+                    st.table(step_rows)
+                if run.get("error"):
+                    st.error(run["error"])
+                if run.get("output"):
+                    st.markdown("**Output preview:**")
+                    st.text(str(run["output"])[:500])
+                if api_post and full_run_id:
+                    if st.button("🗑️ Delete this run", key=f"del_run_{full_run_id}", type="secondary"):
+                        result = api_post(f"/workflows/runs/{full_run_id}", method="DELETE")
+                        if result:
+                            st.session_state.get("wf_runs_selected", set()).discard(full_run_id)
+                            st.success("Run deleted.")
+                            st.rerun()
+                        else:
+                            st.error("Delete failed.")
 
 
 def _render_scheduler(api_get, api_post):
