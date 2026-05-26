@@ -141,35 +141,48 @@ def run_agent(agent_name: str):
     }), 202
 
 
-@agents_bp.get("/<agent_name>/stream")
+def _parse_stream_inputs():
+    """Parse prompt/namespace/context/messages/images from GET params or POST JSON body."""
+    if request.method == "POST":
+        body = request.get_json(silent=True) or {}
+        prompt = (body.get("prompt") or "").strip()
+        namespace = body.get("namespace", "global")
+        context = body.get("context") or {}
+        messages = body.get("messages") or None
+        images = body.get("images") or None
+    else:
+        prompt = request.args.get("prompt", "").strip()
+        namespace = request.args.get("namespace", "global")
+        try:
+            context = json.loads(request.args.get("context", "{}"))
+        except Exception:
+            context = {}
+        messages_raw = request.args.get("messages")
+        try:
+            messages = json.loads(messages_raw) if messages_raw else None
+        except Exception:
+            messages = None
+        images = None
+    return prompt, namespace, context, messages, images
+
+
+@agents_bp.route("/<agent_name>/stream", methods=["GET", "POST"])
 @require_auth
 @limiter.limit("20 per minute")
 def stream_agent(agent_name: str):
-    """SSE streaming endpoint — Phase 10.1.
+    """SSE streaming endpoint — Phase 10.1 + 13.2 (image support via POST).
 
-    Returns Server-Sent Events with token-by-token streaming.
-    Query params: prompt (required), namespace, context (JSON)
+    GET:  query params (prompt, namespace, context, messages)
+    POST: JSON body (prompt, namespace, context, messages, images)
 
     SSE event format:
         data: {"type": "token", "text": "..."}
         data: {"type": "done", "tokens_in": N, "tokens_out": N}
         data: {"type": "error", "message": "..."}
     """
-    prompt = request.args.get("prompt", "").strip()
+    prompt, namespace, context, messages, images = _parse_stream_inputs()
     if not prompt:
-        return jsonify({"error": "prompt query param required"}), 400
-
-    namespace = request.args.get("namespace", "global")
-    try:
-        context = json.loads(request.args.get("context", "{}"))
-    except Exception:
-        context = {}
-
-    messages_raw = request.args.get("messages")
-    try:
-        messages = json.loads(messages_raw) if messages_raw else None
-    except Exception:
-        messages = None
+        return jsonify({"error": "prompt required"}), 400
 
     agent = registry.get_by_name(agent_name)
     if not agent:
@@ -207,6 +220,7 @@ def stream_agent(agent_name: str):
                 temperature=agent.temperature,
                 context=context,
                 messages=messages,
+                images=images,
             ):
                 if isinstance(chunk, dict) and chunk.get("_done"):
                     tokens_in = chunk["tokens_in"]

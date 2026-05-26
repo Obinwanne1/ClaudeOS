@@ -231,8 +231,18 @@ def _stream_response(
     meta: dict = {"tokens_in": 0, "tokens_out": 0}
     start = time.monotonic()
 
+    # Use POST when images present (GET can't carry body); GET otherwise
+    if images:
+        body = {"prompt": prompt, "namespace": namespace}
+        if messages:
+            body["messages"] = messages
+        body["images"] = images
+        req_ctx = requests.post(url, json=body, headers=headers, stream=True, timeout=120)
+    else:
+        req_ctx = requests.get(url, params=params, headers=headers, stream=True, timeout=120)
+
     try:
-        with requests.get(url, params=params, headers=headers, stream=True, timeout=120) as resp:
+        with req_ctx as resp:
             if not resp.ok:
                 st.error(f"Stream error: {resp.status_code}")
                 return "", {}
