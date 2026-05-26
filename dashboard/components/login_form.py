@@ -218,8 +218,9 @@ def _do_login(username: str, password: str) -> None:
         st.session_state["user_id"]             = user["id"]
         st.session_state["username"]            = user["username"]
         st.session_state["user_role"]           = user["role"]
-        st.session_state["user_namespace"]      = user.get("namespace")
+        st.session_state["user_namespace"]       = user.get("namespace")
         st.session_state["must_change_password"] = data.get("must_change_password", False)
+        st.session_state["_onboarding_done"]     = bool(user.get("onboarding_done", False))
         # Persist session to Flask store — key in URL survives page refresh
         try:
             _sr = requests.post(

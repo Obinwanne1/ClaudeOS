@@ -388,6 +388,23 @@ def _user_public(user: dict) -> dict:
         "namespace": user.get("namespace"),
         "is_active": bool(user["is_active"]),
         "must_change_password": bool(user.get("must_change_password")),
+        "onboarding_done": bool(user.get("onboarding_done", 0)),
         "last_login_at": user.get("last_login_at"),
         "created_at": user.get("created_at"),
     }
+
+
+# ── POST /auth/onboarding-done ────────────────────────────────────────────────
+
+@auth_bp.post("/onboarding-done")
+@require_auth
+def mark_onboarding_done():
+    from flask import g as _g
+    if _g.user_id.startswith("apikey:"):
+        return jsonify({"ok": True})  # API key users — no-op
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE users SET onboarding_done = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (_g.user_id,),
+        )
+    return jsonify({"ok": True})

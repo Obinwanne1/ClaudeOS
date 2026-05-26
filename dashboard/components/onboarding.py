@@ -3,9 +3,29 @@
 Each slide occupies the ENTIRE page. Nothing else renders until the user
 clicks through (or skips). Uses st.stop() to block the rest of app.py.
 
-Only shown for client/viewer roles, once per session.
+Only shown for client/viewer roles, once ever (persisted to DB).
 """
+import os
+import requests
 import streamlit as st
+
+_FLASK_PORT = os.environ.get("FLASK_PORT", "5000")
+_API_BASE = f"http://localhost:{_FLASK_PORT}/api/v1"
+
+
+def _persist_onboarding_done() -> None:
+    """Mark onboarding complete in the DB so it never shows again after re-login."""
+    token = st.session_state.get("jwt_token", "")
+    if not token:
+        return
+    try:
+        requests.post(
+            f"{_API_BASE}/auth/onboarding-done",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=3,
+        )
+    except Exception:
+        pass
 from dashboard.components.brand import get_theme_vars, get_ns_brand, PRIMARY, ACCENT
 
 _SLIDES = [
@@ -215,6 +235,7 @@ def _render_slide() -> None:
 
     with col_skip:
         if st.button("Skip tour", key="_ob_skip", use_container_width=True):
+            _persist_onboarding_done()
             st.session_state["_onboarding_done"] = True
             st.session_state.pop("_onboarding_slide", None)
             st.rerun()
@@ -229,6 +250,7 @@ def _render_slide() -> None:
         label = "Enter Dashboard →" if is_last else f"Next: {_SLIDES[slide_idx + 1]['step_label']} →"
         if st.button(label, key="_ob_next", use_container_width=True, type="primary"):
             if is_last:
+                _persist_onboarding_done()
                 st.session_state["_onboarding_done"] = True
                 st.session_state.pop("_onboarding_slide", None)
             else:
