@@ -97,7 +97,12 @@
       "Bash(Invoke-RestMethod -Uri \"http://localhost:5000/api/v1/health\" -Method GET)",
       "Bash(ls C:/Users/rigwe/Desktop/ClaudeOS/*.pdf)",
       "Bash(where wkhtmltopdf:*)",
-      "Bash(ls C:\\\\Users\\\\rigwe\\\\Desktop\\\\ClaudeOS/*.pdf)"
+      "Bash(ls C:\\\\Users\\\\rigwe\\\\Desktop\\\\ClaudeOS/*.pdf)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(findstr \":5000 \\\\|:8501 \")",
+      "Bash(Start-Process powershell:*)",
+      "Bash(pandoc --version)"
     ]
   }
 }
