@@ -112,12 +112,17 @@ def _render_users(api_get, api_post, ns_data=None):
             sel_user = next((u for u in users if u["username"] == sel_usernames[0]), None)
             if sel_user:
                 uid = sel_user["id"]
+                is_locked = bool(sel_user.get("locked_until"))
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    if st.button("Unlock account", key=f"unlock_{uid}", use_container_width=True):
-                        r = api_post(f"/admin/users/{uid}/unlock", {})
-                        st.success("Unlocked." if r else "Failed.")
-                        st.rerun()
+                    if is_locked:
+                        st.warning(f"🔒 Account locked until {str(sel_user['locked_until'])[:16]}")
+                        if st.button("Unlock account", key=f"unlock_{uid}", use_container_width=True, type="primary"):
+                            r = api_post(f"/admin/users/{uid}/unlock", {})
+                            st.success("Account unlocked." if r else "Failed to unlock.")
+                            st.rerun()
+                    else:
+                        st.info("Account is not locked.")
                 with col2:
                     if sel_user.get("is_active"):
                         if st.button("Deactivate", key=f"deact_{uid}", use_container_width=True):
