@@ -124,14 +124,24 @@ def execute(
             "stop_reason": response.stop_reason,
         }
 
-        # Save to agent_runs
+        # Save to agent_runs — update input to include injected mem_context for auditability
         with get_db() as conn:
+            row = conn.execute("SELECT input FROM agent_runs WHERE id=?", (run_id,)).fetchone()
+            if row:
+                try:
+                    inp = json.loads(row["input"] or "{}")
+                    inp["mem_context"] = mem_context[:3000] if mem_context else ""
+                    updated_input = json.dumps(inp)
+                except Exception:
+                    updated_input = row["input"]
+            else:
+                updated_input = None
             conn.execute(
                 """UPDATE agent_runs SET
-                   output=?, status='done', tokens_in=?, tokens_out=?,
+                   input=?, output=?, status='done', tokens_in=?, tokens_out=?,
                    duration_ms=?, completed_at=?
                    WHERE id=?""",
-                (json.dumps(output), tokens_in, tokens_out, duration_ms, utcnow_str(), run_id),
+                (updated_input, json.dumps(output), tokens_in, tokens_out, duration_ms, utcnow_str(), run_id),
             )
 
         # Auto-save to Output Manager
@@ -177,6 +187,8 @@ def execute(
                 "UPDATE agent_runs SET status='failed', error=?, duration_ms=?, completed_at=? WHERE id=?",
                 (error_msg, duration_ms, utcnow_str(), run_id),
             )
+        # Log failure to error_log memory entry for audit trail
+        _bg_pool.submit(_log_failure_to_memory, agent_name, namespace, error_msg, run_id)
         return {"status": "failed", "error": error_msg, "duration_ms": duration_ms}
 
 
@@ -381,6 +393,32 @@ def _trigger_eval(run_id: str, prompt: str, output_text: str, context: str) -> N
         evaluate_async(run_id, prompt, output_text, context)
     except Exception as e:
         logger.debug("Eval trigger failed: %s", e)
+
+
+def _log_failure_to_memory(agent_name: str, namespace: str, error_msg: str, run_id: str) -> None:
+    """Append agent failure to global error_log memory entry for audit trail."""
+    try:
+        from core.utils import new_id, utcnow_str
+        from core.database import get_db
+        ts = utcnow_str()[:16]
+        entry = f"[{ts}] {agent_name} (ns={namespace}, run={run_id[:8]}): {error_msg[:200]}"
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT id, value FROM memory_entries WHERE key='error_log' AND namespace='global' AND archived=0"
+            ).fetchone()
+            if row:
+                new_val = row["value"] + f"\n{entry}"
+                conn.execute(
+                    "UPDATE memory_entries SET value=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                    (new_val, row["id"]),
+                )
+            else:
+                conn.execute(
+                    "INSERT INTO memory_entries (id, namespace, category, key, value, confidence, tags, archived, is_consolidated) VALUES (?,?,?,?,?,?,?,0,0)",
+                    (new_id(), "global", "context", "error_log", entry, 0.9, "errors,audit"),
+                )
+    except Exception as ex:
+        logger.debug("Failed to log failure to memory: %s", ex)
 
 
 def _update_run_status(run_id: str, status: str) -> None:
