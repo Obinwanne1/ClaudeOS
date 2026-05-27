@@ -125,6 +125,11 @@ Layer 13: Multimodal (multi-turn chat, image analysis, voice input, live dashboa
 - Observability has 5 tabs: Quality Scores, Latency, Token Cost, Memory Health, Namespace Usage
 - Admin Panel has 6 tabs: Users, API Keys, Audit Log, Sessions, Security, Client Onboarding
 - Admin unlock: Unlock button only shown when user is actually locked (context-aware UI since commit eba9751)
+- Admin Edit User: `@st.dialog` modal — change role, namespace, email, active status, force-pw flag (commit 528346c)
+- Admin Delete User: `@st.dialog` permanent-delete modal — hard-deletes user + sessions + auth events; guarded against deleting last admin (commit 528346c)
+- Admin Users action bar: 5 columns — Unlock/Status | Deactivate/Reactivate | Reset Password | Edit | Delete
+- `_ALLOWED_USER_UPDATES` in admin_routes.py: whitelist includes `role`, `namespace`, `is_active`, `email`, `must_change_password` — SQL column names never taken from request keys directly
+- Onboarding tour: only shown to `client` and `viewer` roles — `admin`, `operator`, `staff` skip it entirely
 
 ## Phase 10-13 Rules
 - SSE streaming: `execute_stream()` in executor.py is a generator — yields text chunks. Flask wraps with `stream_with_context`. Never buffer the full response.
@@ -231,3 +236,5 @@ python scripts/seed_client_schema.py --namespace <client-slug>   # optional: pre
   - Onboarding tour (first login only, persists via migration 018 onboarding_done column)
   - Client Onboarding tab in Admin Panel: 14-field schema seed per namespace
   - Admin unlock: context-aware button only shown when user is actually locked
+  - Admin Edit User + Delete User: `@st.dialog` modals, 5-column action bar (commit 528346c)
+  - Onboarding tour role-gated: `client` and `viewer` only

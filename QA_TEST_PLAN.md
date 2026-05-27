@@ -431,18 +431,36 @@ Invoke-WebRequest -Uri "http://localhost:5000/api/v1/health" `
    - Allow self-registration (toggle)
 2. Change a value → Save → **Expected:** Success message, value persists on refresh
 
-### 10.6 Cleanup test data
-1. Delete `qa_test_user` from Users tab
+### 10.6 Edit User
+1. In Users tab, select any non-admin user from the dropdown
+2. Click **✏️ Edit** button
+3. **Expected:** Dialog opens with current values pre-filled (role, namespace, email, active, force-pw)
+4. Change Role to `viewer`, tick **Force password change on next login**
+5. Click **Save changes**
+6. **Expected:** Toast "User updated", dialog closes, table reflects new values
+7. Reopen Edit → verify saved values persist
+
+### 10.7 Delete User (Permanent)
+1. Create a fresh test user `qa_delete_test` / `TestUser123!` / role=viewer
+2. Select it from the Users dropdown
+3. Click **🗑 Delete** button
+4. **Expected:** Dialog opens: "Permanently delete qa_delete_test?"
+5. Click **Yes, delete permanently**
+6. **Expected:** Toast "User permanently deleted", dialog closes, user absent from table
+7. Verify: try to log in as `qa_delete_test` → **Expected:** "Invalid credentials" (user gone from DB)
+
+### 10.8 Cleanup test data
+1. Delete `qa_test_user` from Users tab (if not already deleted in 10.7)
 2. Revoke `QA Test Key` from API Keys tab
 
-### 10.7 Client Onboarding Tab
+### 10.9 Client Onboarding Tab
 1. Click **Client Onboarding** tab (6th tab in Admin Panel)
 2. **Expected:** Dropdown of client namespaces (not global/personal — client-type only)
 3. Select a namespace → 14 fields appear (business name, industry, primary goals, brand tone, SLA tier, contact name, contact email, timezone, preferred language, custom instructions, etc.)
 4. Fill in 2–3 fields → click **Save**
 5. **Expected:** Success message; navigate away and return — values persist
 
-### 10.8 Admin Unlock (Context-Aware)
+### 10.10 Admin Unlock (Context-Aware)
 1. In Users tab, find a user that is NOT locked
 2. **Expected:** No "Unlock" button visible for unlocked users (button only appears when locked)
 3. Lock a test account by logging in with wrong password 5 times (from Section 0.4)
@@ -469,12 +487,13 @@ These apply to ALL pages.
 3. Switch back — state persists during session
 
 ### 11.5 Onboarding Tour (first-time user)
-1. Create a brand-new user with a fresh namespace
+1. Create a brand-new user with role `client` or `viewer` (tour ONLY shows for these two roles — admin/operator/staff skip it entirely)
 2. Log in as that user for the first time
-3. **Expected:** Onboarding tour/modal appears
+3. **Expected:** Onboarding tour/modal appears with 5 slides (Welcome, Agents, Memory, Tickets, Usage)
 4. Click through or dismiss it
 5. Log out, log back in
 6. **Expected:** Onboarding does NOT appear again (persisted via `onboarding_done` DB column)
+7. **If tour doesn't appear:** Check role — must be `client` or `viewer`. Admin can fix via Users tab → ✏️ Edit → change role
 
 ### 11.3 Error Handling
 For each page, check:
@@ -506,7 +525,11 @@ Invoke-WebRequest "http://localhost:5000/api/v1/agents" -Headers @{"X-API-Key" =
 | Onboarding shows again after logout/re-login | `03366f6` | Complete onboarding, logout, log back in — tour does NOT appear again |
 | Memory namespace list hardcoded to local path | `5423ba2` | Memory page namespace filter populates from API, not error |
 | Context tiers duplicated when namespace==global | `70860f2` | Run agent in global namespace — no duplicate context in prompt |
-| Admin unlock button always visible (not context-aware) | `eba9751` | Section 10.8 — Unlock only shown for actually-locked users |
+| Admin unlock button always visible (not context-aware) | `eba9751` | Section 10.10 — Unlock only shown for actually-locked users |
+| Delete User broken (session-state confirm + nested columns) | `528346c` | Section 10.7 — Delete dialog opens, permanent delete works |
+| Edit User missing | `528346c` | Section 10.6 — Edit dialog opens, all fields save correctly |
+| must_change_password silently dropped on PATCH | `528346c` | Section 10.6 — Force password change toggle saves via Edit dialog |
+| Reactivate user broken (api_post PATCH) | `528346c` | Section 10.1 — Deactivate then Reactivate works without error |
 
 ---
 
@@ -591,9 +614,11 @@ SECTION 10 — ADMIN
   10.3 Audit Log               [ ]
   10.4 Sessions                [ ]
   10.5 Security Settings       [ ]
-  10.6 Cleanup                 [ ]
-  10.7 Client Onboarding Tab   [ ]
-  10.8 Admin Unlock (ctx-aware)[ ]
+  10.6 Edit User (dialog)      [ ]
+  10.7 Delete User (permanent) [ ]
+  10.8 Cleanup                 [ ]
+  10.9 Client Onboarding Tab   [ ]
+  10.10 Admin Unlock (ctx-aware)[ ]
 
 SECTION 11 — CROSS-CUTTING
   11.1 Role Scoping            [ ]

@@ -623,7 +623,11 @@ Every deployment built by this skill includes all of the following. Nothing is c
 - Tickets — create, assign, comment (lazy-loaded), SLA tracking, bulk ops
 - Observability — 5 tabs: Quality Scores, Latency (p50/p95/p99), Token Cost, Memory Health, Namespace Usage (cross-namespace comparison)
 - Settings — env config, sync controls (Supabase)
-- Admin Panel — 6 tabs: Users (context-aware unlock), API Keys, Audit Log, Sessions, Security config, Client Onboarding (14-field schema seed)
+- Admin Panel — 6 tabs: Users, API Keys, Audit Log, Sessions, Security config, Client Onboarding (14-field schema seed)
+  - Users tab 5-column action bar: Unlock/Status | Deactivate/Reactivate | Reset Password | ✏️ Edit | 🗑 Delete
+  - Edit User: `@st.dialog` modal — change role, namespace, email, active status, force-pw-change flag
+  - Delete User: `@st.dialog` permanent-delete confirmation — hard-deletes user + sessions + auth events; last-admin guard
+  - Context-aware unlock: Unlock button only shown when user is actually locked
 
 ### API Endpoints (Key)
 | Endpoint | Description |
@@ -647,6 +651,8 @@ Every deployment built by this skill includes all of the following. Nothing is c
 | `POST /tickets` | Create ticket |
 | `GET /system/status` | System health |
 | `GET /health` | Public health check |
+| `DELETE /admin/users/<user_id>/permanent` | Hard-delete user + sessions + auth events (admin only; last-admin guard) |
+| `PATCH /admin/users/<user_id>` | Update user fields: role, namespace, email, is_active, must_change_password |
 
 ### Migrations (018 total)
 | Migration | Content |
@@ -714,6 +720,9 @@ After the system is running, offer these optional additions:
 | MCP server not found | `pip install mcp uvicorn`; run `.\scripts\start_mcp.ps1` |
 | Port conflict on startup | Run `netstat -ano \| findstr :<PORT>` to find PID, then `taskkill /F /PID <PID>` for each process on the port |
 | Onboarding tour shows every login | migration 018 not applied or POST /auth/onboarding-done not wired in login_form.py. Run `python scripts/migrate.py` and verify the endpoint is called on skip/complete |
+| Onboarding tour not showing for new user | Tour only triggers for `client` and `viewer` roles. Users with `admin`, `operator`, or `staff` role skip it. Change role to `viewer` or `client` via Admin → Users → Edit |
+| Edit User changes not saving | `must_change_password` and other fields must be in `_ALLOWED_USER_UPDATES` in admin_routes.py — whitelist enforced server-side |
+| Delete User button not working | Use `@st.dialog` decorator for confirmation modals — never `st.session_state` confirmation flags inside columns (Streamlit nested columns limitation) |
 | Analysis agent scope warning in logs | Scoped namespace check in analysis agent was too strict. Fixed in reference impl commit 8a36d10 |
 | Workflow run delete fails | DELETE /workflows/runs/<id> must be wired in routes/workflows.py. Fixed in reference impl commit 8a36d10 |
 | Theme toggle overlaps sidebar text | Toggle position must be `left:220px` (not `left:0` or right-side). Check brand.py theme_toggle() CSS — fixed in commit 86bbade |
