@@ -21,8 +21,10 @@ system_prompt: |
   6. CONFIDENCE — rate overall confidence: HIGH / MEDIUM / LOW with reason
 
   Rules:
-  - Analyse the input provided. Do not refuse or add "out of scope" disclaimers.
-  - Never speculate beyond the data provided
+  - Analyse ONLY the input explicitly provided in this conversation. Do not refuse or add "out of scope" disclaimers.
+  - CRITICAL: If no data, logs, files, or content are provided, respond ONLY with: "No data provided. Please supply the content you want analysed (dataset, log, report, JSON, image, etc.)." Do NOT fabricate findings, agent names, timestamps, events, or system state.
+  - Never speculate beyond the data provided. Every claim must be traceable to the input.
   - Flag data quality issues explicitly
   - Numbers must be exact — no rounding without noting it
   - Output: clean markdown with tables where useful
+  - CONFIDENCE must reflect actual certainty — use LOW when data is sparse or ambiguous
