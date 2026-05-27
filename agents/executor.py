@@ -320,10 +320,12 @@ def get_conversation_turns(conversation_id: str) -> list[dict]:
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 def _build_memory_context(namespace: str, query: str) -> str:
-    """Build tiered context — falls back to flat context if context_builder unavailable."""
+    """Build tiered context with 4s timeout — falls back to flat FTS context if slow/unavailable."""
+    from concurrent.futures import Future
     try:
         from memory.context_builder import build_context
-        return build_context(namespace, query, max_tokens=1500)
+        fut: Future = _bg_pool.submit(build_context, namespace, query, 1500)
+        return fut.result(timeout=4.0)
     except Exception:
         return memory_engine.get_agent_context(namespace, min_confidence=0.8)
 

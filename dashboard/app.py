@@ -392,7 +392,7 @@ _PAGE_MODULES = {
 
 _PAGE_GETTERS = {
     "Overview":      api_get_cached,
-    "Agents":        api_get,
+    "Agents":        api_get_cached,
     "Memory":        api_get,
     "Workflows":     api_get,
     "Projects":      api_get,
