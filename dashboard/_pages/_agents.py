@@ -106,20 +106,23 @@ def _render_chat_tab(agents: list, api_get, api_post):
         if uploaded:
             st.image(uploaded, width=140)
 
-        # Voice input
+        # Voice input — key includes clear-counter so widget resets on Clear
+        _audio_gen = st.session_state.get(f"_audio_gen_{sel_agent}", 0)
         st.markdown("**Voice Input**")
-        audio_data = st.audio_input("Record prompt", key=f"chat_audio_{sel_agent}",
+        audio_data = st.audio_input("Record prompt", key=f"chat_audio_{sel_agent}_{_audio_gen}",
                                      label_visibility="collapsed")
         if audio_data:
             _transcribe_audio(audio_data)
 
         st.markdown("---")
         def _do_clear():
-            _key = f"conv_{st.session_state.get('chat_agent', '')}_{st.session_state.get('chat_ns', '')}"
-            st.session_state.pop(_key, None)
-            st.session_state.pop(f"conv_id_{st.session_state.get('chat_agent', '')}", None)
-            st.session_state.pop(f"chat_audio_{st.session_state.get('chat_agent', '')}", None)
+            _agent = st.session_state.get('chat_agent', '')
+            _ns    = st.session_state.get('chat_ns', '')
+            st.session_state.pop(f"conv_{_agent}_{_ns}", None)
+            st.session_state.pop(f"conv_id_{_agent}", None)
             st.session_state.pop("_last_audio_hash", None)
+            # Increment counter → new key → audio widget re-renders blank
+            st.session_state[f"_audio_gen_{_agent}"] = st.session_state.get(f"_audio_gen_{_agent}", 0) + 1
 
         st.button("Clear conversation", key="chat_clear",
                   on_click=_do_clear, use_container_width=True)
