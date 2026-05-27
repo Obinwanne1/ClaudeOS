@@ -53,11 +53,13 @@ Layer 13: Multimodal (multi-turn chat, image analysis, voice input, live dashboa
 - `dashboard/components/brand.py` — CSS injection, theme toggle, all visual primitives
 - `dashboard/_pages/_agents.py` — Chat/Catalog/Runs tabs, streaming, image, voice, eval
 - `dashboard/_pages/_overview.py` — Live feed, auto-refresh, error alerts, eval score pills
-- `dashboard/_pages/_observability.py` — Quality trends, latency, tokens, memory health
+- `dashboard/_pages/_observability.py` — Quality trends, latency, tokens, memory health, namespace usage
 - `dashboard/_pages/_workflows.py` — Workflows + Webhooks tab
-- `dashboard/_pages/_admin.py` — Admin Panel UI (users, API keys, audit, sessions, security)
+- `dashboard/_pages/_admin.py` — Admin Panel UI (users, API keys, audit, sessions, security, client onboarding)
+- `dashboard/components/onboarding.py` — First-time user onboarding tour (persists to DB via migration 018)
 - `mcp/server.py` — MCP Tool Server, exposes 12 agents as MCP tools (port 5100)
 - `scripts/create_admin.py` — first-run admin seed script
+- `scripts/seed_client_schema.py` — pre-populate 14 onboarding fields for a client namespace (skips existing keys)
 - `scripts/start.ps1` — kills ports, starts Flask + Streamlit
 - `scripts/start_mcp.ps1` — starts MCP server on port 5100
 
@@ -98,6 +100,7 @@ Layer 13: Multimodal (multi-turn chat, image analysis, voice input, live dashboa
 - `agent_runs` — all run records + eval_score, eval_reasoning, eval_dimensions, eval_at (migration 014)
 - `agent_conversations` — multi-turn conversation sessions (migration 017)
 - `agent_conversation_turns` — individual turns with role, content, tokens (migration 017)
+- `users.onboarding_done` — column added by migration 018; POST /auth/onboarding-done marks it true
 
 **Memory Layer:**
 - `memory_entries` — all memory + context_prefix, is_consolidated, archived, consolidated_from (migration 015)
@@ -119,6 +122,9 @@ Layer 13: Multimodal (multi-turn chat, image analysis, voice input, live dashboa
 - Streaming: use `requests.get(..., stream=True)` + `resp.iter_lines()` for SSE consumption
 - Multi-turn chat: conversation stored in `st.session_state[f"conv_{agent}_{ns}"]` list of dicts
 - Observability page visible to admin + operator only (hidden from client, viewer, staff)
+- Observability has 5 tabs: Quality Scores, Latency, Token Cost, Memory Health, Namespace Usage
+- Admin Panel has 6 tabs: Users, API Keys, Audit Log, Sessions, Security, Client Onboarding
+- Admin unlock: Unlock button only shown when user is actually locked (context-aware UI since commit eba9751)
 
 ## Phase 10-13 Rules
 - SSE streaming: `execute_stream()` in executor.py is a generator — yields text chunks. Flask wraps with `stream_with_context`. Never buffer the full response.
@@ -149,6 +155,9 @@ Layer 13: Multimodal (multi-turn chat, image analysis, voice input, live dashboa
 - Eval pool: 2-worker ThreadPoolExecutor, non-blocking — never delays agent response
 - Consolidation: only processes entries older than 24h, capped at 200 per namespace per run
 - Memory consolidation caches BM25 corpus per namespace (rebuilt only on write)
+- `executor.py` stores `mem_context` (capped 3000 chars) in agent_runs.input JSON on completion — fixes truncated activity log
+- Agent failures logged to global `error_log` memory entry async — audit trail without blocking runs
+- Namespace Usage tab: fetches up to 500 runs, stacked bar chart (plotly), cross-namespace token/cost/quality comparison
 
 ## Theme System
 - Dark/light mode: `st.session_state["theme"]` ("dark"/"light")
@@ -157,6 +166,7 @@ Layer 13: Multimodal (multi-turn chat, image analysis, voice input, live dashboa
 - `inject()` must be called on every page render
 - Theme toggle: `st.components.v1.html(height=0)` — JS uses `window.parent.document`
   - `st.html()` is sandboxed (scripts blocked); `st.markdown` strips scripts
+  - Position: `fixed; bottom:24px; left:220px` — clears sidebar text (commit 86bbade)
 - Aurora background removed — no animated gradients, no will-change: transform
 
 ## Rules
@@ -186,6 +196,7 @@ python scripts/seed_agents.py
 python scripts/seed_workflows.py
 python scripts/seed_namespaces.py
 python scripts/create_admin.py --username admin --password Admin123!
+python scripts/seed_client_schema.py --namespace <client-slug>   # optional: pre-fill 14 onboarding fields
 .\scripts\start.ps1
 ```
 
@@ -202,7 +213,7 @@ python scripts/create_admin.py --username admin --password Admin123!
 - Phase 10: Real-Time Intelligence ✅
   - SSE streaming: GET /agents/<name>/stream (execute_stream generator)
   - LLM-as-Judge: async Haiku eval after every run (migration 014)
-  - Observability dashboard: quality, latency p50/p95/p99, token cost, memory health
+  - Observability dashboard: quality, latency p50/p95/p99, token cost, memory health, namespace usage (5 tabs)
 - Phase 11: Advanced Memory & Retrieval ✅
   - Hybrid BM25+Vector RAG with RRF (memory/retriever.py, rank-bm25)
   - Tiered context injection (memory/context_builder.py, ~40% token reduction)
@@ -215,5 +226,8 @@ python scripts/create_admin.py --username admin --password Admin123!
 - Phase 13: Multimodal Input & Live Dashboard ✅
   - Multi-turn chat UI (conversation history, migration 017)
   - Image/screenshot analysis (base64 content blocks via executor)
-  - Voice input (st.audio_input + local Whisper, optional)
+  - Voice input (st.audio_input + local Whisper, optional); voice widget resets on Clear Conversation
   - Live Overview (auto-refresh toggle, eval score pills, error/running alerts)
+  - Onboarding tour (first login only, persists via migration 018 onboarding_done column)
+  - Client Onboarding tab in Admin Panel: 14-field schema seed per namespace
+  - Admin unlock: context-aware button only shown when user is actually locked

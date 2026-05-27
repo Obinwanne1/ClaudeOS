@@ -54,6 +54,64 @@ def render(api_get, api_post, bulk_delete=None):
         _render_client_onboarding(api_get, api_post, ns_data)
 
 
+# ── User dialogs ──────────────────────────────────────────────────────────────
+
+@st.dialog("Delete User")
+def _delete_user_dialog(uid: str, username: str):
+    st.warning(f"Permanently delete **{username}**?")
+    st.caption("Removes the user, all their sessions, and auth events. This cannot be undone.")
+    c1, c2 = st.columns(2)
+    if c1.button("Yes, delete permanently", type="primary", use_container_width=True):
+        resp = _req.delete(
+            f"{_API_BASE}/admin/users/{uid}/permanent",
+            headers=_auth_headers(), timeout=5,
+        )
+        if resp.ok:
+            st.toast(f"User '{username}' permanently deleted.", icon="🗑")
+            st.rerun()
+        else:
+            err = (resp.json().get("error", f"HTTP {resp.status_code}") if resp.content else f"HTTP {resp.status_code}")
+            st.error(f"Delete failed: {err}")
+    if c2.button("Cancel", use_container_width=True):
+        st.rerun()
+
+
+@st.dialog("Edit User")
+def _edit_user_dialog(uid: str, user: dict, ns_data: list):
+    st.markdown(f"**Editing:** `{user['username']}`")
+    roles = ["admin", "operator", "client", "viewer", "staff"]
+    cur_role = user.get("role", "viewer")
+    ns_opts  = ["(none)"] + [n["slug"] for n in ns_data]
+    cur_ns   = user.get("namespace") or "(none)"
+
+    new_email = st.text_input("Email", value=user.get("email") or "", key="edit_email")
+    new_role  = st.selectbox("Role", roles, index=roles.index(cur_role) if cur_role in roles else 0, key="edit_role")
+    new_ns    = st.selectbox("Namespace", ns_opts,
+                             index=ns_opts.index(cur_ns) if cur_ns in ns_opts else 0, key="edit_ns")
+    new_active = st.checkbox("Account active", value=bool(user.get("is_active", True)), key="edit_active")
+    force_pw   = st.checkbox("Force password change on next login",
+                             value=bool(user.get("must_change_password", False)), key="edit_force_pw")
+
+    if st.button("Save changes", type="primary", use_container_width=True, key="edit_save"):
+        payload = {
+            "email":     new_email or None,
+            "role":      new_role,
+            "namespace": None if new_ns == "(none)" else new_ns,
+            "is_active": new_active,
+            "must_change_password": force_pw,
+        }
+        resp = _req.patch(
+            f"{_API_BASE}/admin/users/{uid}",
+            json=payload, headers=_auth_headers(), timeout=5,
+        )
+        if resp.ok:
+            st.toast(f"User '{user['username']}' updated.", icon="✅")
+            st.rerun()
+        else:
+            err = (resp.json().get("error", f"HTTP {resp.status_code}") if resp.content else f"HTTP {resp.status_code}")
+            st.error(f"Update failed: {err}")
+
+
 # ── Users ─────────────────────────────────────────────────────────────────────
 
 def _render_users(api_get, api_post, ns_data=None):
@@ -116,10 +174,10 @@ def _render_users(api_get, api_post, ns_data=None):
             if sel_user:
                 uid = sel_user["id"]
                 is_locked = bool(sel_user.get("locked_until"))
-                col1, col2, col3 = st.columns(3)
+                col1, col2, col3, col4, col5 = st.columns(5)
                 with col1:
                     if is_locked:
-                        st.warning(f"🔒 Account locked until {str(sel_user['locked_until'])[:16]}")
+                        st.warning(f"🔒 Locked until {str(sel_user['locked_until'])[:16]}")
                         if st.button("Unlock account", key=f"unlock_{uid}", use_container_width=True, type="primary"):
                             r = api_post(f"/admin/users/{uid}/unlock", {})
                             st.success("Account unlocked." if r else "Failed to unlock.")
@@ -141,8 +199,11 @@ def _render_users(api_get, api_post, ns_data=None):
                             st.rerun()
                     else:
                         if st.button("Reactivate", key=f"react_{uid}", use_container_width=True):
-                            api_post(f"/admin/users/{uid}", {"is_active": True}, method="PATCH")
-                            st.success("Reactivated.")
+                            _resp = _req.patch(
+                                f"{_API_BASE}/admin/users/{uid}",
+                                json={"is_active": True}, headers=_auth_headers(), timeout=5,
+                            )
+                            st.success("Reactivated." if _resp.ok else "Failed.")
                             st.rerun()
                 with col3:
                     with st.expander("Reset password"):
@@ -150,6 +211,12 @@ def _render_users(api_get, api_post, ns_data=None):
                         if st.button("Reset", key=f"rset_{uid}"):
                             r = api_post(f"/admin/users/{uid}/reset-password", {"new_password": new_pw})
                             st.success("Password reset." if r else "Failed (check strength).")
+                with col4:
+                    if st.button("✏️ Edit", key=f"edit_{uid}", use_container_width=True):
+                        _edit_user_dialog(uid, sel_user, ns_data or [])
+                with col5:
+                    if st.button("🗑 Delete", key=f"del_{uid}", use_container_width=True, type="secondary"):
+                        _delete_user_dialog(uid, sel_user["username"])
 
     st.markdown("---")
 

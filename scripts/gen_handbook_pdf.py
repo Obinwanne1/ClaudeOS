@@ -8,7 +8,7 @@ from datetime import date
 from pathlib import Path
 from xhtml2pdf import pisa
 
-VERSION = "14.0"
+VERSION = "15.0"
 CLIENT  = "faiyke-ai"
 TODAY   = date.today().isoformat()
 
@@ -187,7 +187,7 @@ def toc() -> str:
         ("10", "s10", "Outputs &amp; Reports",                "Saving, Searching, Exporting"),
         ("11", "s11", "Ticketing System",                     "Tickets + Email Notifications"),
         ("12", "s12", "Quality Scoring",                      "LLM-as-Judge Automatic Evaluation"),
-        ("13", "s13", "Observability",                        "Performance, Latency, Token Cost"),
+        ("13", "s13", "Observability",                        "Quality, Latency, Token Cost, Memory Health, Namespace Usage (NEW)"),
         ("14", "s14", "Namespace Branding &amp; Customisation","Per-Namespace Brand Config (NEW)"),
         ("15", "s15", "Custom Background Colors",             "Per-User Page Background (NEW)"),
         ("16", "s16", "Advanced Features",                    "Images, Voice, MCP, A2A, Pulse Score"),
@@ -214,7 +214,10 @@ def toc() -> str:
 <p style="margin-top:10px;font-size:9pt;color:#555;">
   <strong>New in v14.0:</strong> Namespace White-Labeling (Sec 14), Custom Background Colors (Sec 15),
   Client Usage Dashboard with Pulse Score (Sec 5 &amp; 16), Email Notifications for Tickets (Sec 11),
-  Onboarding Modal (Sec 4), CORS &amp; Rate Limiting (Sec 18), namespace-scoped KPIs, page URL persistence.
+  Onboarding Modal (Sec 4), CORS &amp; Rate Limiting (Sec 18), namespace-scoped KPIs, page URL persistence.<br/>
+  <strong>New in v15.0:</strong> Namespace Usage tab in Observability (Sec 13), Client Onboarding tab in Admin Panel
+  (14-field schema seed), onboarding_done DB persistence (migration 018), admin context-aware unlock UI,
+  voice widget reset on Clear Conversation, agent failure logging to global memory.
 </p>
 """
 
@@ -386,7 +389,13 @@ workflows, tickets, branding metadata, and observability columns.</p>
 <h2>Step 5 &mdash; Seed Default Data</h2>
 <pre>python scripts/seed_agents.py       # loads 12 agent definitions
 python scripts/seed_workflows.py    # loads 7 default pipelines
-python scripts/seed_namespaces.py   # creates the global namespace</pre>
+python scripts/seed_namespaces.py   # creates the global namespace
+
+# Optional — pre-populate client onboarding fields (14 fields, skips existing)
+python scripts/seed_client_schema.py --namespace faiyke-ai</pre>
+<p><code>seed_client_schema.py</code> creates blank placeholder memory entries for a client namespace
+(business name, industry, primary goals, brand tone, SLA tier, contact details, timezone, etc.).
+Agents read these automatically. Run after creating the namespace; safe to run multiple times.</p>
 
 <h2>Step 6 &mdash; Create the Admin Account</h2>
 <pre>python scripts/create_admin.py --username admin --password Admin123!</pre>
@@ -575,14 +584,17 @@ No data = <span class="pill-gray">Getting Started</span>
 <p>Full ticket lifecycle with email notifications. Covered in Section 11.</p>
 
 <h2>Observability Page (Admin / Operator)</h2>
-<p>Quality Scores, Latency, Token Cost, Memory Health. Covered in Section 13.</p>
+<p>Five tabs: Quality Scores, Latency, Token Cost, Memory Health, and <strong>Namespace Usage</strong>
+(cross-namespace run/token/cost/quality comparison with stacked bar chart). Covered in Section 13.</p>
 
 <h2>Settings Page (Admin / Operator)</h2>
 <p>System config, Supabase sync controls, Email Notification settings, environment info.</p>
 
 <h2>Admin Panel (Admin only)</h2>
-<p>Users, API keys, audit log, sessions, security config, and the new <strong>Branding</strong> tab
-for namespace white-labeling. Covered in Sections 14 and 18.</p>
+<p>Six tabs: Users (context-aware unlock &mdash; Unlock button only shown for locked accounts),
+API Keys, Audit Log, Sessions, Security config, and <strong>Client Onboarding</strong>
+(fill 14 standard fields per namespace so agents have rich context from day one).
+Covered in Sections 14 and 18.</p>
 
 <h2>Page Persistence <span class="badge-new">NEW v14.0</span></h2>
 <p>The active page is stored in the URL query parameter <code>?page=PageName</code>. Refreshing
@@ -1025,7 +1037,7 @@ def s13_observability() -> str:
     return """
 <h1><a name="s13"></a>13 &mdash; Observability</h1>
 
-<p>Available to <strong>Admin</strong> and <strong>Operator</strong> roles only. Four sub-tabs.</p>
+<p>Available to <strong>Admin</strong> and <strong>Operator</strong> roles only. Five sub-tabs.</p>
 
 <h2>Quality Scores Tab</h2>
 <ul>
@@ -1064,6 +1076,16 @@ Check Anthropic's pricing page for current rates.</div>
 <li><strong>Trigger Consolidation</strong> button &mdash; runs the consolidation job immediately</li>
 <li>Visual indicator when any namespace has not been consolidated in over 24 hours</li>
 </ul>
+
+<h2>Namespace Usage Tab <span class="badge-new">NEW v15.0</span></h2>
+<p>Cross-namespace comparison for admins and operators. Shows, for each namespace:</p>
+<ul>
+<li>Total agent runs, input tokens, output tokens, estimated USD cost</li>
+<li>Average quality score and memory entry count</li>
+<li>Stacked bar chart (plotly) comparing token consumption across all namespaces</li>
+</ul>
+<p>Based on up to 500 most recent runs. Helps identify which namespaces are most active
+and where token spend is concentrated.</p>
 """
 
 
@@ -1574,8 +1596,28 @@ def s20_troubleshoot_support() -> str:
     <td>Ensure &ldquo;Use custom background&rdquo; checkbox is checked in sidebar expander.
     Note: session-only &mdash; resets on logout.</td></tr>
 <tr><td>Onboarding modal not showing</td>
-    <td>Modal only shows once per account, on the very first login for client/viewer roles.
-    Admin accounts do not see the onboarding modal.</td></tr>
+    <td>Modal only shows once per account (persisted via <code>onboarding_done</code> DB column, migration 018).
+    Admin accounts skip the onboarding tour. If the tour should re-appear, reset with:
+    <code>UPDATE users SET onboarding_done=0 WHERE username='...'</code></td></tr>
+<tr><td>Onboarding shows every login (not persisting)</td>
+    <td>Migration 018 may not be applied. Run <code>python scripts/migrate.py</code>.
+    Also verify <code>POST /auth/onboarding-done</code> is called on skip/complete in
+    <code>dashboard/components/onboarding.py</code>.</td></tr>
+<tr><td>Voice input widget not clearing after conversation reset</td>
+    <td>The <code>st.audio_input</code> session state key must be reset alongside conversation history.
+    Verify <code>dashboard/_pages/_agents.py</code> clears the audio key on Clear Conversation click.</td></tr>
+<tr><td>Images not received by agent in chat</td>
+    <td>The SSE stream endpoint must forward the <code>images=</code> parameter to <code>execute_stream()</code>.
+    Verify <code>core/api/routes/agents.py</code> <code>stream_agent()</code> passes images through.</td></tr>
+<tr><td>Admin Unlock button always visible (not context-aware)</td>
+    <td>The Unlock button should only appear when the user is actually locked.
+    Verify <code>dashboard/_pages/_admin.py</code> checks <code>locked_until</code> before rendering the button.</td></tr>
+<tr><td>Namespace Usage tab not showing data</td>
+    <td>Requires at least one agent run to exist. Zero values are normal for new deployments.
+    Tab is only visible to Admin and Operator roles.</td></tr>
+<tr><td>Client Onboarding tab missing in Admin Panel</td>
+    <td>Run <code>python scripts/seed_client_schema.py --namespace &lt;slug&gt;</code> to seed blank fields.
+    The tab is in Admin Panel (6th tab) &mdash; visible to Admin role only.</td></tr>
 <tr><td>Page not preserved after browser refresh</td>
     <td>Ensure you are on the latest v14.0. The URL should show <code>?page=PageName</code>.
     Clear browser cache if the behaviour persists.</td></tr>

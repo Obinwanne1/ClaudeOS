@@ -127,6 +127,7 @@
 1. Click **Clear conversation** button
 2. Send: `What is my name?`
 3. **Expected:** Agent does NOT recall "Test User" — fresh context
+4. **Expected:** Voice input widget also resets (microphone button returns to default state, no previous audio retained)
 
 ### 2.6 A2A Agent Card
 1. Expand **Agent Card (A2A)** section in left panel
@@ -361,6 +362,12 @@ Invoke-WebRequest -Uri "http://localhost:5000/api/v1/workflows/<workflow-name>/t
    - Consolidation status (last run time)
    - Suggestion to run consolidation if stale entries > threshold
 
+### 8.5 Namespace Usage Tab
+1. **Expected:** Tab visible (admin/operator only)
+2. Table showing per-namespace: runs count, input tokens, output tokens, estimated USD cost, avg quality score, memory entries
+3. Stacked bar chart (plotly) comparing token usage across namespaces
+4. Data based on up to 500 most recent runs — no error on low-run systems (zeros acceptable)
+
 ---
 
 ## SECTION 9 — SETTINGS PAGE
@@ -428,6 +435,21 @@ Invoke-WebRequest -Uri "http://localhost:5000/api/v1/health" `
 1. Delete `qa_test_user` from Users tab
 2. Revoke `QA Test Key` from API Keys tab
 
+### 10.7 Client Onboarding Tab
+1. Click **Client Onboarding** tab (6th tab in Admin Panel)
+2. **Expected:** Dropdown of client namespaces (not global/personal — client-type only)
+3. Select a namespace → 14 fields appear (business name, industry, primary goals, brand tone, SLA tier, contact name, contact email, timezone, preferred language, custom instructions, etc.)
+4. Fill in 2–3 fields → click **Save**
+5. **Expected:** Success message; navigate away and return — values persist
+
+### 10.8 Admin Unlock (Context-Aware)
+1. In Users tab, find a user that is NOT locked
+2. **Expected:** No "Unlock" button visible for unlocked users (button only appears when locked)
+3. Lock a test account by logging in with wrong password 5 times (from Section 0.4)
+4. Return to Admin → Users → find the locked user
+5. **Expected:** Lock warning with expiry time AND a prominent Unlock button visible
+6. Click Unlock → **Expected:** Lock cleared immediately, user can log in
+
 ---
 
 ## SECTION 11 — CROSS-CUTTING CHECKS
@@ -442,9 +464,17 @@ These apply to ALL pages.
 5. Logout, re-login as admin
 
 ### 11.2 Dark/Light Mode
-1. Click the circular toggle button (bottom-left, fixed)
+1. Click the circular toggle button (bottom area, fixed at `left:220px` — clears sidebar text)
 2. **Expected:** Entire dashboard switches theme — background, text, cards, sidebar all update
 3. Switch back — state persists during session
+
+### 11.5 Onboarding Tour (first-time user)
+1. Create a brand-new user with a fresh namespace
+2. Log in as that user for the first time
+3. **Expected:** Onboarding tour/modal appears
+4. Click through or dismiss it
+5. Log out, log back in
+6. **Expected:** Onboarding does NOT appear again (persisted via `onboarding_done` DB column)
 
 ### 11.3 Error Handling
 For each page, check:
@@ -469,6 +499,14 @@ Invoke-WebRequest "http://localhost:5000/api/v1/agents" -Headers @{"X-API-Key" =
 | Overview stats failed on non-main thread | `bed94f7` | Section 1.1 — KPI cards load without error |
 | Browser refresh loses active page | `64c4140` | Navigate to Agents, press F5 — stays on Agents |
 | XSS escaping / security hardening | `63a83d6` | Inputs accept text; no script injection renders |
+| Voice input widget not clearing on conversation reset | `208d58b` | Section 2.5 — after Clear, microphone widget resets |
+| Analysis agent namespace scope warning in logs | `8a36d10` | Run analysis-agent — no scope warning in Flask terminal |
+| Workflow run delete broken | `8a36d10` | Section 4.3 — delete a run history entry, no 500 error |
+| Theme toggle overlapping sidebar text | `86bbade` | Section 11.2 — toggle at bottom-left (left:220px), clears sidebar |
+| Onboarding shows again after logout/re-login | `03366f6` | Complete onboarding, logout, log back in — tour does NOT appear again |
+| Memory namespace list hardcoded to local path | `5423ba2` | Memory page namespace filter populates from API, not error |
+| Context tiers duplicated when namespace==global | `70860f2` | Run agent in global namespace — no duplicate context in prompt |
+| Admin unlock button always visible (not context-aware) | `eba9751` | Section 10.8 — Unlock only shown for actually-locked users |
 
 ---
 
@@ -541,6 +579,7 @@ SECTION 8 — OBSERVABILITY
   8.2 Latency                  [ ]
   8.3 Token Cost               [ ]
   8.4 Memory Health            [ ]
+  8.5 Namespace Usage          [ ]
 
 SECTION 9 — SETTINGS
   9.1 Email Config             [ ]
@@ -553,12 +592,15 @@ SECTION 10 — ADMIN
   10.4 Sessions                [ ]
   10.5 Security Settings       [ ]
   10.6 Cleanup                 [ ]
+  10.7 Client Onboarding Tab   [ ]
+  10.8 Admin Unlock (ctx-aware)[ ]
 
 SECTION 11 — CROSS-CUTTING
   11.1 Role Scoping            [ ]
   11.2 Dark/Light Mode         [ ]
   11.3 Error Handling          [ ]
   11.4 API Key Auth            [ ]
+  11.5 Onboarding Tour         [ ]
 ```
 
 ---

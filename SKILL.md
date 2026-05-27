@@ -124,7 +124,8 @@ Create the following directory structure in the current working directory:
 │   │   └── _workflows.py
 │   ├── components/
 │   │   ├── brand.py
-│   │   └── login_form.py
+│   │   ├── login_form.py
+│   │   └── onboarding.py       ← first-login tour, persists via onboarding_done DB column
 │   ├── __init__.py
 │   └── app.py
 ├── data/                     ← created at runtime, not committed
@@ -155,6 +156,7 @@ Create the following directory structure in the current working directory:
 │   ├── create_admin.py
 │   ├── migrate.py
 │   ├── seed_agents.py
+│   ├── seed_client_schema.py   ← pre-populate 14 onboarding fields per namespace
 │   ├── seed_namespaces.py
 │   ├── seed_workflows.py
 │   ├── serve_api.py
@@ -493,9 +495,12 @@ python scripts/migrate.py
 python scripts/seed_agents.py
 python scripts/seed_workflows.py
 python scripts/seed_namespaces.py
+python scripts/seed_client_schema.py --namespace CLIENT_NAMESPACE
 ```
 
 For `seed_namespaces.py`, create the `CLIENT_NAMESPACE` namespace in addition to the standard `global` namespace. The client namespace should be the primary workspace.
+
+`seed_client_schema.py` pre-populates 14 standard onboarding fields (business name, industry, primary goals, brand tone, SLA tier, contact name, contact email, timezone, preferred language, custom instructions, etc.) as blank placeholder memory entries. Agents read these automatically via memory context. Skips any key that already exists — safe to run multiple times.
 
 ---
 
@@ -594,10 +599,10 @@ Every deployment built by this skill includes all of the following. Nothing is c
 ### Layers 10-13 (Intelligence Layer)
 | Layer | Feature |
 |-------|---------|
-| 10 | Real-Time Intelligence: SSE streaming, LLM-as-Judge eval, Observability dashboard |
+| 10 | Real-Time Intelligence: SSE streaming, LLM-as-Judge eval, Observability (5 tabs: Quality/Latency/Tokens/Memory Health/Namespace Usage) |
 | 11 | Advanced Memory: hybrid BM25+vector RAG, tiered context, consolidation engine |
 | 12 | Protocols: MCP Tool Server, A2A Agent Cards, webhook triggers |
-| 13 | Multimodal: multi-turn chat, image analysis, voice input, live dashboard |
+| 13 | Multimodal: multi-turn chat, image analysis, voice input (resets on Clear Conversation), live dashboard, onboarding tour (DB-persisted, migration 018), Client Onboarding tab in Admin (14-field schema seed) |
 
 ### Authentication & Roles
 | Role | Access |
@@ -609,16 +614,16 @@ Every deployment built by this skill includes all of the following. Nothing is c
 | staff | Assigned tickets only — can self-assign and advance status |
 
 ### Dashboard Pages
-- Overview — live activity feed, KPIs, quick dispatch, eval score pills
-- Agents — 3-tab UI: Chat (streaming, images, voice), Catalog, Run History
-- Memory — FTS search, semantic search, write/edit/delete, bulk ops
+- Overview — live activity feed, KPIs, quick dispatch, eval score pills, auto-refresh toggle, error/running alerts
+- Agents — 3-tab UI: Chat (streaming, images, voice, multi-turn, clear conversation resets voice widget), Catalog, Run History
+- Memory — FTS search, semantic search, hybrid BM25+vector, write/edit/delete, bulk ops
 - Workflows — manage, trigger, schedule, webhook setup
-- Projects — client vault, namespaces, project management
-- Outputs — search, view, export, bulk delete
-- Tickets — create, assign, comment, SLA tracking
-- Observability — quality scores, latency, token cost, memory health
-- Settings — env config, sync controls
-- Admin Panel — users, API keys, audit log, sessions, security config
+- Projects — client vault, namespaces, project management, context file upload
+- Outputs — search, view, export (Markdown/PDF), bulk delete
+- Tickets — create, assign, comment (lazy-loaded), SLA tracking, bulk ops
+- Observability — 5 tabs: Quality Scores, Latency (p50/p95/p99), Token Cost, Memory Health, Namespace Usage (cross-namespace comparison)
+- Settings — env config, sync controls (Supabase)
+- Admin Panel — 6 tabs: Users (context-aware unlock), API Keys, Audit Log, Sessions, Security config, Client Onboarding (14-field schema seed)
 
 ### API Endpoints (Key)
 | Endpoint | Description |
@@ -643,7 +648,7 @@ Every deployment built by this skill includes all of the following. Nothing is c
 | `GET /system/status` | System health |
 | `GET /health` | Public health check |
 
-### Migrations (017 total)
+### Migrations (018 total)
 | Migration | Content |
 |-----------|---------|
 | 001 | Initial schema (memory, agents, workflows, outputs) |
@@ -659,6 +664,7 @@ Every deployment built by this skill includes all of the following. Nothing is c
 | 015 | Memory upgrades (context_prefix, is_consolidated, archived) |
 | 016 | Webhook triggers on workflows |
 | 017 | Agent conversations + turns (multi-turn chat) |
+| 018 | onboarding_done column on users table (first-login tour persists across logout/re-login) |
 
 ---
 
@@ -702,9 +708,16 @@ After the system is running, offer these optional additions:
 | Streaming not working in browser | Ensure only one Flask process on port 5000 (`netstat -ano \| findstr :5000`); kill duplicates and restart |
 | Runs stuck as "running" | Old server crashed mid-stream. Fix: `UPDATE agent_runs SET status='failed', completed_at=NOW() WHERE status='running'` |
 | Runs not appearing in history | Streaming runs only appear in history if `create_run_record()` is called in the stream route before the generator starts — not inside the generator |
+| Images not received by agent | SSE stream endpoint must forward images through the generator. Verify `stream_agent` passes `images=` kwarg to `execute_stream()` — fixed in reference impl commit 291eece |
+| Voice input widget not clearing | `st.session_state` key for `st.audio_input` must be reset on Clear Conversation — same key as the conversation reset. Fixed in reference impl commit 208d58b |
 | Voice input error | `pip install openai-whisper`; first use downloads ~140MB model |
 | MCP server not found | `pip install mcp uvicorn`; run `.\scripts\start_mcp.ps1` |
 | Port conflict on startup | Run `netstat -ano \| findstr :<PORT>` to find PID, then `taskkill /F /PID <PID>` for each process on the port |
+| Onboarding tour shows every login | migration 018 not applied or POST /auth/onboarding-done not wired in login_form.py. Run `python scripts/migrate.py` and verify the endpoint is called on skip/complete |
+| Analysis agent scope warning in logs | Scoped namespace check in analysis agent was too strict. Fixed in reference impl commit 8a36d10 |
+| Workflow run delete fails | DELETE /workflows/runs/<id> must be wired in routes/workflows.py. Fixed in reference impl commit 8a36d10 |
+| Theme toggle overlaps sidebar text | Toggle position must be `left:220px` (not `left:0` or right-side). Check brand.py theme_toggle() CSS — fixed in commit 86bbade |
+| Memory namespace list hardcoded | `_observability.py` and memory pages must fetch namespace list from API dynamically, not from a hardcoded path. Fixed in commit 5423ba2 |
 
 ---
 

@@ -16,10 +16,11 @@ admin_bp = Blueprint("admin", __name__, url_prefix="/api/v1/admin")
 
 # Hardcoded column map — SQL column names are never taken from request keys directly
 _ALLOWED_USER_UPDATES = {
-    "role":      "role",
-    "namespace": "namespace",
-    "is_active": "is_active",
-    "email":     "email",
+    "role":                 "role",
+    "namespace":            "namespace",
+    "is_active":            "is_active",
+    "email":                "email",
+    "must_change_password": "must_change_password",
 }
 
 
@@ -136,6 +137,31 @@ def bulk_deactivate_users():
     deactivated = [r["id"] for r in rows]
     audit_log("bulk_users_deactivated", user_id=g.user_id, username=g.username, detail={"targets": deactivated})
     return jsonify({"deactivated": deactivated, "count": len(deactivated)})
+
+
+@admin_bp.delete("/users/<user_id>/permanent")
+@require_auth
+@require_role("admin")
+def hard_delete_user(user_id: str):
+    """Permanently remove a user and all their sessions/events from the DB."""
+    if user_id == g.user_id:
+        return jsonify({"error": "Cannot delete your own account"}), 400
+    user = get_user_by_id(user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    # Prevent deleting the last admin
+    with get_db() as conn:
+        admin_count = conn.execute(
+            "SELECT COUNT(*) FROM users WHERE role='admin' AND is_active=1"
+        ).fetchone()[0]
+        if user["role"] == "admin" and admin_count <= 1:
+            return jsonify({"error": "Cannot delete the last active admin"}), 400
+        conn.execute("DELETE FROM user_sessions WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM auth_events WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    audit_log("user_deleted", user_id=g.user_id, username=g.username,
+              detail={"target_id": user_id, "target_username": user["username"]})
+    return jsonify({"deleted": user_id, "username": user["username"]})
 
 
 @admin_bp.post("/users/<user_id>/unlock")
