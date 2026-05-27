@@ -174,10 +174,11 @@ def search(query: str, namespace: Optional[str] = None, limit: int = 20) -> list
 def delete(output_id: str) -> bool:
     with get_db() as conn:
         row = conn.execute(
-            "DELETE FROM outputs WHERE id = ? RETURNING file_path", (output_id,)
+            "SELECT file_path FROM outputs WHERE id = ?", (output_id,)
         ).fetchone()
-    if not row:
-        return False
+        if not row:
+            return False
+        conn.execute("DELETE FROM outputs WHERE id = ?", (output_id,))
     if row["file_path"]:
         try:
             Path(row["file_path"]).unlink(missing_ok=True)
@@ -193,8 +194,10 @@ def delete_bulk(ids: list[str]) -> tuple[list[str], list[str]]:
     ph = ",".join("?" * len(ids))
     with get_db() as conn:
         rows = conn.execute(
-            f"DELETE FROM outputs WHERE id IN ({ph}) RETURNING id, file_path", ids
+            f"SELECT id, file_path FROM outputs WHERE id IN ({ph})", ids
         ).fetchall()
+        if rows:
+            conn.execute(f"DELETE FROM outputs WHERE id IN ({ph})", ids)
     deleted = []
     for row in rows:
         if row["file_path"]:

@@ -120,7 +120,8 @@ def _render_browse(api_get, api_post, ns_data: list, bulk_delete=None):
         title   = out.get("title", "Untitled")
         ns      = out.get("namespace", "global")
         otype   = out.get("output_type", "?")
-        created = (out.get("created_at") or "")[:10]
+        _ts     = (out.get("created_at") or "").replace("T", " ")
+        created = _ts[:16] if _ts else ""   # "YYYY-MM-DD HH:MM"
         size_kb = round(out.get("size_bytes", 0) / 1024, 1)
         tags    = out.get("tags") or []
         summary = out.get("summary") or ""
@@ -133,7 +134,7 @@ def _render_browse(api_get, api_post, ns_data: list, bulk_delete=None):
             with st.expander(f"{icon} **{title}** · `{ns}` · {created}"):
                 col_meta, col_actions = st.columns([3, 1])
                 with col_meta:
-                    st.markdown(f"**Type:** `{otype}` · **Size:** {size_kb} KB")
+                    st.markdown(f"**Type:** `{otype}` · **Size:** {size_kb} KB · **Created:** `{created}`")
                     if tags:
                         tag_str = " ".join(f"`{t}`" for t in tags[:8])
                         st.markdown(f"**Tags:** {tag_str}")
@@ -159,13 +160,19 @@ def _render_browse(api_get, api_post, ns_data: list, bulk_delete=None):
                     st.warning("Confirm delete?")
                     c1, c2 = st.columns(2)
                     if c1.button("Yes, delete", key=f"yes_del_{oid}"):
-                        requests.delete(
-                            f"{_API_BASE}/outputs/{oid}",
-                            headers=_auth_headers(),
-                            timeout=5,
-                        )
-                        st.session_state.pop(f"confirm_delete_{oid}", None)
-                        st.rerun()
+                        try:
+                            _dr = requests.delete(
+                                f"{_API_BASE}/outputs/{oid}",
+                                headers=_auth_headers(),
+                                timeout=5,
+                            )
+                            if _dr.ok:
+                                st.session_state.pop(f"confirm_delete_{oid}", None)
+                                st.rerun()
+                            else:
+                                st.error(f"Delete failed ({_dr.status_code}): {_dr.text[:200]}")
+                        except Exception as _e:
+                            st.error(f"Delete error: {_e}")
                     if c2.button("Cancel", key=f"cancel_del_{oid}"):
                         st.session_state.pop(f"confirm_delete_{oid}", None)
                         st.rerun()
@@ -209,9 +216,10 @@ def _render_search(api_get, ns_data: list):
             for r in results:
                 icon  = TYPE_ICONS.get(r.get("output_type", ""), "•")
                 score = abs(r.get("score", 0.0))
+                _rts  = (r.get("created_at") or "").replace("T", " ")[:16]
                 st.markdown(
                     f"{icon} **{r.get('title','?')}** · `{r.get('namespace','')}` · "
-                    f"`{r.get('output_type','')}` · score: `{score:.3f}`"
+                    f"`{r.get('output_type','')}` · `{_rts}` · score: `{score:.3f}`"
                 )
                 if r.get("summary"):
                     st.caption(r["summary"])
