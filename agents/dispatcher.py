@@ -126,7 +126,11 @@ def list_runs(
     params.append(limit)
     with get_db() as conn:
         rows = conn.execute(
-            f"SELECT * FROM agent_runs {where} ORDER BY created_at DESC LIMIT ?", params
+            f"""SELECT r.*, a.name AS agent_name, a.display_name AS agent_display_name
+                FROM agent_runs r
+                LEFT JOIN agents a ON a.id = r.agent_id
+                {where} ORDER BY r.created_at DESC LIMIT ?""",
+            params,
         ).fetchall()
     result = []
     for row in rows:
