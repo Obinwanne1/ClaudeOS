@@ -22,6 +22,8 @@ def fresh_db(tmp_path, monkeypatch):
 
     monkeypatch.setenv("SQLITE_PATH", str(db_path))
     monkeypatch.setenv("CHROMADB_PATH", str(chroma_path))
+    monkeypatch.setenv("CLAUDEOS_SECRET_KEY", "test-secret-key-for-pytest-only!")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-fake")
 
     cfg_module._settings = None
 
@@ -154,78 +156,88 @@ def test_agent_context_string():
 
 @pytest.fixture
 def client():
+    from unittest.mock import patch
     from core.api.app import create_app
-    app = create_app()
-    app.config["TESTING"] = True
-    with app.test_client() as c:
-        yield c
+    with patch("workflows.scheduler.init_scheduler"), patch("workflows.scheduler.shutdown_scheduler"):
+        app = create_app()
+        app.config["TESTING"] = True
+        with app.test_client() as c:
+            yield c
 
 
-def test_api_write_and_list(client):
+@pytest.fixture
+def auth_headers(client):
+    from core.auth import create_user
+    create_user("admin", "Admin1234!", role="admin", namespace=None)
+    resp = client.post("/api/v1/auth/login", json={"username": "admin", "password": "Admin1234!"})
+    return {"Authorization": f"Bearer {resp.json['access_token']}"}
+
+
+def test_api_write_and_list(client, auth_headers):
     r = client.post("/api/v1/memory", json={
         "namespace": "global",
         "category": "fact",
         "key": "api.test",
         "value": "hello from API",
-    })
+    }, headers=auth_headers)
     assert r.status_code == 201
     data = r.get_json()
     assert data["key"] == "api.test"
 
-    r2 = client.get("/api/v1/memory?namespace=global")
+    r2 = client.get("/api/v1/memory?namespace=global", headers=auth_headers)
     assert r2.status_code == 200
     entries = r2.get_json()["entries"]
     assert any(e["key"] == "api.test" for e in entries)
 
 
-def test_api_get_entry(client):
+def test_api_get_entry(client, auth_headers):
     r = client.post("/api/v1/memory", json={
         "key": "get.test", "value": "get me", "category": "fact"
-    })
+    }, headers=auth_headers)
     entry_id = r.get_json()["id"]
-    r2 = client.get(f"/api/v1/memory/{entry_id}")
+    r2 = client.get(f"/api/v1/memory/{entry_id}", headers=auth_headers)
     assert r2.status_code == 200
     assert r2.get_json()["value"] == "get me"
 
 
-def test_api_update(client):
-    r = client.post("/api/v1/memory", json={"key": "upd.test", "value": "old", "category": "fact"})
+def test_api_update(client, auth_headers):
+    r = client.post("/api/v1/memory", json={"key": "upd.test", "value": "old", "category": "fact"}, headers=auth_headers)
     entry_id = r.get_json()["id"]
-    r2 = client.put(f"/api/v1/memory/{entry_id}", json={"value": "new"})
+    r2 = client.put(f"/api/v1/memory/{entry_id}", json={"value": "new"}, headers=auth_headers)
     assert r2.status_code == 200
     assert r2.get_json()["value"] == "new"
 
 
-def test_api_delete(client):
-    r = client.post("/api/v1/memory", json={"key": "del.test", "value": "bye", "category": "fact"})
+def test_api_delete(client, auth_headers):
+    r = client.post("/api/v1/memory", json={"key": "del.test", "value": "bye", "category": "fact"}, headers=auth_headers)
     entry_id = r.get_json()["id"]
-    r2 = client.delete(f"/api/v1/memory/{entry_id}")
+    r2 = client.delete(f"/api/v1/memory/{entry_id}", headers=auth_headers)
     assert r2.status_code == 200
-    assert client.get(f"/api/v1/memory/{entry_id}").status_code == 404
+    assert client.get(f"/api/v1/memory/{entry_id}", headers=auth_headers).status_code == 404
 
 
-def test_api_search(client):
-    client.post("/api/v1/memory", json={"key": "search.test", "value": "RECI Transport Nigeria", "category": "fact"})
+def test_api_search(client, auth_headers):
+    client.post("/api/v1/memory", json={"key": "search.test", "value": "RECI Transport Nigeria", "category": "fact"}, headers=auth_headers)
     r = client.post("/api/v1/memory/search", json={
         "query": "RECI Transport",
         "mode": "text",
         "namespace": "global",
         "top_k": 5,
-    })
+    }, headers=auth_headers)
     assert r.status_code == 200
     data = r.get_json()
     assert data["count"] >= 1
 
 
-def test_api_namespaces(client):
-    client.post("/api/v1/memory", json={"key": "ns.test", "value": "v", "namespace": "reci-transport", "category": "fact"})
-    r = client.get("/api/v1/memory/namespaces")
+def test_api_namespaces(client, auth_headers):
+    client.post("/api/v1/memory", json={"key": "ns.test", "value": "v", "namespace": "reci-transport", "category": "fact"}, headers=auth_headers)
+    r = client.get("/api/v1/memory/namespaces", headers=auth_headers)
     assert r.status_code == 200
     counts = r.get_json()["namespaces"]
     assert "reci-transport" in counts
 
 
-def test_api_expire(client):
-    r = client.delete("/api/v1/memory/expire")
+def test_api_expire(client, auth_headers):
+    r = client.delete("/api/v1/memory/expire", headers=auth_headers)
     assert r.status_code == 200
     assert "expired" in r.get_json()

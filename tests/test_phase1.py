@@ -34,22 +34,16 @@ def test_flask_health(tmp_path):
     assert data["version"] == "1.0.0"
 
 
-def test_flask_system_status():
-    from core.api.app import create_app
-    app = create_app()
-    client = app.test_client()
-    r = client.get("/api/v1/system/status")
+def test_flask_system_status(client, auth_headers):
+    r = client.get("/api/v1/system/status", headers=auth_headers)
     assert r.status_code == 200
     data = r.get_json()
     assert "services" in data
     assert data["services"]["database"]["status"] == "ok"
 
 
-def test_flask_stats():
-    from core.api.app import create_app
-    app = create_app()
-    client = app.test_client()
-    r = client.get("/api/v1/system/stats")
+def test_flask_stats(client, auth_headers):
+    r = client.get("/api/v1/system/stats", headers=auth_headers)
     assert r.status_code == 200
     data = r.get_json()
     assert "counts" in data

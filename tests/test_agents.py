@@ -24,6 +24,7 @@ def fresh_db(tmp_path, monkeypatch):
     monkeypatch.setenv("SQLITE_PATH", str(db_path))
     monkeypatch.setenv("CHROMADB_PATH", str(chroma_path))
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-fake")
+    monkeypatch.setenv("CLAUDEOS_SECRET_KEY", "test-secret-key-for-pytest-only!")
 
     cfg_module._settings = None
 
@@ -280,15 +281,25 @@ def test_dispatcher_cancel_run():
 
 @pytest.fixture
 def client():
+    from unittest.mock import patch
     from core.api.app import create_app
-    app = create_app()
-    app.config["TESTING"] = True
-    with app.test_client() as c:
-        yield c
+    with patch("workflows.scheduler.init_scheduler"), patch("workflows.scheduler.shutdown_scheduler"):
+        app = create_app()
+        app.config["TESTING"] = True
+        with app.test_client() as c:
+            yield c
 
 
-def test_api_list_agents(client):
-    r = client.get("/api/v1/agents")
+@pytest.fixture
+def auth_headers(client):
+    from core.auth import create_user
+    create_user("admin", "Admin1234!", role="admin", namespace=None)
+    resp = client.post("/api/v1/auth/login", json={"username": "admin", "password": "Admin1234!"})
+    return {"Authorization": f"Bearer {resp.json['access_token']}"}
+
+
+def test_api_list_agents(client, auth_headers):
+    r = client.get("/api/v1/agents", headers=auth_headers)
     assert r.status_code == 200
     data = r.get_json()
     assert data["count"] == 12
@@ -297,18 +308,18 @@ def test_api_list_agents(client):
     assert "transport-ops-agent" in names
 
 
-def test_api_get_agent_by_name(client):
-    r = client.get("/api/v1/agents/research-agent")
+def test_api_get_agent_by_name(client, auth_headers):
+    r = client.get("/api/v1/agents/research-agent", headers=auth_headers)
     assert r.status_code == 200
     assert r.get_json()["category"] == "research"
 
 
-def test_api_get_agent_not_found(client):
-    r = client.get("/api/v1/agents/fake-agent")
+def test_api_get_agent_not_found(client, auth_headers):
+    r = client.get("/api/v1/agents/fake-agent", headers=auth_headers)
     assert r.status_code == 404
 
 
-def test_api_run_agent(client):
+def test_api_run_agent(client, auth_headers):
     from agents import executor
     mock_client = MagicMock()
     mock_client.messages.create.return_value = _mock_response("API dispatch test output")
@@ -317,7 +328,7 @@ def test_api_run_agent(client):
         r = client.post("/api/v1/agents/briefing-agent/run", json={
             "prompt": "Morning brief please",
             "namespace": "global",
-        })
+        }, headers=auth_headers)
 
     assert r.status_code == 202
     data = r.get_json()
@@ -325,15 +336,15 @@ def test_api_run_agent(client):
     assert data["status"] == "pending"
 
 
-def test_api_namespace_lock_rejected(client):
+def test_api_namespace_lock_rejected(client, auth_headers):
     r = client.post("/api/v1/agents/transport-ops-agent/run", json={
         "prompt": "Fleet report",
         "namespace": "global",
-    })
+    }, headers=auth_headers)
     assert r.status_code == 403
 
 
-def test_api_get_run(client):
+def test_api_get_run(client, auth_headers):
     from agents import executor
     mock_client = MagicMock()
     mock_client.messages.create.return_value = _mock_response("Run result")
@@ -342,16 +353,16 @@ def test_api_get_run(client):
         r = client.post("/api/v1/agents/briefing-agent/run", json={
             "prompt": "test",
             "namespace": "global",
-        })
+        }, headers=auth_headers)
     run_id = r.get_json()["run_id"]
 
     time.sleep(0.5)
-    r2 = client.get(f"/api/v1/agents/runs/{run_id}")
+    r2 = client.get(f"/api/v1/agents/runs/{run_id}", headers=auth_headers)
     assert r2.status_code == 200
     assert r2.get_json()["id"] == run_id
 
 
-def test_api_system_events(client):
-    r = client.get("/api/v1/system/events")
+def test_api_system_events(client, auth_headers):
+    r = client.get("/api/v1/system/events", headers=auth_headers)
     assert r.status_code == 200
     assert "events" in r.get_json()
