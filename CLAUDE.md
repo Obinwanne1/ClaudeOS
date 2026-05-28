@@ -157,6 +157,7 @@ Layer 14: Commercial (namespace white-labeling, client usage dashboard, email no
 - SSE streaming: `execute_stream()` in executor.py is a generator — yields text chunks. Flask wraps with `stream_with_context`. Never buffer the full response.
 - Eval scoring: always async via `_bg_pool.submit(_trigger_eval, ...)` — never block agent run on eval
 - Eval uses claude-haiku-4-5-20251001 (cheap+fast). Score = tc×0.40 + fg×0.30 + cc×0.20 + sf×0.10
+- Eval rubric (2026-05-28): correct scope refusals score task_completion=5.0 — agents that decline out-of-scope requests without fabricating anything are not penalised; factual_grounding=5.0 when no claims made (commit 11f51e5)
 - Tiered context: `memory/context_builder.py:build_context(namespace, query)` replaces `get_agent_context()` in executor. Falls back to flat context if context_builder fails.
 - Hybrid retrieval: `memory/retriever.py:hybrid_search()` — BM25 + ChromaDB in ThreadPoolExecutor, merged via RRF (k=60). Falls back to FTS5 if rank-bm25 not installed.
 - Consolidation job: every 4h via APScheduler. Archives originals (archived=1), never hard-deletes.
