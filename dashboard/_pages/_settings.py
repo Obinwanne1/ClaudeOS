@@ -118,24 +118,10 @@ def render(api_get, api_post, bulk_delete=None):
 
     # ── Sync Log ───────────────────────────────────────────────
     st.markdown("---")
-    st.markdown("**Sync Log** (last 30 runs)")
-    log = api_get("/sync/log?limit=30", timeout=5)
+    st.markdown("**Sync Log** (last 50 runs)")
+    log = api_get("/sync/log?limit=50", timeout=5)
     if log:
-        st.dataframe(
-            [
-                {
-                    "Started": r.get("started_at", "")[:19],
-                    "Table": r.get("table_name"),
-                    "OK": r.get("rows_ok", 0),
-                    "Fail": r.get("rows_fail", 0),
-                    "ms": r.get("duration_ms", 0),
-                    "Error": (r.get("error") or "")[:50],
-                }
-                for r in log
-            ],
-            width='stretch',
-            hide_index=True,
-        )
+        _render_sync_log(log, api_post)
     else:
         st.info("No sync runs yet.")
 
@@ -143,6 +129,109 @@ def render(api_get, api_post, bulk_delete=None):
     st.markdown("---")
     with st.expander("📋  Supabase SQL Schema"):
         _show_schema_snippet()
+
+
+def _sync_api_base() -> str:
+    try:
+        from core.config import get_settings
+        return f"http://localhost:{get_settings().FLASK_PORT}/api/v1"
+    except Exception:
+        return "http://localhost:5000/api/v1"
+
+
+def _sync_headers() -> dict:
+    token = st.session_state.get("jwt_token", "")
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
+def _render_sync_log(log: list, api_post):
+    """Render sync log with per-row delete and bulk-select delete."""
+    import pandas as pd
+
+    # Build display rows, keep id for delete ops
+    rows = []
+    for r in log:
+        rows.append({
+            "id": r.get("id", ""),
+            "Started": (r.get("started_at") or "")[:19],
+            "Table": r.get("table_name", ""),
+            "OK": r.get("rows_ok", 0),
+            "Fail": r.get("rows_fail", 0),
+            "ms": r.get("duration_ms", 0),
+            "Error": (r.get("error") or "")[:60],
+        })
+
+    df = pd.DataFrame(rows)
+
+    # ── Bulk-select via data_editor ───────────────────────────
+    display_df = df.drop(columns=["id"]).copy()
+    display_df.insert(0, "✓", False)
+
+    edited = st.data_editor(
+        display_df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={"✓": st.column_config.CheckboxColumn("✓", width="small")},
+        key="sync_log_editor",
+    )
+
+    selected_mask = edited["✓"]
+    selected_ids = df.loc[selected_mask[selected_mask].index, "id"].tolist()
+    n_selected = len(selected_ids)
+
+    col_sel, col_del, col_clr = st.columns([2, 2, 4])
+
+    with col_sel:
+        if st.button("Select All", key="synclog_sel_all"):
+            # Toggle all to True by clearing editor state so next render resets
+            st.session_state.pop("sync_log_editor", None)
+            st.session_state["_synclog_select_all"] = True
+            st.rerun()
+
+    with col_del:
+        label = f"🗑 Delete Selected ({n_selected})" if n_selected else "🗑 Delete Selected"
+        if st.button(label, disabled=(n_selected == 0), type="primary", key="synclog_bulk_del"):
+            import requests
+            try:
+                resp = requests.delete(
+                    f"{_sync_api_base()}/sync/log",
+                    json={"ids": selected_ids},
+                    headers=_sync_headers(),
+                    timeout=10,
+                )
+                data = resp.json()
+                if resp.ok:
+                    st.success(f"Deleted {data.get('deleted', n_selected)} entries.")
+                    st.session_state.pop("sync_log_editor", None)
+                    st.rerun()
+                else:
+                    st.error(data.get("error", "Delete failed"))
+            except Exception as e:
+                st.error(f"Request error: {e}")
+
+    # ── Per-row single delete ─────────────────────────────────
+    st.markdown("**Individual delete:**")
+    for idx, row in df.iterrows():
+        c1, c2, c3, c4, c5 = st.columns([3, 2, 1, 1, 1])
+        c1.caption(row["Started"])
+        c2.caption(row["Table"])
+        c3.caption(f"✅{row['OK']}")
+        c4.caption(f"❌{row['Fail']}" if row["Fail"] else "")
+        if c5.button("🗑", key=f"del_log_{row['id']}", help="Delete this entry"):
+            import requests
+            try:
+                resp = requests.delete(
+                    f"{_sync_api_base()}/sync/log/{row['id']}",
+                    headers=_sync_headers(),
+                    timeout=10,
+                )
+                if resp.ok:
+                    st.success("Entry deleted.")
+                    st.rerun()
+                else:
+                    st.error("Delete failed.")
+            except Exception as e:
+                st.error(f"Error: {e}")
 
 
 def _render_email_settings():

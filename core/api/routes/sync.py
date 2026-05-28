@@ -45,3 +45,26 @@ def get_log():
     from sync.engine import get_sync_log
     limit = min(int(request.args.get("limit", 50)), 200)
     return jsonify(get_sync_log(limit))
+
+
+@sync_bp.delete("/log/<log_id>")
+@require_api_key
+def delete_log_entry(log_id):
+    from sync.engine import delete_log_entries
+    deleted = delete_log_entries([log_id])
+    if deleted == 0:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"ok": True, "deleted": deleted})
+
+
+@sync_bp.delete("/log")
+@require_api_key
+def bulk_delete_log():
+    ids = (request.json or {}).get("ids", [])
+    if not ids:
+        return jsonify({"error": "ids required"}), 400
+    if len(ids) > 200:
+        return jsonify({"error": "max 200 ids per request"}), 400
+    from sync.engine import delete_log_entries
+    deleted = delete_log_entries(ids)
+    return jsonify({"ok": True, "deleted": deleted})

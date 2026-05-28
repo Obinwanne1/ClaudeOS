@@ -14,7 +14,7 @@ Browser (Streamlit :8501)
               ├─ require_role("admin") → /api/v1/admin/*
               └─ All routes (memory, agents, outputs, tickets, workflows, etc.)
 
-Layer 0:  Streamlit dashboard (:8501) — login-gated, role-filtered nav, 10 pages
+Layer 0:  Streamlit dashboard (:8501) — login-gated, role-filtered nav, 11 pages
 Layer 1:  Flask REST API (:5000) — JWT + X-API-Key auth on all routes
 Layer 2:  Memory Engine (SQLite FTS5 + ChromaDB + hybrid BM25 retrieval)
 Layer 3:  Agent Registry (12 agents, YAML definitions)
@@ -28,6 +28,7 @@ Layer 10: Real-Time Intelligence (SSE streaming, LLM-as-Judge eval, Observabilit
 Layer 11: Advanced Memory (hybrid RAG, tiered context, consolidation, contextual prefixing)
 Layer 12: Protocols (MCP Tool Server :5100, A2A Agent Cards, webhook triggers)
 Layer 13: Multimodal (multi-turn chat, image analysis, voice input, live dashboard)
+Layer 14: Commercial (namespace white-labeling, client usage dashboard, email notifications, rate limiting, security headers)
 ```
 
 ## Critical Files
@@ -57,6 +58,9 @@ Layer 13: Multimodal (multi-turn chat, image analysis, voice input, live dashboa
 - `dashboard/_pages/_workflows.py` — Workflows + Webhooks tab
 - `dashboard/_pages/_admin.py` — Admin Panel UI (users, API keys, audit, sessions, security, client onboarding)
 - `dashboard/components/onboarding.py` — First-time user onboarding tour (persists to DB via migration 018)
+- `dashboard/_pages/_usage.py` — Client Usage Dashboard: Namespace Pulse Score gauge, KPI grid, activity feed, memory summary (client/viewer only)
+- `core/notifications.py` — Email notification engine: stdlib smtplib, fire-and-forget, branded HTML templates; ticket assignment + completion events
+- `core/api/routes/system.py` — /system/status, /system/stats, /system/namespace-stats (Namespace Pulse Score composite)
 - `mcp/server.py` — MCP Tool Server, exposes 12 agents as MCP tools (port 5100)
 - `scripts/create_admin.py` — first-run admin seed script
 - `scripts/seed_client_schema.py` — pre-populate 14 onboarding fields for a client namespace (skips existing keys)
@@ -115,7 +119,7 @@ Layer 13: Multimodal (multi-turn chat, image analysis, voice input, live dashboa
 - `inject()` and `theme_toggle()` MUST be called BEFORE the auth gate — they render on login page
 - Theme toggle: fixed bottom-left, 44px circular icon, implemented via `components.v1.html(height=0)`
 - Sidebar renders AFTER auth gate — only visible to logged-in users
-- Role-based nav: clients/viewers hide Settings, Workflows, Observability, Admin; staff sees Tickets only
+- Role-based nav: clients/viewers hide Settings, Workflows, Observability, Admin but gain Usage page; staff sees Tickets only (Memory, Workflows, Projects, Settings, Admin, Observability hidden)
 - Auto token refresh: decode locally, if expiry < 5 min → call `/auth/refresh` silently
 - 401 response → clear session_state + `st.rerun()` (returns to login)
 - Login form uses `st.form` — Enter-to-submit
@@ -123,13 +127,30 @@ Layer 13: Multimodal (multi-turn chat, image analysis, voice input, live dashboa
 - Multi-turn chat: conversation stored in `st.session_state[f"conv_{agent}_{ns}"]` list of dicts
 - Observability page visible to admin + operator only (hidden from client, viewer, staff)
 - Observability has 5 tabs: Quality Scores, Latency, Token Cost, Memory Health, Namespace Usage
-- Admin Panel has 6 tabs: Users, API Keys, Audit Log, Sessions, Security, Client Onboarding
+- Admin Panel has 7 tabs: Users, API Keys, Audit Log, Sessions, Security, Client Onboarding, Branding
+- Admin Branding tab: per-namespace color picker, accent color, company name, icon, live preview — stored in namespace metadata
+- Usage page: visible to client/viewer only — KPI grid (runs, tokens, cost, quality, outputs), Namespace Pulse Score (composite 0–100 gauge), recent activity feed, memory summary
+- Namespace white-labeling: sidebar logo shows company_name + icon from namespace metadata; aurora_hero() pill uses namespace brand color; `get_ns_brand()` in brand.py reads from session_state; loaded on login for client/viewer
+- Email notifications: `core/notifications.py` — stdlib smtplib, fire-and-forget pool; ticket assignment notifies assignee, ticket completion/closure notifies creator; config via .env SMTP_* vars
 - Admin unlock: Unlock button only shown when user is actually locked (context-aware UI since commit eba9751)
 - Admin Edit User: `@st.dialog` modal — change role, namespace, email, active status, force-pw flag (commit 528346c)
 - Admin Delete User: `@st.dialog` permanent-delete modal — hard-deletes user + sessions + auth events; guarded against deleting last admin (commit 528346c)
 - Admin Users action bar: 5 columns — Unlock/Status | Deactivate/Reactivate | Reset Password | Edit | Delete
 - `_ALLOWED_USER_UPDATES` in admin_routes.py: whitelist includes `role`, `namespace`, `is_active`, `email`, `must_change_password` — SQL column names never taken from request keys directly
 - Onboarding tour: only shown to `client` and `viewer` roles — `admin`, `operator`, `staff` skip it entirely
+
+## Phase 14 — Commercial Upgrade Rules
+- Rate limiting: agent /run 30/min, /stream 20/min, workflow /trigger 10/min, workflow /run 20/min (flask-limiter)
+- CORS: ALLOWED_ORIGINS env var replaces wildcard — never use `*` in production
+- Security response headers on every Flask response: X-Content-Type-Options, X-Frame-Options, X-XSS-Protection
+- Namespace Pulse Score: composite 0–100 = quality_score×40% + ticket_resolve×30% + memory_fresh×20% + workflow_ok×10%
+- `GET /system/namespace-stats?namespace=<ns>` returns tokens_in/out, cost_usd, run_count, output_count, eval_avg, pulse_score, recent_runs, ticket_total/closed, memory_count/fresh, workflow_total/ok
+- `_ns_brand_css()` in brand.py: injects namespace color/accent into CSS custom properties when client/viewer is logged in
+- Output delete: uses SELECT-then-DELETE not DELETE...RETURNING (RETURNING requires SQLite 3.35+)
+- Output timestamps: displayed as YYYY-MM-DD HH:MM in expander header, meta row, and search results
+- Activity feed agent names: dispatcher.list_runs JOINs agents table; overview uses agent_name > agent_display_name > agent_id[:12] fallback chain
+- Agent hallucination guard: analysis, briefing, research, writing agents ask clarifying questions and decline to fill data gaps — never fabricate findings, names, timestamps, or system state
+- Context builder timeout: executor wraps build_context() in 4s timeout via bg pool — slow ChromaDB never blocks agent response; falls back to fast FTS context
 
 ## Phase 10-13 Rules
 - SSE streaming: `execute_stream()` in executor.py is a generator — yields text chunks. Flask wraps with `stream_with_context`. Never buffer the full response.
@@ -163,6 +184,8 @@ Layer 13: Multimodal (multi-turn chat, image analysis, voice input, live dashboa
 - `executor.py` stores `mem_context` (capped 3000 chars) in agent_runs.input JSON on completion — fixes truncated activity log
 - Agent failures logged to global `error_log` memory entry async — audit trail without blocking runs
 - Namespace Usage tab: fetches up to 500 runs, stacked bar chart (plotly), cross-namespace token/cost/quality comparison
+- Agents page: uses `api_get_cached` for /namespaces fetch — 30s cache saves 300–800ms per tab render
+- Context builder: wrapped in 4s timeout via bg pool in executor.py — ChromaDB/hybrid-search slowness never blocks agent response
 
 ## Theme System
 - Dark/light mode: `st.session_state["theme"]` ("dark"/"light")
@@ -238,3 +261,16 @@ python scripts/seed_client_schema.py --namespace <client-slug>   # optional: pre
   - Admin unlock: context-aware button only shown when user is actually locked
   - Admin Edit User + Delete User: `@st.dialog` modals, 5-column action bar (commit 528346c)
   - Onboarding tour role-gated: `client` and `viewer` only
+- Phase 14: Commercial Upgrade ✅
+  - Security hardening: CORS ALLOWED_ORIGINS env var, security response headers, rate limiting (flask-limiter)
+  - Namespace white-labeling: per-namespace color/accent/company_name/icon in metadata; sidebar logo; aurora_hero() branded pills
+  - Client Usage Dashboard (_usage.py): Namespace Pulse Score gauge, KPI grid, activity feed, memory summary (client/viewer only)
+  - GET /system/namespace-stats: composite pulse score + all usage metrics per namespace
+  - Email notifications (core/notifications.py): ticket assignment + completion events, branded HTML, fire-and-forget smtplib
+  - Admin Branding tab (7th tab): per-namespace color picker, accent, company name, live preview
+  - Agent hallucination guard: analysis/briefing/research/writing agents ask clarifying questions; never fabricate data
+  - Output delete compat: SELECT-then-DELETE replaces RETURNING (supports SQLite < 3.35)
+  - Output timestamps: YYYY-MM-DD HH:MM shown in all output views
+  - Activity feed agent names: dispatcher JOINs agents table; human-readable names always shown
+  - Performance: agents page uses api_get_cached; context builder has 4s timeout fallback
+  - Sync log delete: DELETE /sync/log/<id> (single entry) + DELETE /sync/log with {"ids":[...]} (bulk, max 200); Settings renders log via st.data_editor with checkbox column + "Delete Selected (N)" button + per-row 🗑 button

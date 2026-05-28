@@ -98,17 +98,18 @@ Create the following directory structure in the current working directory:
 │   │   │   ├── outputs.py
 │   │   │   ├── projects.py
 │   │   │   ├── sync.py
-│   │   │   ├── system.py
+│   │   │   ├── system.py       ← /system/status, /system/stats, /system/namespace-stats
 │   │   │   ├── tickets.py
 │   │   │   └── workflows.py
 │   │   ├── __init__.py
 │   │   ├── app.py
-│   │   ├── limiter.py
+│   │   ├── limiter.py          ← flask-limiter rate limit config
 │   │   └── middleware.py
 │   ├── __init__.py
 │   ├── auth.py
 │   ├── config.py
 │   ├── database.py
+│   ├── notifications.py        ← email engine: smtplib, fire-and-forget, branded HTML templates
 │   └── utils.py
 ├── dashboard/
 │   ├── _pages/
@@ -121,6 +122,7 @@ Create the following directory structure in the current working directory:
 │   │   ├── _projects.py
 │   │   ├── _settings.py
 │   │   ├── _tickets.py
+│   │   ├── _usage.py           ← Client Usage Dashboard (client/viewer only — Pulse Score, KPI grid)
 │   │   └── _workflows.py
 │   ├── components/
 │   │   ├── brand.py
@@ -297,6 +299,7 @@ CHROMADB_PATH=data/chromadb
 
 FLASK_PORT=5000
 FLASK_DEBUG=false
+ALLOWED_ORIGINS=http://localhost:8501
 
 STREAMLIT_PORT=8501
 
@@ -604,6 +607,22 @@ Every deployment built by this skill includes all of the following. Nothing is c
 | 12 | Protocols: MCP Tool Server, A2A Agent Cards, webhook triggers |
 | 13 | Multimodal: multi-turn chat, image analysis, voice input (resets on Clear Conversation), live dashboard, onboarding tour (DB-persisted, migration 018), Client Onboarding tab in Admin (14-field schema seed) |
 
+### Layer 14 (Commercial Upgrade)
+| Feature | Details |
+|---------|---------|
+| Security hardening | CORS ALLOWED_ORIGINS env var (not wildcard), security headers (X-Content-Type-Options, X-Frame-Options, X-XSS-Protection), rate limiting via flask-limiter |
+| Rate limits | Agent /run: 30/min, /stream: 20/min, workflow /trigger: 10/min, workflow /run: 20/min |
+| Namespace white-labeling | Per-namespace color, accent, company_name, icon stored in metadata; sidebar logo + aurora_hero() pill show client branding |
+| Client Usage Dashboard | `_usage.py`: Namespace Pulse Score gauge (0–100), KPI grid (runs/tokens/cost/quality/outputs), activity feed, memory summary. Visible to client/viewer only |
+| Namespace Pulse Score | Composite 0–100 = quality×40% + ticket_resolve×30% + memory_fresh×20% + workflow_ok×10% |
+| Email notifications | `core/notifications.py`: stdlib smtplib, fire-and-forget thread pool, branded HTML; ticket assignment + completion/closure events |
+| Admin Branding tab | 7th tab in Admin Panel: per-namespace color picker, accent, company name, live preview |
+| Agent hallucination guard | analysis/briefing/research/writing agents ask clarifying questions; refuse to fill data gaps or fabricate findings |
+| Output delete compat | SELECT-then-DELETE replaces RETURNING clause (supports SQLite < 3.35) |
+| Output timestamps | YYYY-MM-DD HH:MM shown in all output views |
+| Activity feed names | dispatcher.list_runs JOINs agents table; human-readable names always shown (agent_name > display_name > id[:12]) |
+| Performance | Agents page uses api_get_cached for /namespaces (30s TTL); context_builder wrapped in 4s timeout in executor |
+
 ### Authentication & Roles
 | Role | Access |
 |------|--------|
@@ -619,15 +638,17 @@ Every deployment built by this skill includes all of the following. Nothing is c
 - Memory — FTS search, semantic search, hybrid BM25+vector, write/edit/delete, bulk ops
 - Workflows — manage, trigger, schedule, webhook setup
 - Projects — client vault, namespaces, project management, context file upload
-- Outputs — search, view, export (Markdown/PDF), bulk delete
-- Tickets — create, assign, comment (lazy-loaded), SLA tracking, bulk ops
-- Observability — 5 tabs: Quality Scores, Latency (p50/p95/p99), Token Cost, Memory Health, Namespace Usage (cross-namespace comparison)
-- Settings — env config, sync controls (Supabase)
-- Admin Panel — 6 tabs: Users, API Keys, Audit Log, Sessions, Security config, Client Onboarding (14-field schema seed)
+- Outputs — search, view, export (Markdown/PDF), bulk delete (timestamps shown as YYYY-MM-DD HH:MM)
+- Tickets — create, assign, comment (lazy-loaded), SLA tracking, bulk ops (email notification on assign/complete)
+- Observability — 5 tabs: Quality Scores, Latency (p50/p95/p99), Token Cost, Memory Health, Namespace Usage (admin/operator only)
+- Settings — env config, sync controls (Supabase), email notification config + test send; Sync Log with per-row 🗑 delete and bulk-select delete (st.data_editor checkboxes + "Delete Selected (N)" button)
+- Admin Panel — 7 tabs: Users, API Keys, Audit Log, Sessions, Security config, Client Onboarding (14-field schema seed), Branding
   - Users tab 5-column action bar: Unlock/Status | Deactivate/Reactivate | Reset Password | ✏️ Edit | 🗑 Delete
   - Edit User: `@st.dialog` modal — change role, namespace, email, active status, force-pw-change flag
   - Delete User: `@st.dialog` permanent-delete confirmation — hard-deletes user + sessions + auth events; last-admin guard
   - Context-aware unlock: Unlock button only shown when user is actually locked
+  - Branding tab: per-namespace color picker, accent color, company name, icon, live preview
+- Usage — client/viewer only: Namespace Pulse Score (0–100 composite gauge), KPI grid (runs/tokens/cost/quality/outputs), activity feed, memory summary
 
 ### API Endpoints (Key)
 | Endpoint | Description |
@@ -653,6 +674,9 @@ Every deployment built by this skill includes all of the following. Nothing is c
 | `GET /health` | Public health check |
 | `DELETE /admin/users/<user_id>/permanent` | Hard-delete user + sessions + auth events (admin only; last-admin guard) |
 | `PATCH /admin/users/<user_id>` | Update user fields: role, namespace, email, is_active, must_change_password |
+| `GET /system/namespace-stats` | Namespace Pulse Score + usage metrics (tokens, cost, runs, quality, memory, tickets, workflows) |
+| `DELETE /sync/log/<id>` | Delete single sync log entry |
+| `DELETE /sync/log` | Bulk delete sync log entries — body: `{"ids": [...]}`, max 200 |
 
 ### Migrations (018 total)
 | Migration | Content |
@@ -727,6 +751,16 @@ After the system is running, offer these optional additions:
 | Workflow run delete fails | DELETE /workflows/runs/<id> must be wired in routes/workflows.py. Fixed in reference impl commit 8a36d10 |
 | Theme toggle overlaps sidebar text | Toggle position must be `left:220px` (not `left:0` or right-side). Check brand.py theme_toggle() CSS — fixed in commit 86bbade |
 | Memory namespace list hardcoded | `_observability.py` and memory pages must fetch namespace list from API dynamically, not from a hardcoded path. Fixed in commit 5423ba2 |
+| Output delete silently fails | SQLite < 3.35 does not support DELETE...RETURNING. Use SELECT-then-DELETE in manager.py. Fixed in commit 0cadc72 |
+| Output timestamps missing time | Output timestamps must display as YYYY-MM-DD HH:MM in all views. Check manager.py created_at formatting. Fixed in commit 0cadc72 |
+| Activity feed shows UUID instead of agent name | dispatcher.list_runs must JOIN agents table and return agent_name + agent_display_name. Overview must use fallback chain: agent_name > display_name > id[:12]. Fixed in commit 552e5b3 |
+| Agent gives confident answers with no data | analysis/briefing/research/writing agents must ask clarifying questions when input is missing or vague — never fabricate findings. Check system_prompt in agent YAML. Fixed in commits 49c6631, b1211e5 |
+| Usage page not visible | Usage page only shows for `client` and `viewer` roles. Admin/operator use Observability. Check dashboard/app.py nav role filter. |
+| Namespace branding not loading | Namespace metadata (company_name, color, icon) loaded on login for client/viewer. If sidebar shows raw namespace slug: check `_ns_brand_loaded` logic in app.py and /namespaces/<ns> API response includes metadata field. |
+| Email notifications not sending | Requires SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, NOTIFY_EMAIL in .env. Check core/notifications.py logs. SMTP must allow relaying from server IP. |
+| Rate limit 429 errors | flask-limiter is active. Agent /run: 30/min, /stream: 20/min. If testing, either increase limits in limiter.py or throttle test requests. |
+| CORS errors in browser | Set ALLOWED_ORIGINS in .env to match your dashboard URL. Never use wildcard `*` in production. |
+| Context builder timeout in logs | Normal fallback — ChromaDB/hybrid-search took > 4s. System fell back to fast FTS context. If this is frequent, check ChromaDB indexing and sentence-transformers model load time. |
 
 ---
 

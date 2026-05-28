@@ -385,6 +385,21 @@ Invoke-WebRequest -Uri "http://localhost:5000/api/v1/workflows/<workflow-name>/t
 3. Click **Manual Push** → status updates
 4. If Supabase not configured: badge shows "not configured" or "disabled" → mark SKIP
 
+### 9.3 Sync Log — Single Entry Delete
+1. Scroll to **Sync Log** section (last 50 runs)
+2. Find any row in the Individual delete list
+3. Click the **🗑** button on that row
+4. **Expected:** Success toast, row disappears on rerun
+5. **Fail signal:** 404 (entry ID missing) or 500 (delete query error)
+
+### 9.4 Sync Log — Bulk Select & Delete
+1. In the Sync Log `st.data_editor`, tick the **✓** checkbox on 2–3 rows
+2. **Expected:** "Delete Selected (N)" button becomes enabled, label updates with count
+3. Click **Delete Selected (N)**
+4. **Expected:** Success toast "Deleted N entries", table refreshes with those rows gone
+5. Try clicking **Select All** — **Expected:** editor state clears and all rows become selected on next render
+6. Click Delete Selected with 0 rows checked — **Expected:** button is disabled, no action possible
+
 ---
 
 ## SECTION 10 — ADMIN PAGE
@@ -470,16 +485,69 @@ Invoke-WebRequest -Uri "http://localhost:5000/api/v1/health" `
 
 ---
 
+## SECTION 12 — USAGE DASHBOARD (client/viewer only)
+
+**Login as a `client` or `viewer` role user first.**  
+Navigate to: **Usage** (📊 in sidebar)
+
+> This page is NOT visible to admin/operator/staff. If logged in as admin, you will see an info message redirecting you to Observability.
+
+### 12.1 KPI Grid
+1. **Expected:** Six metric cards visible: AI Runs (30d), Tokens In, Tokens Out, Est. Cost, Avg Quality, Outputs
+2. All values load without error (0 is acceptable, error banners are NOT)
+
+### 12.2 Namespace Pulse Score
+1. **Expected:** Circular SVG gauge visible showing a score 0–100
+2. Label below gauge shows rating: Excellent (≥85) / Good (≥70) / Fair (≥50) / Needs Attention (<50) / Getting Started (no data)
+3. Score breakdown table below gauge shows 4 dimensions with weights: Quality Score (40%), Ticket Resolve (30%), Memory Fresh (20%), Workflow OK (10%)
+
+### 12.3 Recent Activity Feed
+1. **Expected:** List of recent AI runs for this namespace — agent name (human-readable, not UUID), status badge, timestamp
+2. If no runs: empty state message, no error
+
+### 12.4 Memory Summary
+1. **Expected:** Memory entry count and freshness indicator visible
+
+---
+
+## SECTION 13 — NAMESPACE BRANDING (admin)
+
+**Navigate to:** Admin → Branding tab (7th tab)
+
+### 13.1 Branding Tab Visible
+1. **Expected:** Branding tab is the 7th tab in Admin Panel
+2. Dropdown of client namespaces visible (not global)
+
+### 13.2 Set Namespace Brand
+1. Select a client namespace
+2. Fill in: Company Name = `QA Test Co`, Icon = `🧪`, Primary Color = `#2563EB`, Accent Color = `#3B82F6`
+3. Click **Save**
+4. **Expected:** Success message
+
+### 13.3 Client Sees Branded Sidebar
+1. Log out, log in as a client user assigned to that namespace
+2. **Expected:** Sidebar logo area shows `🧪 QA Test Co` instead of raw namespace slug
+3. **Expected:** Pill color in aurora hero header matches brand color (approximately)
+
+### 13.4 Cleanup
+1. Log back in as admin
+2. Admin → Branding → select namespace → clear Company Name and Icon → Save
+
+---
+
 ## SECTION 11 — CROSS-CUTTING CHECKS
 
 These apply to ALL pages.
 
 ### 11.1 Role Scoping
 1. Login as `qa_test_user` (viewer role, created in 10.1 — recreate if deleted)
-2. **Expected nav visible:** Overview, Agents, Memory, Projects, Outputs, Tickets
+2. **Expected nav visible:** Overview, Agents, Memory, Projects, Outputs, Tickets, **Usage** (📊)
 3. **Expected nav HIDDEN:** Workflows, Observability, Settings, Admin
-4. Try navigating directly to Admin → should redirect to login or show "Access denied"
-5. Logout, re-login as admin
+4. Verify Usage page loads with Pulse Score and KPI grid (not an error page)
+5. Try navigating directly to Admin → should redirect to login or show "Access denied"
+6. Logout, re-login as admin
+7. **Admin nav visible:** Overview, Agents, Memory, Workflows, Projects, Outputs, Tickets, Observability, Settings, Admin
+8. **Admin nav HIDDEN:** Usage (admin uses Observability instead)
 
 ### 11.2 Dark/Light Mode
 1. Click the circular toggle button (bottom area, fixed at `left:220px` — clears sidebar text)
@@ -530,6 +598,12 @@ Invoke-WebRequest "http://localhost:5000/api/v1/agents" -Headers @{"X-API-Key" =
 | Edit User missing | `528346c` | Section 10.6 — Edit dialog opens, all fields save correctly |
 | must_change_password silently dropped on PATCH | `528346c` | Section 10.6 — Force password change toggle saves via Edit dialog |
 | Reactivate user broken (api_post PATCH) | `528346c` | Section 10.1 — Deactivate then Reactivate works without error |
+| Output delete silently fails on older SQLite | `0cadc72` | Section 6.1 — Delete output, confirm it disappears from list |
+| Output timestamps date-only (no time) | `0cadc72` | Section 6.1 — Timestamps show YYYY-MM-DD HH:MM not just date |
+| Activity feed shows UUID not agent name | `552e5b3` | Section 1.5 — Feed shows readable agent names, not truncated UUIDs |
+| Analysis agent fabricates data when given nothing | `49c6631` | Ask analysis-agent a vague question with no data — it must ask clarifying questions, not invent results |
+| Agents hallucinate when input missing | `b1211e5` | Ask briefing/research/writing agents with no context — must request specific inputs, not produce generic output |
+| Voice widget not resetting on Clear Conversation | `b969309` | Section 2.5 — After Clear, microphone widget resets to default state |
 
 ---
 
@@ -607,6 +681,8 @@ SECTION 8 — OBSERVABILITY
 SECTION 9 — SETTINGS
   9.1 Email Config             [ ]
   9.2 Supabase Sync            [SKIP if not configured]
+  9.3 Sync Log Single Delete   [ ]
+  9.4 Sync Log Bulk Delete     [ ]
 
 SECTION 10 — ADMIN
   10.1 Users                   [ ]
@@ -626,6 +702,18 @@ SECTION 11 — CROSS-CUTTING
   11.3 Error Handling          [ ]
   11.4 API Key Auth            [ ]
   11.5 Onboarding Tour         [ ]
+
+SECTION 12 — USAGE DASHBOARD
+  12.1 KPI Grid                [ ]
+  12.2 Pulse Score             [ ]
+  12.3 Activity Feed           [ ]
+  12.4 Memory Summary          [ ]
+
+SECTION 13 — NAMESPACE BRANDING
+  13.1 Branding Tab Visible    [ ]
+  13.2 Set Namespace Brand     [ ]
+  13.3 Client Sees Branding    [ ]
+  13.4 Cleanup                 [ ]
 ```
 
 ---
