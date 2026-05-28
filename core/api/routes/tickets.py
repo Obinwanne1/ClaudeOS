@@ -111,10 +111,13 @@ def bulk_delete_tickets():
         return jsonify({"error": "ids list required"}), 422
     placeholders = ",".join("?" * len(ids))
     with get_db() as conn:
-        rows = conn.execute(
-            f"DELETE FROM tickets WHERE id IN ({placeholders}) RETURNING id", ids
+        existing = conn.execute(
+            f"SELECT id FROM tickets WHERE id IN ({placeholders})", ids
         ).fetchall()
-    deleted = [r["id"] for r in rows]
+        deleted = [r["id"] for r in existing]
+        if deleted:
+            ph2 = ",".join("?" * len(deleted))
+            conn.execute(f"DELETE FROM tickets WHERE id IN ({ph2})", deleted)
     return jsonify({"deleted": deleted, "failed": [i for i in ids if i not in set(deleted)], "count": len(deleted)})
 
 
@@ -538,9 +541,10 @@ def delete_ticket(ticket_id: str):
     if g.user_role != "admin":
         return jsonify({"error": "Admin only"}), 403
     with get_db() as conn:
-        row = conn.execute("DELETE FROM tickets WHERE id = ? RETURNING id", (ticket_id,)).fetchone()
-    if not row:
-        return jsonify({"error": "Ticket not found"}), 404
+        row = conn.execute("SELECT id FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+        if not row:
+            return jsonify({"error": "Ticket not found"}), 404
+        conn.execute("DELETE FROM tickets WHERE id = ?", (ticket_id,))
     return jsonify({"deleted": ticket_id})
 
 

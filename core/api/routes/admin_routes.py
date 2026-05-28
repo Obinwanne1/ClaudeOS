@@ -130,11 +130,16 @@ def bulk_deactivate_users():
         return jsonify({"error": "Cannot deactivate your own account"}), 400
     placeholders = ",".join("?" * len(safe))
     with get_db() as conn:
-        rows = conn.execute(
-            f"UPDATE users SET is_active=0, updated_at=CURRENT_TIMESTAMP WHERE id IN ({placeholders}) RETURNING id",
-            safe,
+        existing = conn.execute(
+            f"SELECT id FROM users WHERE id IN ({placeholders})", safe
         ).fetchall()
-    deactivated = [r["id"] for r in rows]
+        deactivated = [r["id"] for r in existing]
+        if deactivated:
+            ph2 = ",".join("?" * len(deactivated))
+            conn.execute(
+                f"UPDATE users SET is_active=0, updated_at=CURRENT_TIMESTAMP WHERE id IN ({ph2})",
+                deactivated,
+            )
     audit_log("bulk_users_deactivated", user_id=g.user_id, username=g.username, detail={"targets": deactivated})
     return jsonify({"deactivated": deactivated, "count": len(deactivated)})
 
@@ -315,12 +320,16 @@ def bulk_revoke_api_keys():
         return jsonify({"error": "ids list required"}), 422
     placeholders = ",".join("?" * len(ids))
     with get_db() as conn:
-        rows = conn.execute(
-            f"DELETE FROM api_keys WHERE id IN ({placeholders}) RETURNING id, name", ids
+        existing = conn.execute(
+            f"SELECT id, name FROM api_keys WHERE id IN ({placeholders})", ids
         ).fetchall()
-    for r in rows:
+        revoked_keys = [{"id": r["id"], "name": r["name"]} for r in existing]
+        if revoked_keys:
+            del_ph = ",".join("?" * len(revoked_keys))
+            conn.execute(f"DELETE FROM api_keys WHERE id IN ({del_ph})", [r["id"] for r in revoked_keys])
+    for r in revoked_keys:
         audit_log("api_key_revoked", user_id=g.user_id, username=g.username, detail={"key_id": r["id"], "name": r["name"]})
-    return jsonify({"revoked": [r["id"] for r in rows], "count": len(rows)})
+    return jsonify({"revoked": [r["id"] for r in revoked_keys], "count": len(revoked_keys)})
 
 
 @admin_bp.delete("/api-keys/<key_id>")

@@ -409,10 +409,16 @@ def _log_failure_to_memory(agent_name: str, namespace: str, error_msg: str, run_
                 "SELECT id, value FROM memory_entries WHERE key='error_log' AND namespace='global' AND archived=0"
             ).fetchone()
             if row:
-                new_val = row["value"] + f"\n{entry}"
+                combined = row["value"] + f"\n{entry}"
+                # Cap at 50,000 chars — trim oldest lines from head to prevent unbounded growth
+                if len(combined) > 50000:
+                    lines = combined.splitlines()
+                    while len("\n".join(lines)) > 50000 and len(lines) > 1:
+                        lines.pop(0)
+                    combined = "\n".join(lines)
                 conn.execute(
                     "UPDATE memory_entries SET value=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-                    (new_val, row["id"]),
+                    (combined, row["id"]),
                 )
             else:
                 conn.execute(

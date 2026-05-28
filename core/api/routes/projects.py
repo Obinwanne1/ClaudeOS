@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request
 
-from core.auth import require_auth, effective_namespace
+from core.auth import require_auth, require_role, effective_namespace
 require_api_key = require_auth  # alias — all existing @require_api_key decorators now use require_auth
 
 projects_bp = Blueprint("projects", __name__, url_prefix="/api/v1")
@@ -28,6 +28,7 @@ def list_namespaces():
 
 @projects_bp.post("/namespaces")
 @require_api_key
+@require_role("admin", "operator")
 def create_namespace():
     from vault.manager import create_namespace as _create
     from vault.schemas import NamespaceCreate
@@ -55,6 +56,7 @@ def get_namespace(slug: str):
 
 @projects_bp.patch("/namespaces/<slug>")
 @require_api_key
+@require_role("admin", "operator")
 def update_namespace(slug: str):
     from vault.manager import get_namespace_by_slug, update_namespace as _update
     ns = get_namespace_by_slug(slug)
@@ -67,6 +69,7 @@ def update_namespace(slug: str):
 
 @projects_bp.delete("/namespaces/<slug>")
 @require_api_key
+@require_role("admin", "operator")
 def delete_namespace(slug: str):
     from vault.manager import get_namespace_by_slug, delete_namespace as _delete
     ns = get_namespace_by_slug(slug)

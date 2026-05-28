@@ -181,7 +181,13 @@ def workspace_path(slug: str, subdir: str = "") -> Path:
 def write_context(slug: str, filename: str, content: str) -> Path:
     """Write a context file into the namespace workspace. Enforces slug isolation."""
     _validate_slug(slug)
+    _validate_filename(filename)
     path = workspace_path(slug, "context") / filename
+    # Resolve and confirm path stays inside the context dir (defence-in-depth)
+    context_dir = (VAULT_ROOT / slug / "context").resolve()
+    resolved = path.resolve()
+    if not str(resolved).startswith(str(context_dir)):
+        raise ValueError(f"Invalid filename — path escapes workspace: {filename!r}")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     return path
@@ -233,6 +239,15 @@ def _validate_slug(slug: str) -> None:
     import re
     if not re.match(r'^[a-z0-9][a-z0-9\-]*$', slug):
         raise ValueError(f"Invalid namespace slug: {slug!r}")
+
+
+def _validate_filename(filename: str) -> None:
+    """Prevent path traversal in context filenames. Allow safe chars only."""
+    import re
+    if not filename or ".." in filename or "/" in filename or "\\" in filename:
+        raise ValueError(f"Invalid filename: {filename!r}")
+    if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_\-\.]*$', filename):
+        raise ValueError(f"Filename contains disallowed characters: {filename!r}")
 
 
 def _row_to_namespace(row) -> Namespace:

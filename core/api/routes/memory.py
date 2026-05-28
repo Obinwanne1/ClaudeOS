@@ -229,6 +229,7 @@ def agent_context(namespace: str):
 
 @memory_bp.post("/consolidate")
 @require_auth
+@require_role("admin", "operator")
 def consolidate_memory():
     """Trigger memory consolidation — Phase 11.1."""
     from memory.consolidator import run_consolidation

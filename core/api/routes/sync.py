@@ -18,12 +18,17 @@ def get_status():
     return jsonify(get_status())
 
 
+_ALLOWED_SYNC_TABLES = {"memory_entries", "agent_runs", "outputs", "namespaces", "projects", "system_events"}
+
+
 @sync_bp.post("/push")
 @require_api_key
 def push_all():
     from sync.engine import push_all, push_table
     table = request.json.get("table") if request.is_json else None
     if table:
+        if table not in _ALLOWED_SYNC_TABLES:
+            return jsonify({"error": f"Unknown table: {table}"}), 400
         result = push_table(table)
         return jsonify(result.model_dump())
     result = push_all()
