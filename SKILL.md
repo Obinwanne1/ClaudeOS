@@ -752,6 +752,7 @@ After the system is running, offer these optional additions:
 | Theme toggle overlaps sidebar text | Toggle position must be `left:220px` (not `left:0` or right-side). Check brand.py theme_toggle() CSS — fixed in commit 86bbade |
 | Memory namespace list hardcoded | `_observability.py` and memory pages must fetch namespace list from API dynamically, not from a hardcoded path. Fixed in commit 5423ba2 |
 | Output delete silently fails | SQLite < 3.35 does not support DELETE...RETURNING. Use SELECT-then-DELETE in manager.py. Fixed in commit 0cadc72 |
+| Sync log delete returns "Delete failed" / 404 | `SELECT changes()` resets to 0 after DELETE commits inside context manager. Use `cursor.rowcount` instead. Fixed in commit 26d1d38 |
 | Output timestamps missing time | Output timestamps must display as YYYY-MM-DD HH:MM in all views. Check manager.py created_at formatting. Fixed in commit 0cadc72 |
 | Activity feed shows UUID instead of agent name | dispatcher.list_runs must JOIN agents table and return agent_name + agent_display_name. Overview must use fallback chain: agent_name > display_name > id[:12]. Fixed in commit 552e5b3 |
 | Agent gives confident answers with no data | analysis/briefing/research/writing agents must ask clarifying questions when input is missing or vague — never fabricate findings. Check system_prompt in agent YAML. Fixed in commits 49c6631, b1211e5 |
