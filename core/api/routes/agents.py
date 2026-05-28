@@ -302,8 +302,12 @@ def delete_run(run_id: str):
     ns = effective_namespace(run.get("namespace"))
     if g.user_role not in ("admin", "operator") and run.get("namespace") != g.user_namespace:
         return jsonify({"error": "Forbidden"}), 403
+    from core.utils import utcnow_str
     with get_db() as conn:
-        conn.execute("DELETE FROM agent_runs WHERE id=?", (run_id,))
+        conn.execute(
+            "UPDATE agent_runs SET deleted_at = ? WHERE id = ?",
+            (utcnow_str(), run_id),
+        )
     return jsonify({"deleted": run_id})
 
 

@@ -249,8 +249,13 @@ def webhook_trigger(name: str):
     if not wf or not wf.enabled:
         return jsonify({"error": "Workflow not found or disabled"}), 404
 
+    if request.content_length and request.content_length > 65_536:
+        return jsonify({"error": "Request body too large (max 64 KB)"}), 413
+
     body = request.get_json(silent=True) or {}
     context = body.get("context", {})
+    if not isinstance(context, dict):
+        context = {}
     context["namespace"] = context.get("namespace") or wf.namespace
     context["trigger_source"] = "webhook"
 

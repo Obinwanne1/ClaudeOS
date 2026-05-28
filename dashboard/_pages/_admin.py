@@ -289,6 +289,26 @@ def _render_api_keys(api_get, api_post, ns_data=None):
         key_ids    = [k["id"] for k in keys]
         key_labels = [f"{k['name']} ({k['id'][:8]})" for k in keys]
 
+        # Per-key actions: Regenerate
+        st.markdown("**Per-key actions**")
+        regen_label = st.selectbox("Select key to regenerate", ["—"] + key_labels, key="sel_key_regen")
+        if regen_label != "—":
+            regen_idx = key_labels.index(regen_label)
+            regen_id  = key_ids[regen_idx]
+            if st.button("Regenerate Secret", key="regen_key_btn"):
+                resp = _req.post(
+                    f"{_API_BASE}/admin/api-keys/{regen_id}/regenerate",
+                    headers=_auth_headers(), timeout=10,
+                )
+                if resp.ok:
+                    d = resp.json()
+                    st.success("Key regenerated. Copy the new secret — it won't be shown again.")
+                    st.code(d.get("raw_key", ""))
+                else:
+                    st.error(f"Failed: {resp.json().get('error', f'HTTP {resp.status_code}')}")
+                st.rerun()
+
+        st.markdown("---")
         sel_labels = st.multiselect("Select key(s) to revoke", key_labels, key="sel_keys_revoke")
         if sel_labels:
             sel_indices = [key_labels.index(l) for l in sel_labels]

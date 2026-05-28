@@ -62,7 +62,12 @@ def create_user_admin():
         user = create_user(username, password, role=role, namespace=namespace,
                            email=email, must_change_password=must_change_password)
     except Exception as e:
-        return jsonify({"error": str(e)}), 409
+        msg = str(e)
+        if "UNIQUE constraint failed: users.email" in msg:
+            return jsonify({"error": "Email already registered"}), 409
+        if "UNIQUE constraint failed: users.username" in msg:
+            return jsonify({"error": "Username already taken"}), 409
+        return jsonify({"error": msg}), 409
 
     audit_log("user_created", user_id=g.user_id, username=g.username, detail={"created_user": username, "role": role})
     return jsonify(_user_dict_full(user)), 201
@@ -352,6 +357,31 @@ def bulk_revoke_api_keys():
     return jsonify({"revoked": [r["id"] for r in revoked_keys], "count": len(revoked_keys)})
 
 
+@admin_bp.post("/api-keys/<key_id>/regenerate")
+@require_auth
+@require_role("admin", "operator")
+def regenerate_api_key(key_id: str):
+    """Generate a new secret for an existing API key — old key immediately invalidated."""
+    import secrets as _secrets, hashlib as _hashlib
+    with get_db() as conn:
+        row = conn.execute("SELECT id, name, namespace FROM api_keys WHERE id = ?", (key_id,)).fetchone()
+        if not row:
+            return jsonify({"error": "API key not found"}), 404
+        raw_key  = _secrets.token_urlsafe(32)
+        key_hash = _hashlib.sha256(raw_key.encode()).hexdigest()
+        conn.execute(
+            "UPDATE api_keys SET key_hash = ?, last_used = NULL WHERE id = ?",
+            (key_hash, key_id),
+        )
+    audit_log("api_key_regenerated", user_id=g.user_id, username=g.username,
+              detail={"key_id": key_id, "name": row["name"]})
+    return jsonify({
+        "raw_key": raw_key, "id": key_id,
+        "name": row["name"], "namespace": row["namespace"],
+        "warning": "Copy this key — it will not be shown again",
+    })
+
+
 @admin_bp.delete("/api-keys/<key_id>")
 @require_auth
 @require_role("admin")
@@ -396,6 +426,26 @@ def update_security_settings():
 
     audit_log("security_settings_updated", user_id=g.user_id, username=g.username, detail={"keys": list(updates.keys())})
     return jsonify({"updated": list(updates.keys())})
+
+
+@admin_bp.post("/backup")
+@require_auth
+@require_role("admin")
+def trigger_backup():
+    """Run an on-demand SQLite backup. Admin only."""
+    from core.backup import create_backup
+    result = create_backup()
+    status = 200 if result["ok"] else 500
+    return jsonify(result), status
+
+
+@admin_bp.get("/backup")
+@require_auth
+@require_role("admin")
+def list_backups():
+    """List existing DB backups. Admin only."""
+    from core.backup import list_backups as _list
+    return jsonify({"backups": _list()})
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

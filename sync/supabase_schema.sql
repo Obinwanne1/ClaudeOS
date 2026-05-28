@@ -133,6 +133,57 @@ create table if not exists sync_log (
     completed_at timestamptz
 );
 
+-- ── users (no password_hash, failed_attempts, locked_until — excluded from sync)
+create table if not exists users (
+    id                   text primary key,
+    username             text unique not null,
+    email                text,
+    role                 text not null default 'viewer',
+    namespace            text,
+    is_active            integer default 1,
+    must_change_password integer default 0,
+    last_login_at        timestamptz,
+    created_at           timestamptz default now(),
+    updated_at           timestamptz default now()
+);
+create index if not exists idx_users_namespace on users(namespace);
+
+-- ── tickets ──────────────────────────────────────────────────
+create table if not exists tickets (
+    id          text primary key,
+    namespace   text not null default 'global',
+    created_by  text not null,
+    title       text not null,
+    description text not null,
+    status      text not null default 'open',
+    category    text default 'other',
+    priority    integer default 3,
+    sla_tier    text,
+    sla_due_at  timestamptz,
+    assigned_to text,
+    resolution  text,
+    created_at  timestamptz default now(),
+    updated_at  timestamptz default now()
+);
+create index if not exists idx_tickets_namespace on tickets(namespace);
+create index if not exists idx_tickets_status on tickets(status);
+
+-- ── workflows ────────────────────────────────────────────────
+create table if not exists workflows (
+    id              text primary key,
+    name            text unique not null,
+    display_name    text not null,
+    description     text default '',
+    namespace       text default 'global',
+    trigger_type    text default 'manual',
+    trigger_config  text default '{}',
+    steps           text default '[]',
+    enabled         integer default 1,
+    webhook_enabled integer default 0,
+    created_at      timestamptz default now(),
+    updated_at      timestamptz default now()
+);
+
 -- ── RLS: disable for service key access (adjust per your security model)
 alter table memory_entries  disable row level security;
 alter table agent_runs      disable row level security;
@@ -141,3 +192,6 @@ alter table namespaces      disable row level security;
 alter table projects        disable row level security;
 alter table system_events   disable row level security;
 alter table sync_log        disable row level security;
+alter table users           disable row level security;
+alter table tickets         disable row level security;
+alter table workflows       disable row level security;

@@ -31,11 +31,15 @@ _SYNC_TABLES: dict[str, str] = {
     "namespaces": "created_at",
     "projects": "created_at",
     "system_events": "created_at",
+    "users": "created_at",
+    "tickets": "created_at",
+    "workflows": "created_at",
 }
 
-# Columns to exclude from sync (local-only paths / FTS helpers)
+# Columns to exclude from sync (sensitive or local-only data)
 _EXCLUDE_COLS: dict[str, list[str]] = {
     "outputs": ["file_path"],
+    "users": ["password_hash", "failed_attempts", "locked_until"],
 }
 
 

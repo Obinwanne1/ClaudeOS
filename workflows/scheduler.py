@@ -50,6 +50,7 @@ def init_scheduler() -> BackgroundScheduler:
         _register_reminder_job(_scheduler)
         _register_sync_job(_scheduler)
         _register_consolidation_job(_scheduler)
+        _register_backup_job(_scheduler)
         return _scheduler
 
 
@@ -248,6 +249,33 @@ def _run_consolidation_job() -> None:
         )
     except Exception as e:
         logger.error("Memory consolidation job error: %s", e)
+
+
+def _register_backup_job(sched: BackgroundScheduler) -> None:
+    """Register daily SQLite backup job — runs at 02:00 local time."""
+    sched.add_job(
+        _run_backup_job,
+        trigger=CronTrigger(hour=2, minute=0, timezone=_get_tz()),
+        id="claudeos_db_backup",
+        name="Daily DB Backup",
+        replace_existing=True,
+    )
+    logger.info("Daily DB backup job registered (02:00 %s)", _get_tz())
+
+
+def _run_backup_job() -> None:
+    try:
+        from core.backup import create_backup
+        result = create_backup()
+        if result["ok"]:
+            logger.info(
+                "DB backup complete: %s (%d bytes), pruned=%d",
+                result["file"], result["size_bytes"], result["pruned"],
+            )
+        else:
+            logger.error("DB backup failed: %s", result.get("error"))
+    except Exception as e:
+        logger.error("Backup job error: %s", e)
 
 
 def _run_workflow_job(workflow_name: str, context: dict = None) -> Optional[str]:

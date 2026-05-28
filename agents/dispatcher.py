@@ -111,12 +111,15 @@ def list_runs(
     until: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
+    include_deleted: bool = False,
 ) -> tuple[list[dict], int]:
     """Returns (runs, total_count). total_count ignores limit/offset."""
     from core.database import get_db
     import json
     conditions = []
     params: list = []
+    if not include_deleted:
+        conditions.append("r.deleted_at IS NULL")
     if agent_id:
         conditions.append("agent_id = ?")
         params.append(agent_id)

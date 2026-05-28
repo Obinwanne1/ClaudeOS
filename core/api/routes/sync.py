@@ -18,7 +18,10 @@ def get_status():
     return jsonify(get_status())
 
 
-_ALLOWED_SYNC_TABLES = {"memory_entries", "agent_runs", "outputs", "namespaces", "projects", "system_events"}
+_ALLOWED_SYNC_TABLES = {
+    "memory_entries", "agent_runs", "outputs", "namespaces", "projects",
+    "system_events", "users", "tickets", "workflows",
+}
 
 
 @sync_bp.post("/push")

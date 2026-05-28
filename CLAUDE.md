@@ -228,7 +228,23 @@ python scripts/seed_client_schema.py --namespace <client-slug>   # optional: pre
 .\scripts\start.ps1
 ```
 
-## Phase Status — ALL COMPLETE
+## Phase Status — ALL COMPLETE (+ Handover Hardening)
+
+### Handover Hardening — Security, Performance & Test Coverage
+- **Auth fix**: validate_refresh_token excludes password_reset tokens (user_agent != 'password_reset')
+- **Vault security**: path traversal prevention via `_validate_filename()` + `Path.resolve()` comparison
+- **Soft-delete**: agent_runs + outputs use `deleted_at` column (migration 020); hard-delete replaced everywhere; list/search/stats filter `deleted_at IS NULL`; `include_deleted=True` param on dispatcher.list_runs
+- **DB backup**: `core/backup.py` — VACUUM INTO, 7-backup retention, `data/backups/`; daily APScheduler job at 02:00; `POST /admin/backup` + `GET /admin/backup` endpoints
+- **DB indexes**: 15 new indexes on high-traffic columns (migration 019)
+- **API key regenerate**: `POST /admin/api-keys/<id>/regenerate`; UI button in Admin → API Keys tab
+- **Audit date filters**: `?since=&until=` on GET /admin/audit
+- **Supabase sync extended**: users, tickets, workflows tables added to sync (sensitive columns excluded)
+- **Rate limiter storage**: SQLite-backed with ImportError fallback to in-memory
+- **Scheduler timezone**: configurable via SCHEDULER_TIMEZONE env var (default: Africa/Lagos)
+- **ChromaDB health**: /system/status now uses real `client.heartbeat()` instead of hardcoded "ok"
+- **Webhook hardening**: 64KB body limit + context dict validation
+- **Role enforcement**: projects namespace endpoints require admin/operator; memory consolidate requires admin/operator
+- **Test suite**: 99 tests passing across test_auth, test_admin, test_tickets, test_sync, test_workflows + shared conftest.py with `fresh_db`, `app`, `client`, `admin_token` fixtures
 - Phase 1:  Core Infrastructure ✅
 - Phase 2:  Memory Engine ✅
 - Phase 3:  Agent Registry + Control Center ✅

@@ -26,8 +26,10 @@ def render(api_get, api_post, bulk_delete=None):
     is_scoped = role in ("client", "viewer") and bool(user_ns)
     is_admin  = role in ("admin", "operator")
 
+    ns_brand = st.session_state.get("ns_brand", {})
+    hero_title = ns_brand.get("company_name", "ClaudeOS") if is_scoped and ns_brand else "ClaudeOS"
     aurora_hero(
-        title="ClaudeOS",
+        title=hero_title,
         subtitle="AI Operating System — coordination layer for all agents, memory, and workflows.",
         pill="v8.0 · All Systems",
     )

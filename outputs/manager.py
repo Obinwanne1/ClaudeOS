@@ -114,7 +114,7 @@ def list_outputs(
     limit: int = 50,
     offset: int = 0,
 ) -> list[Output]:
-    conditions, params = [], []
+    conditions, params = ["deleted_at IS NULL"], []
     if namespace:
         conditions.append("namespace = ?")
         params.append(namespace)
@@ -125,7 +125,7 @@ def list_outputs(
         for tag in tags:
             conditions.append("tags LIKE ?")
             params.append(f'%"{tag}"%')
-    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+    where = "WHERE " + " AND ".join(conditions)
     params += [limit, offset]
     with get_db() as conn:
         rows = conn.execute(
@@ -160,6 +160,7 @@ def search(query: str, namespace: Optional[str] = None, limit: int = 20) -> list
                     FROM outputs_fts
                     JOIN outputs o ON outputs_fts.rowid = o.rowid
                     WHERE outputs_fts MATCH ? {ns_filter}
+                      AND o.deleted_at IS NULL
                     ORDER BY rank
                     LIMIT ?""",
                 params,
@@ -172,42 +173,38 @@ def search(query: str, namespace: Optional[str] = None, limit: int = 20) -> list
 
 
 def delete(output_id: str) -> bool:
+    now = utcnow_str()
     with get_db() as conn:
         row = conn.execute(
-            "SELECT file_path FROM outputs WHERE id = ?", (output_id,)
+            "SELECT id FROM outputs WHERE id = ? AND deleted_at IS NULL", (output_id,)
         ).fetchone()
         if not row:
             return False
-        conn.execute("DELETE FROM outputs WHERE id = ?", (output_id,))
-    if row["file_path"]:
-        try:
-            Path(row["file_path"]).unlink(missing_ok=True)
-        except Exception:
-            pass
+        conn.execute(
+            "UPDATE outputs SET deleted_at = ? WHERE id = ?", (now, output_id)
+        )
     return True
 
 
 def delete_bulk(ids: list[str]) -> tuple[list[str], list[str]]:
-    """Delete multiple outputs in one DB transaction. Returns (deleted, failed)."""
+    """Soft-delete multiple outputs. Returns (deleted, failed)."""
     if not ids:
         return [], []
     ph = ",".join("?" * len(ids))
+    now = utcnow_str()
     with get_db() as conn:
         rows = conn.execute(
-            f"SELECT id, file_path FROM outputs WHERE id IN ({ph})", ids
+            f"SELECT id FROM outputs WHERE id IN ({ph}) AND deleted_at IS NULL", ids
         ).fetchall()
-        if rows:
-            conn.execute(f"DELETE FROM outputs WHERE id IN ({ph})", ids)
-    deleted = []
-    for row in rows:
-        if row["file_path"]:
-            try:
-                Path(row["file_path"]).unlink(missing_ok=True)
-            except Exception:
-                pass
-        deleted.append(row["id"])
-    failed = [i for i in ids if i not in set(deleted)]
-    return deleted, failed
+        found_ids = [r["id"] for r in rows]
+        if found_ids:
+            ph2 = ",".join("?" * len(found_ids))
+            conn.execute(
+                f"UPDATE outputs SET deleted_at = ? WHERE id IN ({ph2})",
+                [now] + found_ids,
+            )
+    failed = [i for i in ids if i not in set(found_ids)]
+    return found_ids, failed
 
 
 def export_text(output_id: str) -> Optional[str]:
@@ -225,11 +222,11 @@ def export_json(output_id: str) -> Optional[dict]:
 
 def get_stats(namespace: Optional[str] = None) -> dict:
     """Return counts and sizes by type."""
-    conditions, params = [], []
+    conditions, params = ["deleted_at IS NULL"], []
     if namespace:
         conditions.append("namespace = ?")
         params.append(namespace)
-    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+    where = "WHERE " + " AND ".join(conditions)
     with get_db() as conn:
         rows = conn.execute(
             f"SELECT type, COUNT(*) as count, SUM(size_bytes) as total_bytes FROM outputs {where} GROUP BY type",
@@ -249,13 +246,13 @@ def get_stats_all() -> dict:
     """Return global stats + per-namespace breakdown in a single query."""
     with get_db() as conn:
         ns_rows = conn.execute(
-            "SELECT namespace, COUNT(*) as total_count, SUM(size_bytes) as total_bytes FROM outputs GROUP BY namespace"
+            "SELECT namespace, COUNT(*) as total_count, SUM(size_bytes) as total_bytes FROM outputs WHERE deleted_at IS NULL GROUP BY namespace"
         ).fetchall()
         total = conn.execute(
-            "SELECT COUNT(*), SUM(size_bytes) FROM outputs"
+            "SELECT COUNT(*), SUM(size_bytes) FROM outputs WHERE deleted_at IS NULL"
         ).fetchone()
         type_rows = conn.execute(
-            "SELECT type, COUNT(*) as count, SUM(size_bytes) as total_bytes FROM outputs GROUP BY type"
+            "SELECT type, COUNT(*) as count, SUM(size_bytes) as total_bytes FROM outputs WHERE deleted_at IS NULL GROUP BY type"
         ).fetchall()
 
     by_namespace = {
