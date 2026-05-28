@@ -1,7 +1,10 @@
+import logging
 import os
 from pathlib import Path
 from pydantic_settings import BaseSettings
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
+
+_log = logging.getLogger("claudeos.config")
 
 
 BASE_DIR = Path(__file__).parent.parent
@@ -33,8 +36,11 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_KEY: str = ""
     SUPABASE_ACCESS_TOKEN: str = ""  # Personal access token for Management API
 
+    # Scheduler
+    SCHEDULER_TIMEZONE: str = "Africa/Lagos"
+
     # Memory bridge
-    CLAUDE_MEMORY_PATH: str = r"C:\Users\rigwe\.claude\memory"
+    CLAUDE_MEMORY_PATH: str = ""  # Set in .env to enable /memory/import
 
     # RECI Transport
     RECI_DASHBOARD_DB: str = ""
@@ -55,6 +61,14 @@ class Settings(BaseSettings):
         "env_file_encoding": "utf-8",
         "extra": "ignore",
     }
+
+    @model_validator(mode="after")
+    def warn_missing_keys(self) -> "Settings":
+        if not self.ANTHROPIC_API_KEY:
+            _log.warning("ANTHROPIC_API_KEY is not set — all agent runs will fail with 401")
+        if not self.CLAUDE_MEMORY_PATH:
+            _log.debug("CLAUDE_MEMORY_PATH not set — /memory/import endpoint disabled")
+        return self
 
     @field_validator("CLAUDEOS_SECRET_KEY")
     @classmethod

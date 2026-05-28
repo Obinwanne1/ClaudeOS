@@ -107,8 +107,12 @@ def list_runs(
     agent_id: Optional[str] = None,
     namespace: Optional[str] = None,
     status: Optional[str] = None,
+    since: Optional[str] = None,
+    until: Optional[str] = None,
     limit: int = 50,
-) -> list[dict]:
+    offset: int = 0,
+) -> tuple[list[dict], int]:
+    """Returns (runs, total_count). total_count ignores limit/offset."""
     from core.database import get_db
     import json
     conditions = []
@@ -117,20 +121,28 @@ def list_runs(
         conditions.append("agent_id = ?")
         params.append(agent_id)
     if namespace:
-        conditions.append("namespace = ?")
+        conditions.append("r.namespace = ?")
         params.append(namespace)
     if status:
-        conditions.append("status = ?")
+        conditions.append("r.status = ?")
         params.append(status)
+    if since:
+        conditions.append("r.created_at >= ?")
+        params.append(since)
+    if until:
+        conditions.append("r.created_at <= ?")
+        params.append(until)
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
-    params.append(limit)
     with get_db() as conn:
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM agent_runs r {where}", params
+        ).fetchone()[0]
         rows = conn.execute(
             f"""SELECT r.*, a.name AS agent_name, a.display_name AS agent_display_name
                 FROM agent_runs r
                 LEFT JOIN agents a ON a.id = r.agent_id
-                {where} ORDER BY r.created_at DESC LIMIT ?""",
-            params,
+                {where} ORDER BY r.created_at DESC LIMIT ? OFFSET ?""",
+            params + [limit, offset],
         ).fetchall()
     result = []
     for row in rows:
@@ -142,7 +154,7 @@ def list_runs(
                 except Exception:
                     pass
         result.append(d)
-    return result
+    return result, total
 
 
 def cancel_run(run_id: str) -> bool:

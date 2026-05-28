@@ -253,8 +253,9 @@ def test_dispatcher_dispatch_returns_run_id():
 
 def test_dispatcher_list_runs():
     from agents.dispatcher import list_runs
-    runs = list_runs(limit=10)
+    runs, total = list_runs(limit=10)
     assert isinstance(runs, list)
+    assert isinstance(total, int)
 
 
 def test_dispatcher_cancel_run():

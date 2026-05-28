@@ -278,8 +278,8 @@ def list_agent_runs(agent_id: str):
     if not agent:
         return jsonify({"error": "Agent not found"}), 404
     limit = min(int(request.args.get("limit", 50)), 200)
-    runs = dispatcher.list_runs(agent_id=agent.id, limit=limit)
-    return jsonify({"runs": runs, "count": len(runs)})
+    runs, total = dispatcher.list_runs(agent_id=agent.id, limit=limit)
+    return jsonify({"runs": runs, "count": len(runs), "total": total})
 
 
 @agents_bp.post("/runs/<run_id>/cancel")
@@ -312,9 +312,15 @@ def delete_run(run_id: str):
 def list_runs():
     namespace = effective_namespace(request.args.get("namespace"))
     status = request.args.get("status")
-    limit = min(int(request.args.get("limit", 50)), 200)
-    runs = dispatcher.list_runs(namespace=namespace, status=status, limit=limit)
-    return jsonify({"runs": runs, "count": len(runs)})
+    since  = request.args.get("since")   # ISO datetime string e.g. "2026-01-01T00:00:00"
+    until  = request.args.get("until")
+    limit  = min(int(request.args.get("limit", 50)), 200)
+    offset = int(request.args.get("offset", 0))
+    runs, total = dispatcher.list_runs(
+        namespace=namespace, status=status,
+        since=since, until=until, limit=limit, offset=offset,
+    )
+    return jsonify({"runs": runs, "count": len(runs), "total": total, "offset": offset, "limit": limit})
 
 
 @agents_bp.get("/<agent_name>/conversations")

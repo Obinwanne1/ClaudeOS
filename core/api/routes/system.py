@@ -11,6 +11,17 @@ from core.auth import require_auth, effective_namespace
 system_bp = Blueprint("system", __name__, url_prefix="/api/v1")
 
 
+def _chromadb_probe(path: str) -> dict:
+    """Actually probe ChromaDB — returns real status instead of hardcoded 'ok'."""
+    try:
+        import chromadb
+        client = chromadb.PersistentClient(path=path)
+        client.heartbeat()
+        return {"status": "ok", "path": path}
+    except Exception as e:
+        return {"status": "error", "path": path, "error": str(e)[:120]}
+
+
 @system_bp.get("/health")
 def health():
     s = get_settings()
@@ -49,7 +60,7 @@ def status():
         "services": {
             "api": {"status": "ok", "port": settings.FLASK_PORT},
             "database": {"status": "ok" if db_ok else "error", "path": db_path, "size_kb": db_size_kb},
-            "chromadb": {"status": "ok", "path": str(settings.chromadb_path)},
+            "chromadb": _chromadb_probe(str(settings.chromadb_path)),
         },
     })
 

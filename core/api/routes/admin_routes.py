@@ -217,6 +217,8 @@ def get_audit():
     offset = int(request.args.get("offset", 0))
     event_type = request.args.get("event_type")
     username   = request.args.get("username")
+    since      = request.args.get("since")   # ISO datetime e.g. "2026-01-01T00:00:00"
+    until      = request.args.get("until")
 
     conditions, params = [], []
     if event_type:
@@ -225,18 +227,36 @@ def get_audit():
     if username:
         conditions.append("username = ?")
         params.append(username)
+    if since:
+        conditions.append("created_at >= ?")
+        params.append(since)
+    if until:
+        conditions.append("created_at <= ?")
+        params.append(until)
 
     # Safe: conditions list contains only hardcoded SQL fragments ("event_type = ?",
     # "username = ?"), never user-supplied strings. Values are always in params list.
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     params += [limit, offset]
 
+    filter_params = params[: len(params)]  # params before limit/offset appended
+    count_params = [p for p in params if p not in [limit, offset]]
+
     with get_db() as conn:
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM auth_events {where}", count_params
+        ).fetchone()[0]
         rows = conn.execute(
             f"SELECT * FROM auth_events {where} ORDER BY created_at DESC LIMIT ? OFFSET ?", params
         ).fetchall()
 
-    return jsonify([dict(r) for r in rows])
+    return jsonify({
+        "events": [dict(r) for r in rows],
+        "count": len(rows),
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+    })
 
 
 # ── Sessions ──────────────────────────────────────────────────────────────────

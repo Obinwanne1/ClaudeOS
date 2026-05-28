@@ -25,14 +25,24 @@ _lock = threading.Lock()
 _pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="wf-worker")
 
 
+def _get_tz() -> str:
+    try:
+        from core.config import get_settings
+        return get_settings().SCHEDULER_TIMEZONE
+    except Exception:
+        return "Africa/Lagos"
+
+
 def init_scheduler() -> BackgroundScheduler:
     global _scheduler
     with _lock:
         if _scheduler is not None and _scheduler.running:
             return _scheduler
+        from core.config import get_settings
+        tz = get_settings().SCHEDULER_TIMEZONE
         _scheduler = BackgroundScheduler(
             job_defaults={"coalesce": True, "max_instances": 1, "misfire_grace_time": 300},
-            timezone="Africa/Lagos",  # WAT UTC+1
+            timezone=tz,
         )
         _scheduler.start()
         logger.info("APScheduler started")
@@ -148,7 +158,7 @@ def _build_trigger(spec: dict):
             day_of_week=spec.get("day_of_week", "*"),
             hour=spec.get("hour", 0),
             minute=spec.get("minute", 0),
-            timezone=spec.get("timezone", "Africa/Lagos"),
+            timezone=spec.get("timezone") or _get_tz(),
         )
     if t == "interval":
         return IntervalTrigger(

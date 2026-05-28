@@ -276,11 +276,12 @@ if role == "staff":
 
 # Ticket badge — fetch before radio so count shows in nav label (cached 30s)
 _ticket_stats = _cached_api_get(
-    "/tickets?status=open&limit=1",
+    "/tickets?status=open&limit=200",
     token=st.session_state.get("jwt_token", ""),
     timeout=3,
 )
-_open_ticket_count = (_ticket_stats.get("count", 0) if isinstance(_ticket_stats, dict) else 0)
+# list_tickets returns a JSON array — count its length
+_open_ticket_count = (len(_ticket_stats) if isinstance(_ticket_stats, list) else 0)
 
 _page_list = list(pages.keys())
 # Restore nav page if theme toggle rerun pruned the un-rendered widget state key

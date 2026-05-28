@@ -133,6 +133,8 @@ def list_tickets():
     priority_filter = request.args.get("priority")
     ns_filter       = request.args.get("namespace")
     assigned_filter = request.args.get("assigned_to")
+    since           = request.args.get("since")   # ISO datetime e.g. "2026-01-01T00:00:00"
+    until           = request.args.get("until")
     limit  = min(int(request.args.get("limit", 50)), 200)
     offset = int(request.args.get("offset", 0))
 
@@ -172,6 +174,12 @@ def list_tickets():
             params.append(int(priority_filter))
         except ValueError:
             pass
+    if since:
+        conditions.append("created_at >= ?")
+        params.append(since)
+    if until:
+        conditions.append("created_at <= ?")
+        params.append(until)
 
     where  = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     sql    = f"SELECT * FROM tickets {where} ORDER BY created_at DESC LIMIT ? OFFSET ?"
