@@ -603,6 +603,8 @@ Invoke-WebRequest "http://localhost:5000/api/v1/agents" -Headers @{"X-API-Key" =
 | Activity feed shows UUID not agent name | `552e5b3` | Section 1.5 — Feed shows readable agent names, not truncated UUIDs |
 | Analysis agent fabricates data when given nothing | `49c6631` | Ask analysis-agent a vague question with no data — it must ask clarifying questions, not invent results |
 | Agents hallucinate when input missing | `b1211e5` | Ask briefing/research/writing agents with no context — must request specific inputs, not produce generic output |
+| Analysis/client-manager agents use training data for business facts | `87815fb` | Ask analysis-agent "what cities does X deliver to?" with no data — must trigger MISSING INPUT PROTOCOL, not answer from training knowledge; ask client-manager to draft an email — must respond with one-line redirect only |
+| Evaluator penalizes correct scope refusals (task_completion: 0.0) | `11f51e5` | Run client-manager-agent on an out-of-scope prompt (e.g. "draft an email") — Observability Quality Scores must show ≥4.0, not near 0 |
 | Sync log delete returns "Delete failed" | `26d1d38` | Section 9.3 — delete a sync log entry, confirm it disappears. Was false 404 due to SELECT changes() resetting after commit |
 | Voice widget not resetting on Clear Conversation | `b969309` | Section 2.5 — After Clear, microphone widget resets to default state |
 

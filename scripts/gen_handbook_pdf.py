@@ -8,7 +8,7 @@ from datetime import date
 from pathlib import Path
 from xhtml2pdf import pisa
 
-VERSION = "15.0"
+VERSION = "17.0"
 CLIENT  = "faiyke-ai"
 TODAY   = date.today().isoformat()
 
@@ -47,6 +47,8 @@ h1 {
   padding-bottom: 6px;
   margin-top: 0;
   page-break-before: always;
+  page-break-after: avoid;
+  -pdf-keep-with-next: true;
 }
 h1.no-break { page-break-before: avoid; margin-top: 0; }
 h2 {
@@ -56,18 +58,24 @@ h2 {
   padding-bottom: 3px;
   margin-top: 18px;
   margin-bottom: 5px;
+  page-break-after: avoid;
+  -pdf-keep-with-next: true;
 }
 h3 {
   color: #2d5a29;
   font-size: 10.5pt;
   margin-top: 12px;
   margin-bottom: 3px;
+  page-break-after: avoid;
+  -pdf-keep-with-next: true;
 }
 h4 {
   color: #2d5a29;
   font-size: 10pt;
   margin-top: 8px;
   margin-bottom: 2px;
+  page-break-after: avoid;
+  -pdf-keep-with-next: true;
 }
 
 /* ── tables ── */
@@ -95,6 +103,7 @@ pre {
   white-space: pre-wrap;
   word-wrap: break-word;
   margin: 8px 0;
+  page-break-inside: avoid;
 }
 
 /* ── lists ── */
@@ -106,9 +115,9 @@ hr     { border: none; border-top: 1px solid #d0e8c8; margin: 14px 0; }
 strong { color: #2d5a29; }
 
 /* ── callout boxes ── */
-.note  { background: #e8f5e4; border-left: 4px solid #407E3C; padding: 8px 12px; margin: 8px 0; font-size: 9.5pt; }
-.warn  { background: #fff8e0; border-left: 4px solid #f9a825; padding: 8px 12px; margin: 8px 0; font-size: 9.5pt; }
-.tip   { background: #e8f4e8; border-left: 4px solid #5a9e56; padding: 8px 12px; margin: 8px 0; font-size: 9.5pt; }
+.note  { background: #e8f5e4; border-left: 4px solid #407E3C; padding: 8px 12px; margin: 8px 0; font-size: 9.5pt; page-break-inside: avoid; }
+.warn  { background: #fff8e0; border-left: 4px solid #f9a825; padding: 8px 12px; margin: 8px 0; font-size: 9.5pt; page-break-inside: avoid; }
+.tip   { background: #e8f4e8; border-left: 4px solid #5a9e56; padding: 8px 12px; margin: 8px 0; font-size: 9.5pt; page-break-inside: avoid; }
 
 /* ── cover ── */
 .cover {
@@ -139,7 +148,7 @@ strong { color: #2d5a29; }
 .badge-gray { background: #888;    color: white; padding: 2px 8px; font-size: 8pt; margin-right: 4px; }
 
 /* ── gauge block ── */
-.gauge-block { background: #f4faf2; border: 1px solid #c8e0c0; padding: 10px 14px; margin: 8px 0; font-size: 9pt; }
+.gauge-block { background: #f4faf2; border: 1px solid #c8e0c0; padding: 10px 14px; margin: 8px 0; font-size: 9pt; page-break-inside: avoid; }
 
 /* ── page footer ── */
 #footer_content { text-align: center; font-size: 8pt; color: #888; font-family: Arial, sans-serif; }
@@ -217,7 +226,18 @@ def toc() -> str:
   Onboarding Modal (Sec 4), CORS &amp; Rate Limiting (Sec 18), namespace-scoped KPIs, page URL persistence.<br/>
   <strong>New in v15.0:</strong> Namespace Usage tab in Observability (Sec 13), Client Onboarding tab in Admin Panel
   (14-field schema seed), onboarding_done DB persistence (migration 018), admin context-aware unlock UI,
-  voice widget reset on Clear Conversation, agent failure logging to global memory.
+  voice widget reset on Clear Conversation, agent failure logging to global memory.<br/>
+  <strong>New in v16.0:</strong> Agent hallucination guard — agents ask clarifying questions instead of fabricating results;
+  output delete SQLite compatibility fix; timestamps shown as YYYY-MM-DD HH:MM in all output views;
+  activity feed now shows human-readable agent names (no more UUIDs); context builder 4s timeout for
+  faster responses when ChromaDB is slow; agents page 30s namespace cache for reduced load latency.<br/>
+  <strong>New in v17.0:</strong> Agent NO TRAINING KNOWLEDGE rule — analysis-agent and client-manager-agent
+  explicitly blocked from using training data for business-specific facts (cities, clients, revenue, routes);
+  empty context triggers MISSING INPUT PROTOCOL instead of a fabricated answer; client-manager out-of-scope
+  requests (email drafts, analysis) return a one-line redirect only. Evaluator rubric fix — correct scope
+  refusals now score task_completion=5.0 (agents enforcing their own boundaries are never penalised);
+  factual_grounding=5.0 when no factual claims are made. Test suite expanded to 115 tests — legacy test
+  files (test_agents, test_memory, test_phase1) updated with auth fixtures and APScheduler mock.
 </p>
 """
 
@@ -1618,6 +1638,23 @@ def s20_troubleshoot_support() -> str:
 <tr><td>Client Onboarding tab missing in Admin Panel</td>
     <td>Run <code>python scripts/seed_client_schema.py --namespace &lt;slug&gt;</code> to seed blank fields.
     The tab is in Admin Panel (6th tab) &mdash; visible to Admin role only.</td></tr>
+<tr><td>Output delete button does nothing</td>
+    <td>SQLite versions older than 3.35 do not support the RETURNING clause.
+    Upgrade SQLite or update <code>outputs/manager.py</code> to use SELECT-then-DELETE pattern.</td></tr>
+<tr><td>Output timestamps show date only (no time)</td>
+    <td>Upgrade to v16.0. Timestamps now display as YYYY-MM-DD HH:MM in all output views.</td></tr>
+<tr><td>Activity feed shows garbled IDs instead of agent names</td>
+    <td>Upgrade to v16.0. The dispatcher now JOINs the agents table so human-readable names
+    are always returned. If on latest version, check <code>agents/dispatcher.py</code>
+    <code>list_runs()</code> includes the JOIN clause.</td></tr>
+<tr><td>Agent gives confident wrong answers when no data is supplied</td>
+    <td>This is the hallucination guard working correctly after v16.0. The agents
+    (analysis, briefing, research, writing) will now ask you for specific inputs
+    rather than generating fabricated content. Supply the requested data and re-run.</td></tr>
+<tr><td>Agent response slow when ChromaDB is indexing</td>
+    <td>After v16.0 a 4-second timeout protects against slow ChromaDB/hybrid-search.
+    The agent falls back to fast FTS context automatically. Performance warning may appear in logs
+    &mdash; this is informational, not an error.</td></tr>
 <tr><td>Page not preserved after browser refresh</td>
     <td>Ensure you are on the latest v14.0. The URL should show <code>?page=PageName</code>.
     Clear browser cache if the behaviour persists.</td></tr>

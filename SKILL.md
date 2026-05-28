@@ -678,7 +678,7 @@ Every deployment built by this skill includes all of the following. Nothing is c
 | `DELETE /sync/log/<id>` | Delete single sync log entry |
 | `DELETE /sync/log` | Bulk delete sync log entries — body: `{"ids": [...]}`, max 200 |
 
-### Migrations (018 total)
+### Migrations (020 total)
 | Migration | Content |
 |-----------|---------|
 | 001 | Initial schema (memory, agents, workflows, outputs) |
@@ -695,6 +695,8 @@ Every deployment built by this skill includes all of the following. Nothing is c
 | 016 | Webhook triggers on workflows |
 | 017 | Agent conversations + turns (multi-turn chat) |
 | 018 | onboarding_done column on users table (first-login tour persists across logout/re-login) |
+| 019 | 15 high-traffic DB indexes (performance) |
+| 020 | Soft-delete: deleted_at column on agent_runs + outputs; hard-delete replaced with soft-delete everywhere |
 
 ---
 
@@ -756,6 +758,9 @@ After the system is running, offer these optional additions:
 | Output timestamps missing time | Output timestamps must display as YYYY-MM-DD HH:MM in all views. Check manager.py created_at formatting. Fixed in commit 0cadc72 |
 | Activity feed shows UUID instead of agent name | dispatcher.list_runs must JOIN agents table and return agent_name + agent_display_name. Overview must use fallback chain: agent_name > display_name > id[:12]. Fixed in commit 552e5b3 |
 | Agent gives confident answers with no data | analysis/briefing/research/writing agents must ask clarifying questions when input is missing or vague — never fabricate findings. Check system_prompt in agent YAML. Fixed in commits 49c6631, b1211e5 |
+| Analysis/client-manager agents use training data for business facts | analysis-agent and client-manager-agent have explicit CRITICAL — NO TRAINING KNOWLEDGE block in system_prompt. Empty context must trigger MISSING INPUT PROTOCOL, not a fabricated answer. client-manager out-of-scope requests (email drafts, analysis) get one-line redirect only. Fixed in commit 87815fb |
+| Evaluator gives task_completion=0 for correct scope refusals | Correct scope refusals must score task_completion=5.0 — agents enforcing their own scope boundaries are not penalised. Check _EVAL_PROMPT in agents/evaluator.py. Fixed in commit 11f51e5 |
+| Legacy test files return 401 (no auth headers) | test_agents.py, test_memory.py, test_phase1.py require auth fixtures + APScheduler mock on client fixture. Add CLAUDEOS_SECRET_KEY (≥32 chars) to monkeypatch, mock init_scheduler/shutdown_scheduler, add auth_headers fixture. Fixed in commit 3c25eec |
 | Usage page not visible | Usage page only shows for `client` and `viewer` roles. Admin/operator use Observability. Check dashboard/app.py nav role filter. |
 | Namespace branding not loading | Namespace metadata (company_name, color, icon) loaded on login for client/viewer. If sidebar shows raw namespace slug: check `_ns_brand_loaded` logic in app.py and /namespaces/<ns> API response includes metadata field. |
 | Email notifications not sending | Requires SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, NOTIFY_EMAIL in .env. Check core/notifications.py logs. SMTP must allow relaying from server IP. |

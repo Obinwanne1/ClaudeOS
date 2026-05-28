@@ -246,7 +246,7 @@ python scripts/seed_client_schema.py --namespace <client-slug>   # optional: pre
 - **ChromaDB health**: /system/status now uses real `client.heartbeat()` instead of hardcoded "ok"
 - **Webhook hardening**: 64KB body limit + context dict validation
 - **Role enforcement**: projects namespace endpoints require admin/operator; memory consolidate requires admin/operator
-- **Test suite**: 99 tests passing across test_auth, test_admin, test_tickets, test_sync, test_workflows + shared conftest.py with `fresh_db`, `app`, `client`, `admin_token` fixtures
+- **Test suite**: 115 tests passing across test_auth, test_admin, test_tickets, test_sync, test_workflows, test_agents, test_memory, test_phase1 + shared conftest.py with `fresh_db`, `app`, `client`, `admin_token` fixtures; legacy test files now have auth fixtures + scheduler mock (commit 3c25eec)
 - Phase 1:  Core Infrastructure ✅
 - Phase 2:  Memory Engine ✅
 - Phase 3:  Agent Registry + Control Center ✅
