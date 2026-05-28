@@ -145,52 +145,68 @@ def _sync_headers() -> dict:
 
 
 def _render_sync_log(log: list, api_post):
-    """Render sync log with per-row delete and bulk-select delete."""
+    """Render sync log table with checkbox selection and bulk/single delete."""
     import pandas as pd
+    from dashboard.components.brand import get_theme_vars
 
-    # Build display rows, keep id for delete ops
+    t = get_theme_vars()
+
     rows = []
     for r in log:
         rows.append({
             "id": r.get("id", ""),
-            "Started": (r.get("started_at") or "")[:19],
+            "Started": (r.get("started_at") or "")[:19].replace("T", " "),
             "Table": r.get("table_name", ""),
             "OK": r.get("rows_ok", 0),
             "Fail": r.get("rows_fail", 0),
             "ms": r.get("duration_ms", 0),
-            "Error": (r.get("error") or "")[:60],
+            "Error": (r.get("error") or "")[:80],
         })
 
     df = pd.DataFrame(rows)
-
-    # ── Bulk-select via data_editor ───────────────────────────
     display_df = df.drop(columns=["id"]).copy()
-    display_df.insert(0, "✓", False)
+    display_df.insert(0, "Select", False)
 
     edited = st.data_editor(
         display_df,
         use_container_width=True,
         hide_index=True,
-        column_config={"✓": st.column_config.CheckboxColumn("✓", width="small")},
+        column_config={
+            "Select": st.column_config.CheckboxColumn("", width="small"),
+            "Started": st.column_config.TextColumn("Started", width="medium"),
+            "Table": st.column_config.TextColumn("Table", width="medium"),
+            "OK": st.column_config.NumberColumn("OK", width="small"),
+            "Fail": st.column_config.NumberColumn("Fail", width="small"),
+            "ms": st.column_config.NumberColumn("ms", width="small"),
+            "Error": st.column_config.TextColumn("Error", width="large"),
+        },
         key="sync_log_editor",
+        disabled=["Started", "Table", "OK", "Fail", "ms", "Error"],
     )
 
-    selected_mask = edited["✓"]
-    selected_ids = df.loc[selected_mask[selected_mask].index, "id"].tolist()
-    n_selected = len(selected_ids)
+    selected_idx = edited.index[edited["Select"]].tolist()
+    selected_ids = df.loc[selected_idx, "id"].tolist()
+    n = len(selected_ids)
 
-    col_sel, col_del, col_clr = st.columns([2, 2, 4])
+    # ── Action bar ────────────────────────────────────────────
+    st.markdown(
+        f'<div style="height:8px"></div>',
+        unsafe_allow_html=True,
+    )
+    a1, a2, a3 = st.columns([2, 3, 5])
 
-    with col_sel:
-        if st.button("Select All", key="synclog_sel_all"):
-            # Toggle all to True by clearing editor state so next render resets
-            st.session_state.pop("sync_log_editor", None)
-            st.session_state["_synclog_select_all"] = True
+    with a1:
+        if st.button("☑ Select All", key="synclog_sel_all", use_container_width=True):
+            # Force all checkboxes on next render by pre-filling state
+            all_true = display_df.copy()
+            all_true["Select"] = True
+            st.session_state["sync_log_editor"] = {"edited_rows": {i: {"Select": True} for i in range(len(df))}}
             st.rerun()
 
-    with col_del:
-        label = f"🗑 Delete Selected ({n_selected})" if n_selected else "🗑 Delete Selected"
-        if st.button(label, disabled=(n_selected == 0), type="primary", key="synclog_bulk_del"):
+    with a2:
+        del_label = f"🗑 Delete Selected ({n})" if n else "🗑 Delete Selected"
+        if st.button(del_label, key="synclog_bulk_del", type="primary",
+                     disabled=(n == 0), use_container_width=True):
             import requests
             try:
                 resp = requests.delete(
@@ -201,37 +217,16 @@ def _render_sync_log(log: list, api_post):
                 )
                 data = resp.json()
                 if resp.ok:
-                    st.success(f"Deleted {data.get('deleted', n_selected)} entries.")
                     st.session_state.pop("sync_log_editor", None)
+                    st.success(f"Deleted {data.get('deleted', n)} log entries.")
                     st.rerun()
                 else:
                     st.error(data.get("error", "Delete failed"))
             except Exception as e:
                 st.error(f"Request error: {e}")
 
-    # ── Per-row single delete ─────────────────────────────────
-    st.markdown("**Individual delete:**")
-    for idx, row in df.iterrows():
-        c1, c2, c3, c4, c5 = st.columns([3, 2, 1, 1, 1])
-        c1.caption(row["Started"])
-        c2.caption(row["Table"])
-        c3.caption(f"✅{row['OK']}")
-        c4.caption(f"❌{row['Fail']}" if row["Fail"] else "")
-        if c5.button("🗑", key=f"del_log_{row['id']}", help="Delete this entry"):
-            import requests
-            try:
-                resp = requests.delete(
-                    f"{_sync_api_base()}/sync/log/{row['id']}",
-                    headers=_sync_headers(),
-                    timeout=10,
-                )
-                if resp.ok:
-                    st.success("Entry deleted.")
-                    st.rerun()
-                else:
-                    st.error("Delete failed.")
-            except Exception as e:
-                st.error(f"Error: {e}")
+    if n:
+        st.caption(f"{n} row{'s' if n > 1 else ''} selected — click **Delete Selected** to remove.")
 
 
 def _render_email_settings():

@@ -237,10 +237,8 @@ def delete_log_entries(ids: list) -> int:
         return 0
     placeholders = ",".join("?" * len(ids))
     with get_db() as conn:
-        conn.execute(f"DELETE FROM sync_log WHERE id IN ({placeholders})", ids)
-        return conn.execute(
-            f"SELECT changes()"
-        ).fetchone()[0]
+        cur = conn.execute(f"DELETE FROM sync_log WHERE id IN ({placeholders})", ids)
+        return cur.rowcount
 
 
 def reset_watermark(table_name: Optional[str] = None) -> None:
