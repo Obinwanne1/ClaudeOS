@@ -154,6 +154,14 @@ Create the following directory structure in the current working directory:
 │   ├── store/
 │   ├── __init__.py
 │   └── manager.py
+├── docs/
+│   ├── FaiykeOS_Handbook_faiyke-ai.pdf   ← full client handbook (20 sections)
+│   ├── PRODUCT_README.md                 ← buyer-facing package overview
+│   ├── SETUP_GUIDE_NONTECHNICAL.md       ← 10-part setup guide for non-technical buyers
+│   ├── AGENCY_LICENSE.md                 ← agency/reseller license terms
+│   └── landing/
+│       ├── index.html                    ← marketing landing page
+│       └── pricing.html                  ← pricing + booking form
 ├── scripts/
 │   ├── create_admin.py
 │   ├── migrate.py
@@ -161,8 +169,11 @@ Create the following directory structure in the current working directory:
 │   ├── seed_client_schema.py   ← pre-populate 14 onboarding fields per namespace
 │   ├── seed_namespaces.py
 │   ├── seed_workflows.py
+│   ├── build_package.py        ← builds dist/FaiykeOS-v17.0.zip for distribution
+│   ├── gen_handbook_pdf.py     ← regenerates FaiykeOS_Handbook_faiyke-ai.pdf
 │   ├── serve_api.py
 │   ├── start.ps1
+│   ├── stop.ps1
 │   └── start_mcp.ps1
 ├── sync/
 │   ├── __init__.py
@@ -576,7 +587,7 @@ Create a `CLAUDE.md` in the project root with the full ClaudeOS project rules (a
 ```powershell
 git init
 git add .
-git commit -m "init: CLIENT_NAME OS — ClaudeOS v13.0 base build"
+git commit -m "init: CLIENT_NAME OS — FaiykeOS v17.0 base build"
 ```
 
 ---
@@ -622,6 +633,18 @@ Every deployment built by this skill includes all of the following. Nothing is c
 | Output timestamps | YYYY-MM-DD HH:MM shown in all output views |
 | Activity feed names | dispatcher.list_runs JOINs agents table; human-readable names always shown (agent_name > display_name > id[:12]) |
 | Performance | Agents page uses api_get_cached for /namespaces (30s TTL); context_builder wrapped in 4s timeout in executor |
+
+### Layer 15 (Commercial Package)
+| Feature | Details |
+|---------|---------|
+| Product name | **FaiykeOS** — commercial brand name; internal codebase retains ClaudeOS |
+| Handbook | `docs/FaiykeOS_Handbook_faiyke-ai.pdf` — 20-section client handbook, regenerated via `python scripts/gen_handbook_pdf.py` |
+| Landing page | `docs/landing/index.html` — standalone HTML marketing page; hero, features, personas, pricing preview, FAQ |
+| Pricing page | `docs/landing/pricing.html` — 3-tier cards, comparison table, Formspree booking form; replace `YOUR_FORM_ID` with real Formspree endpoint |
+| Pricing tiers | Developer $197 one-time \| Business $997 + $147/mo \| Agency $497 + $97/mo or $997 flat unlimited |
+| Buyer collateral | `docs/PRODUCT_README.md`, `docs/SETUP_GUIDE_NONTECHNICAL.md`, `docs/AGENCY_LICENSE.md` |
+| Distribution ZIP | `scripts/build_package.py` → `dist/FaiykeOS-v17.0.zip` (475 KB, 153 files); excludes .env, data/, logs/, dev scripts |
+| Replacements needed | Update `hello@faiyke-ai.com` email + Formspree form ID in landing/pricing HTML before distributing |
 
 ### Authentication & Roles
 | Role | Access |
@@ -724,6 +747,7 @@ After the system is running, offer these optional additions:
 3. **Seed initial memory** — "Shall I pre-populate memory with facts about [CLIENT_NAME]?"
 4. **MCP server** — "Would you like the MCP Tool Server started? (lets Claude Desktop call your agents)"
 5. **Supabase cloud sync** — "Do you have Supabase credentials for cloud backup?"
+6. **Commercial package** — "Would you like me to generate the buyer-facing handbook PDF and distribution ZIP for this deployment?" → run `python scripts/gen_handbook_pdf.py` then `python scripts/build_package.py`
 
 ---
 

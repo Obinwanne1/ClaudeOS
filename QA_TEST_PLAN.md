@@ -717,7 +717,70 @@ SECTION 13 — NAMESPACE BRANDING
   13.2 Set Namespace Brand     [ ]
   13.3 Client Sees Branding    [ ]
   13.4 Cleanup                 [ ]
+
+SECTION 14 — COMMERCIAL PACKAGE
+  14.1 Build Distribution ZIP  [ ]
+  14.2 ZIP Contents Integrity  [ ]
+  14.3 Dev Scripts Excluded    [ ]
+  14.4 Handbook PDF Integrity  [ ]
+  14.5 Landing Pages Load      [ ]
 ```
+
+---
+
+## SECTION 14 — COMMERCIAL PACKAGE
+
+### 14.1 Build Distribution ZIP
+```powershell
+python scripts/build_package.py
+```
+**Expected output:**
+- `dist/FaiykeOS-v17.0.zip` created (~475 KB, ~153 files)
+- Console shows: `Secret leaks: NONE`, file count, size
+
+**Fail signals:** Python error, zip not created, size 0 KB
+
+### 14.2 ZIP Contents Integrity
+```powershell
+python -c "
+import zipfile
+z = zipfile.ZipFile('dist/FaiykeOS-v17.0.zip')
+names = z.namelist()
+bad = [n for n in names if '.env' in n and 'example' not in n]
+print('Secret leaks:', bad if bad else 'NONE')
+print('Has handbook:', any('FaiykeOS_Handbook' in n for n in names))
+print('Has landing:', any('landing/index.html' in n for n in names))
+print('Has requirements:', any('requirements.txt' in n for n in names))
+"
+```
+**Expected:**
+- `Secret leaks: NONE` — .env not in ZIP
+- `Has handbook: True`
+- `Has landing: True`
+- `Has requirements: True`
+
+### 14.3 Dev Scripts Excluded
+```powershell
+python -c "
+import zipfile
+z = zipfile.ZipFile('dist/FaiykeOS-v17.0.zip')
+dev = [n for n in z.namelist() if any(s in n for s in ['debug_namespaces','delete_faiyke','fix_faiyke','seed_faiyke','build_package'])]
+print('Dev scripts leaked:', dev if dev else 'NONE')
+"
+```
+**Expected:** `Dev scripts leaked: NONE`
+
+### 14.4 Handbook PDF Integrity
+1. Open `docs/FaiykeOS_Handbook_faiyke-ai.pdf`
+2. **Expected:** Cover page shows **FaiykeOS** (not ClaudeOS)
+3. Footer shows `FaiykeOS v17.0 · faiyke-ai`
+4. No duplicate footer on last page
+
+### 14.5 Landing Pages Load
+1. Open `docs/landing/index.html` in browser (double-click or `start`)
+2. **Expected:** Hero loads with green gradient, "FaiykeOS" heading visible, no broken CSS
+3. Open `docs/landing/pricing.html`
+4. **Expected:** 3 pricing cards visible ($197 / $997+$147mo / $497+$97mo), comparison table renders
 
 ---
 

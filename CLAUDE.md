@@ -64,8 +64,18 @@ Layer 14: Commercial (namespace white-labeling, client usage dashboard, email no
 - `mcp/server.py` — MCP Tool Server, exposes 12 agents as MCP tools (port 5100)
 - `scripts/create_admin.py` — first-run admin seed script
 - `scripts/seed_client_schema.py` — pre-populate 14 onboarding fields for a client namespace (skips existing keys)
+- `scripts/build_package.py` — builds `dist/FaiykeOS-v17.0.zip` (153 files, excludes .env/data/logs/__pycache__/dev scripts)
 - `scripts/start.ps1` — kills ports, starts Flask + Streamlit
 - `scripts/start_mcp.ps1` — starts MCP server on port 5100
+- `scripts/stop.ps1` — stops Flask + Streamlit processes
+- `core/backup.py` — VACUUM INTO backup, 7-backup retention, `data/backups/`; daily APScheduler job at 02:00
+- `docs/FaiykeOS_Handbook_faiyke-ai.pdf` — full client-facing handbook (20 sections, regenerated via gen_handbook_pdf.py)
+- `docs/PRODUCT_README.md` — buyer-facing package README with feature tables and quick start
+- `docs/SETUP_GUIDE_NONTECHNICAL.md` — 10-part setup guide for non-technical buyers
+- `docs/AGENCY_LICENSE.md` — agency/reseller license terms (v17.0)
+- `docs/landing/index.html` — marketing landing page (standalone HTML, no build system)
+- `docs/landing/pricing.html` — pricing page with 3-tier cards, comparison table, Formspree booking form
+- `dist/FaiykeOS-v17.0.zip` — distributable buyer package (gitignored — rebuild with build_package.py)
 
 ## Stack
 - Python: Flask (API), Streamlit (dashboard)
@@ -203,6 +213,7 @@ Layer 14: Commercial (namespace white-labeling, client usage dashboard, email no
 - Never use gunicorn — use waitress on Windows
 - Always `encoding='utf-8'` on file reads/writes
 - Never commit .env, vault workspace files, or data/claudeos.db
+- Never commit dist/ ZIP files — dist/ is gitignored; only commit build_package.py; rebuild ZIP with `python scripts/build_package.py`
 - Namespace isolation is mandatory — no cross-namespace memory reads
 - Every agent run logs to agent_runs table
 - Every output saves to outputs table + file system
@@ -293,3 +304,11 @@ python scripts/seed_client_schema.py --namespace <client-slug>   # optional: pre
   - Activity feed agent names: dispatcher JOINs agents table; human-readable names always shown
   - Performance: agents page uses api_get_cached; context builder has 4s timeout fallback
   - Sync log delete: DELETE /sync/log/<id> (single entry) + DELETE /sync/log with {"ids":[...]} (bulk, max 200); Settings renders log via st.data_editor with checkbox column + "Delete Selected (N)" button + per-row 🗑 button
+- Phase 15: Commercial Package ✅
+  - Product rebranded as **FaiykeOS** (commercial name) — all handbook references updated; internal codebase retains ClaudeOS name
+  - Handbook renamed `docs/FaiykeOS_Handbook_faiyke-ai.pdf` — regenerated via `python scripts/gen_handbook_pdf.py`
+  - Sales template: `docs/landing/index.html` (landing page) + `docs/landing/pricing.html` (3-tier pricing + Formspree booking form)
+  - Buyer collateral: `docs/PRODUCT_README.md` (package overview + feature tables), `docs/SETUP_GUIDE_NONTECHNICAL.md` (10-part zero-experience setup guide), `docs/AGENCY_LICENSE.md` (agency reseller license, governed by Nigerian law)
+  - 3-tier pricing: Developer $197 one-time | Business $997 + $147/mo | Agency $497 + $97/mo or $997 flat unlimited
+  - Distribution script: `scripts/build_package.py` → `dist/FaiykeOS-v17.0.zip` (475 KB, 153 files); excludes .env, data/, logs/, vault/workspaces/, outputs/store/, dev scripts, __pycache__
+  - dist/ is gitignored — ZIP not committed; rebuild with `python scripts/build_package.py`
