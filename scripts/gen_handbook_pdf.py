@@ -1688,10 +1688,6 @@ def s20_troubleshoot_support() -> str:
 <li>Approximate time the issue occurred</li>
 </ul>
 
-<hr/>
-<p style="text-align:center;color:#888;font-size:8.5pt;">
-  ClaudeOS v{VERSION} &nbsp;&middot;&nbsp; faiyke-ai &nbsp;&middot;&nbsp; {TODAY} &nbsp;&middot;&nbsp; Confidential
-</p>
 """
 
 
