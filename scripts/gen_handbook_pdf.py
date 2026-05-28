@@ -1,5 +1,5 @@
 """
-Generate ClaudeOS_Handbook_faiyke-ai.pdf  (v14.0)
+Generate FaiykeOS_Handbook_faiyke-ai.pdf  (v14.0)
 Full client-facing handbook for faiyke-ai.
 Usage: python scripts/gen_handbook_pdf.py
 """
@@ -162,7 +162,7 @@ strong { color: #2d5a29; }
 def cover_page() -> str:
     return f"""
 <div class="cover">
-  <div class="cover-logo">ClaudeOS</div>
+  <div class="cover-logo">FaiykeOS</div>
   <div class="cover-tagline">AI Operating System — Client Handbook</div>
   <div class="cover-geo-bar"></div>
   <div class="cover-new-badge">Version {VERSION} — Commercial Release</div>
@@ -170,9 +170,9 @@ def cover_page() -> str:
   <div class="cover-version"><strong>Date:</strong> {TODAY} &nbsp;|&nbsp; <strong>Edition:</strong> v{VERSION} Commercial</div>
   <div class="cover-divider"></div>
   <div class="cover-footer">
-    Confidential &mdash; For authorised users of ClaudeOS only.<br/>
+    Confidential &mdash; For authorised users of FaiykeOS only.<br/>
     Do not distribute outside your organisation.<br/>
-    Powered by faiyke-ai &nbsp;&middot;&nbsp; ClaudeOS &copy; 2026
+    Powered by faiyke-ai &nbsp;&middot;&nbsp; FaiykeOS &copy; 2026
   </div>
 </div>
 """
@@ -184,13 +184,13 @@ def cover_page() -> str:
 
 def toc() -> str:
     entries = [
-        ("1",  "s1",  "Introduction",                         "What ClaudeOS Is and What It Does"),
+        ("1",  "s1",  "Introduction",                         "What FaiykeOS Is and What It Does"),
         ("2",  "s2",  "System Requirements",                  "Hardware, Software, and Network"),
         ("3",  "s3",  "Installation &amp; First-Run Setup",   "From Zero to Running in 15 Minutes"),
         ("4",  "s4",  "Logging In &amp; First-Time Experience","Auth, Roles, Onboarding Modal"),
         ("5",  "s5",  "Dashboard Tour",                       "Every Page Explained incl. Usage &amp; Bg Colour"),
         ("6",  "s6",  "Working with AI Agents",               "Chat, Catalog, Run History"),
-        ("7",  "s7",  "Memory System",                        "How ClaudeOS Remembers Things"),
+        ("7",  "s7",  "Memory System",                        "How FaiykeOS Remembers Things"),
         ("8",  "s8",  "Workflows &amp; Automation",           "Pipelines, Scheduling, Webhooks"),
         ("9",  "s9",  "Client Vault",                         "Namespaces, Projects, Context Files"),
         ("10", "s10", "Outputs &amp; Reports",                "Saving, Searching, Exporting"),
@@ -250,8 +250,8 @@ def s1_intro() -> str:
     return f"""
 <h1><a name="s1"></a>1 &mdash; Introduction</h1>
 
-<h2>What Is ClaudeOS?</h2>
-<p>ClaudeOS is an AI Operating System &mdash; a secure, multi-user coordination layer that brings
+<h2>What Is FaiykeOS?</h2>
+<p>FaiykeOS is an AI Operating System &mdash; a secure, multi-user coordination layer that brings
 together AI agents, a long-term memory engine, automated workflows, project management, and
 a full ticketing system into one authenticated control centre. It runs as a private web
 application on your own infrastructure, so your data never leaves your environment.</p>
@@ -275,7 +275,7 @@ a dedicated client usage dashboard with a Pulse Score, and email notifications f
     report, analysis run, QA sweep, meta-orchestration) on a schedule or on demand.</td></tr>
 <tr><td><strong>Ticketing</strong></td>
     <td>Full support and task lifecycle with email notifications &mdash; create, assign,
-    prioritise, comment, resolve, and bulk-manage tickets without leaving ClaudeOS.</td></tr>
+    prioritise, comment, resolve, and bulk-manage tickets without leaving FaiykeOS.</td></tr>
 <tr><td><strong>Quality Scoring</strong></td>
     <td>Every agent response is automatically scored on 4 dimensions by a fast AI judge.</td></tr>
 <tr><td><strong>Observability</strong></td>
@@ -303,7 +303,7 @@ a dedicated client usage dashboard with a Pulse Score, and email notifications f
 
 Optional:  MCP Tool Server  (:5100)  — exposes agents to external AI clients</pre>
 
-<div class="note"><strong>Note:</strong> ClaudeOS runs entirely on your own server. No agent
+<div class="note"><strong>Note:</strong> FaiykeOS runs entirely on your own server. No agent
 prompts, memory entries, or outputs are sent to any third party except the Anthropic Claude
 API (for agent inference) and optionally Supabase (for cloud backup, if enabled).</div>
 """
@@ -317,7 +317,7 @@ def s2_requirements() -> str:
     return """
 <h1><a name="s2"></a>2 &mdash; System Requirements</h1>
 
-<h2>Server (where ClaudeOS runs)</h2>
+<h2>Server (where FaiykeOS runs)</h2>
 <table>
 <tr><th style="width:28%;">Component</th><th>Minimum</th><th>Recommended</th></tr>
 <tr><td>OS</td><td>Windows 10 64-bit</td><td>Windows 10/11 64-bit</td></tr>
@@ -362,8 +362,8 @@ def s3_install() -> str:
 <h1><a name="s3"></a>3 &mdash; Installation &amp; First-Run Setup</h1>
 
 <h2>Step 1 &mdash; Get the Code</h2>
-<p>Copy the ClaudeOS project folder to your server. Top-level layout:</p>
-<pre>ClaudeOS/
+<p>Copy the FaiykeOS project folder to your server. Top-level layout:</p>
+<pre>FaiykeOS/
 ├─ agents/       ├─ core/        ├─ dashboard/   ├─ docs/
 ├─ memory/       ├─ mcp/         ├─ scripts/     ├─ workflows/
 ├─ requirements.txt              └─ .env.example</pre>
@@ -448,7 +448,7 @@ def s4_login() -> str:
 <h1><a name="s4"></a>4 &mdash; Logging In &amp; First-Time Experience</h1>
 
 <h2>First Login</h2>
-<p>Navigate to the dashboard URL in your browser. You will see the ClaudeOS login screen
+<p>Navigate to the dashboard URL in your browser. You will see the FaiykeOS login screen
 with two tabs: <strong>Login</strong> and <strong>Register</strong>. Your namespace branding
 (logo, colours, background) is applied to the login page automatically.</p>
 <p>Enter the username and temporary password provided by your administrator, then press
@@ -468,7 +468,7 @@ with two tabs: <strong>Login</strong> and <strong>Register</strong>. Your namesp
 5-slide onboarding modal appears automatically. It walks through the key features:</p>
 <table>
 <tr><th style="width:12%;">Slide</th><th>Title</th><th>What It Covers</th></tr>
-<tr><td>1</td><td>Welcome</td><td>What ClaudeOS is, your namespace, and how to navigate.</td></tr>
+<tr><td>1</td><td>Welcome</td><td>What FaiykeOS is, your namespace, and how to navigate.</td></tr>
 <tr><td>2</td><td>AI Agents</td><td>How to run agents via chat and catalog. Streaming explained.</td></tr>
 <tr><td>3</td><td>Memory</td><td>Writing memory entries, categories, and how memory helps agents.</td></tr>
 <tr><td>4</td><td>Tickets</td><td>Creating and tracking tickets. Email notification opt-in.</td></tr>
@@ -658,7 +658,7 @@ def s6_agents() -> str:
 <tr><td><strong>Transport Ops Agent</strong></td><td>Domain</td>
     <td>Domain-specific fleet and booking analysis &mdash; namespace-locked.</td></tr>
 <tr><td><strong>Workflow Builder Agent</strong></td><td>System</td>
-    <td>Converts plain-English automation descriptions into ClaudeOS workflow YAML.</td></tr>
+    <td>Converts plain-English automation descriptions into FaiykeOS workflow YAML.</td></tr>
 <tr><td><strong>Writing Agent</strong></td><td>Content</td>
     <td>Drafts reports, emails, and proposals with voice matched to the active namespace.</td></tr>
 </table>
@@ -691,7 +691,7 @@ injected into context and where output is stored. Client and Viewer roles only s
 </ul>
 
 <h2>Voice Input</h2>
-<p>Click the microphone in the Chat tab. Record your request (up to 30 seconds). ClaudeOS
+<p>Click the microphone in the Chat tab. Record your request (up to 30 seconds). FaiykeOS
 transcribes locally using Whisper &mdash; nothing sent to external services. Review transcription,
 edit if needed, then submit. Requires <code>pip install openai-whisper</code>.</p>
 
@@ -724,7 +724,7 @@ def s7_memory() -> str:
 <h1><a name="s7"></a>7 &mdash; Memory System</h1>
 
 <h2>What Is Memory?</h2>
-<p>Memory is ClaudeOS's persistent knowledge store. When you or an agent writes a memory
+<p>Memory is FaiykeOS's persistent knowledge store. When you or an agent writes a memory
 entry, it is stored in the database and automatically injected into every subsequent agent
 run in that namespace. Agents remember facts, preferences, context, and reminders across
 sessions &mdash; without you having to repeat yourself.</p>
@@ -756,7 +756,7 @@ BM25 + semantic vector retrieval &mdash; better recall for conceptual queries (e
 payment terms&rdquo; finds entries about invoicing even without exact keyword match).</p>
 
 <h2>How Memory Is Injected into Agents</h2>
-<p>When an agent runs, ClaudeOS retrieves the most relevant memory entries using hybrid
+<p>When an agent runs, FaiykeOS retrieves the most relevant memory entries using hybrid
 search and injects them into the agent's system prompt as structured context. The tiered
 context system reduces token usage by ~40% versus injecting all memory.</p>
 
@@ -899,7 +899,7 @@ namespace, output type, and timestamp.</p>
 <tr><td><strong>Markdown</strong></td>
     <td>Raw text with Markdown formatting. Opens in any text editor. Always available.</td></tr>
 <tr><td><strong>PDF</strong></td>
-    <td>Rendered PDF with ClaudeOS branding. Requires wkhtmltopdf installed on the server.</td></tr>
+    <td>Rendered PDF with FaiykeOS branding. Requires wkhtmltopdf installed on the server.</td></tr>
 </table>
 
 <h2>Bulk Delete</h2>
@@ -920,7 +920,7 @@ def s11_tickets() -> str:
 <h1><a name="s11"></a>11 &mdash; Ticketing System</h1>
 
 <h2>Overview</h2>
-<p>The ticketing system provides a full support and task lifecycle inside ClaudeOS.
+<p>The ticketing system provides a full support and task lifecycle inside FaiykeOS.
 Version 14.0 adds <strong>email notifications</strong> for ticket events.</p>
 
 <h2>Priority / SLA Tiers</h2>
@@ -956,7 +956,7 @@ Version 14.0 adds <strong>email notifications</strong> for ticket events.</p>
 </ul>
 
 <h2>Email Notifications <span class="badge-new">NEW v14.0</span></h2>
-<p>ClaudeOS sends automatic email notifications for key ticket events when SMTP is configured.
+<p>FaiykeOS sends automatic email notifications for key ticket events when SMTP is configured.
 Configure in <strong>Settings &rarr; Email Notifications</strong>.</p>
 
 <h3>Configuring SMTP</h3>
@@ -1086,7 +1086,7 @@ def s13_observability() -> str:
 <li>Estimated USD cost based on current claude-sonnet-4-6 pricing</li>
 <li>Per-agent breakdown: tokens used, cost, run count, average cost per run</li>
 </ul>
-<div class="note">Token cost estimates are approximate based on list pricing at ClaudeOS release.
+<div class="note">Token cost estimates are approximate based on list pricing at FaiykeOS release.
 Check Anthropic's pricing page for current rates.</div>
 
 <h2>Memory Health Tab</h2>
@@ -1118,7 +1118,7 @@ def s14_branding() -> str:
 <h1><a name="s14"></a>14 &mdash; Namespace Branding &amp; Customisation <span class="badge-new">NEW v14.0</span></h1>
 
 <h2>Overview</h2>
-<p>ClaudeOS supports full per-namespace white-labeling. Each namespace can have its own
+<p>FaiykeOS supports full per-namespace white-labeling. Each namespace can have its own
 company name, icon, primary colour, accent colour, and background colour. Clients see
 their own brand applied to the login screen, sidebar, and dashboard headers &mdash; creating
 a personalised experience without any code changes.</p>
@@ -1130,7 +1130,7 @@ a personalised experience without any code changes.</p>
 <table>
 <tr><th style="width:28%;">Setting</th><th>Description</th><th style="width:20%;">Example</th></tr>
 <tr><td><strong>Company Name</strong></td>
-    <td>Replaces &ldquo;ClaudeOS&rdquo; in the sidebar header for users of this namespace</td>
+    <td>Replaces &ldquo;FaiykeOS&rdquo; in the sidebar header for users of this namespace</td>
     <td>Acme Corp AI</td></tr>
 <tr><td><strong>Icon Emoji</strong></td>
     <td>Emoji shown next to the company name in the sidebar</td>
@@ -1151,7 +1151,7 @@ a personalised experience without any code changes.</p>
 and a card are rendered using the chosen colours with auto-computed contrast text, so you can
 verify readability before saving.</p>
 
-<div class="warn"><strong>Auto-contrast:</strong> ClaudeOS automatically derives readable text
+<div class="warn"><strong>Auto-contrast:</strong> FaiykeOS automatically derives readable text
 colours from your chosen primary and background colours using the WCAG luminance formula.
 You cannot set a colour combination that fails basic contrast requirements &mdash; the UI
 will warn you if a colour is too similar to the background.</div>
@@ -1159,13 +1159,13 @@ will warn you if a colour is too similar to the background.</div>
 <h2>Where Branding Appears</h2>
 <ul>
 <li><strong>Login screen:</strong> company name, icon, and background colour applied before login</li>
-<li><strong>Sidebar:</strong> company name and icon replace &ldquo;ClaudeOS&rdquo; header</li>
+<li><strong>Sidebar:</strong> company name and icon replace &ldquo;FaiykeOS&rdquo; header</li>
 <li><strong>Dashboard headers:</strong> primary colour used for heading accents</li>
 <li><strong>Buttons and highlights:</strong> accent colour used for interactive elements</li>
 </ul>
 
 <h2>White-Label Footer</h2>
-<p>All white-labeled deployments show a subtle <em>&ldquo;Powered by ClaudeOS&rdquo;</em>
+<p>All white-labeled deployments show a subtle <em>&ldquo;Powered by FaiykeOS&rdquo;</em>
 note in the page footer. This attribution cannot be removed in the standard licence.</p>
 
 <h2>Background Color for Namespace</h2>
@@ -1175,7 +1175,7 @@ namespace. Individual users can override it using the personal background colour
 session-only and resets on logout.</p>
 
 <h2>Resetting to Default</h2>
-<p>Click <strong>Reset to Defaults</strong> in the Branding tab to restore ClaudeOS green
+<p>Click <strong>Reset to Defaults</strong> in the Branding tab to restore FaiykeOS green
 (<code>#407E3C</code>) and white for that namespace. This takes effect on the next page load
 for all users in the namespace.</p>
 """
@@ -1204,7 +1204,7 @@ from the chosen background to ensure readability.</p>
 </ol>
 
 <h2>Auto-Derived Colour Logic</h2>
-<p>ClaudeOS uses the WCAG relative luminance formula to compute readability:</p>
+<p>FaiykeOS uses the WCAG relative luminance formula to compute readability:</p>
 <table>
 <tr><th style="width:35%;">Background luminance</th><th>Derived text colour</th><th>Derived surface colour</th></tr>
 <tr><td>Light background (luminance &gt; 0.5)</td>
@@ -1290,7 +1290,7 @@ composite health indicator for a namespace.</p>
 </div>
 
 <h2>MCP Tool Server</h2>
-<p>The Model Context Protocol (MCP) server exposes all 12 ClaudeOS agents as native tools
+<p>The Model Context Protocol (MCP) server exposes all 12 FaiykeOS agents as native tools
 to any MCP-compatible AI client &mdash; Claude Desktop, Cursor, or custom agents.</p>
 <pre>.\\scripts\\start_mcp.ps1     # starts on port 5100
 curl http://localhost:5100/mcp  # verify it is running</pre>
@@ -1310,7 +1310,7 @@ curl http://localhost:5100/mcp  # verify it is running</pre>
 <p>Each agent exposes a machine-readable capability card for agent-to-agent discovery:</p>
 <pre>GET {API_URL}/api/v1/agents/writing-agent/.well-known/agent.json</pre>
 <p>The card describes name, description, input/output schema, and streaming / multi-turn
-capabilities. External AI orchestrators use this to auto-discover and delegate to ClaudeOS agents.</p>
+capabilities. External AI orchestrators use this to auto-discover and delegate to FaiykeOS agents.</p>
 """
 
 
@@ -1322,7 +1322,7 @@ def s17_api() -> str:
     return f"""
 <h1><a name="s17"></a>17 &mdash; API Reference</h1>
 
-<p>The ClaudeOS REST API runs at <strong>{API_URL}/api/v1/</strong>. All endpoints require
+<p>The FaiykeOS REST API runs at <strong>{API_URL}/api/v1/</strong>. All endpoints require
 authentication (JWT Bearer or X-API-Key) except <code>/health</code> and webhook triggers.
 Rate limits are enforced on all agent and workflow endpoints (see Section 6).</p>
 
@@ -1509,7 +1509,7 @@ username, IP address, user agent, and timestamp.</p>
 <tr><td>Branding</td><td>Per-namespace company name, colours, icon, background (see Sec 14).</td></tr>
 </table>
 
-<h2>What ClaudeOS Does NOT Store</h2>
+<h2>What FaiykeOS Does NOT Store</h2>
 <ul>
 <li>Plaintext passwords &mdash; only bcrypt hashes</li>
 <li>Raw refresh tokens &mdash; only SHA-256 hashes</li>
@@ -1528,7 +1528,7 @@ def s19_sync() -> str:
 <h1><a name="s19"></a>19 &mdash; Cloud Sync (Supabase)</h1>
 
 <h2>Overview</h2>
-<p>ClaudeOS can sync outputs and memory entries to a Supabase PostgreSQL database for
+<p>FaiykeOS can sync outputs and memory entries to a Supabase PostgreSQL database for
 cloud backup and off-site storage. Sync is push-only &mdash; SQLite on your server is
 always the source of truth. Supabase is a mirror.</p>
 
@@ -1724,21 +1724,21 @@ def build_html() -> str:
 <html>
 <head>
   <meta charset="utf-8"/>
-  <title>ClaudeOS v{VERSION} &mdash; Client Handbook &mdash; {CLIENT}</title>
+  <title>FaiykeOS v{VERSION} &mdash; Client Handbook &mdash; {CLIENT}</title>
   <style>{CSS}</style>
 </head>
 <body>
-<div id="footer_content">ClaudeOS v{VERSION} &nbsp;&#183;&nbsp; faiyke-ai &nbsp;&#183;&nbsp; Page <pdf:pagenumber> of <pdf:pagecount> &nbsp;&#183;&nbsp; Confidential</div>
+<div id="footer_content">FaiykeOS v{VERSION} &nbsp;&#183;&nbsp; faiyke-ai &nbsp;&#183;&nbsp; Page <pdf:pagenumber> of <pdf:pagecount> &nbsp;&#183;&nbsp; Confidential</div>
 {body}
 </body>
 </html>"""
 
 
 if __name__ == "__main__":
-    out_path = Path(f"docs/ClaudeOS_Handbook_{CLIENT}.pdf")
+    out_path = Path(f"docs/FaiykeOS_Handbook_{CLIENT}.pdf")
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    print(f"Building ClaudeOS v{VERSION} Handbook HTML ...")
+    print(f"Building FaiykeOS v{VERSION} Handbook HTML ...")
     html = build_html()
 
     print(f"Rendering PDF -> {out_path} ...")

@@ -53,7 +53,7 @@ FaiykeOS/
 │   └── start.ps1             ← Starts Flask + Streamlit (Windows)
 ├── tests/                    ← 115 pytest tests
 ├── docs/
-│   ├── ClaudeOS_Handbook_faiyke-ai.pdf   ← Full client handbook
+│   ├── FaiykeOS_Handbook_faiyke-ai.pdf   ← Full client handbook
 │   ├── SETUP_GUIDE_NONTECHNICAL.md       ← For non-technical buyers
 │   ├── AGENCY_LICENSE.md                 ← Agency/reseller terms
 │   └── landing/                          ← Marketing landing pages
