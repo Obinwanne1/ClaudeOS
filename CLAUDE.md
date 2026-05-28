@@ -150,6 +150,7 @@ Layer 14: Commercial (namespace white-labeling, client usage dashboard, email no
 - Output timestamps: displayed as YYYY-MM-DD HH:MM in expander header, meta row, and search results
 - Activity feed agent names: dispatcher.list_runs JOINs agents table; overview uses agent_name > agent_display_name > agent_id[:12] fallback chain
 - Agent hallucination guard: analysis, briefing, research, writing agents ask clarifying questions and decline to fill data gaps — never fabricate findings, names, timestamps, or system state
+- Agent NO TRAINING KNOWLEDGE rule (2026-05-28): analysis-agent and client-manager-agent have explicit CRITICAL block prohibiting use of training data for business-specific facts (cities, clients, revenue, routes). Empty context → MISSING INPUT PROTOCOL, not a fabricated answer. client-manager-agent out-of-scope requests (e.g. drafting emails) → one-line redirect, no claims.
 - Context builder timeout: executor wraps build_context() in 4s timeout via bg pool — slow ChromaDB never blocks agent response; falls back to fast FTS context
 
 ## Phase 10-13 Rules
@@ -285,6 +286,7 @@ python scripts/seed_client_schema.py --namespace <client-slug>   # optional: pre
   - Email notifications (core/notifications.py): ticket assignment + completion events, branded HTML, fire-and-forget smtplib
   - Admin Branding tab (7th tab): per-namespace color picker, accent, company name, live preview
   - Agent hallucination guard: analysis/briefing/research/writing agents ask clarifying questions; never fabricate data
+  - Agent NO TRAINING KNOWLEDGE rule: analysis-agent + client-manager-agent block use of training data for business facts; empty context triggers MISSING INPUT PROTOCOL; client-manager-agent out-of-scope requests get one-line redirect only (commit 87815fb)
   - Output delete compat: SELECT-then-DELETE replaces RETURNING (supports SQLite < 3.35)
   - Output timestamps: YYYY-MM-DD HH:MM shown in all output views
   - Activity feed agent names: dispatcher JOINs agents table; human-readable names always shown
