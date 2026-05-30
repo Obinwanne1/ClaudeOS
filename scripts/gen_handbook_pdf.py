@@ -8,7 +8,7 @@ from datetime import date
 from pathlib import Path
 from xhtml2pdf import pisa
 
-VERSION = "17.0"
+VERSION = "17.1"
 CLIENT  = "faiyke-ai"
 TODAY   = date.today().isoformat()
 
@@ -237,7 +237,13 @@ def toc() -> str:
   requests (email drafts, analysis) return a one-line redirect only. Evaluator rubric fix — correct scope
   refusals now score task_completion=5.0 (agents enforcing their own boundaries are never penalised);
   factual_grounding=5.0 when no factual claims are made. Test suite expanded to 115 tests — legacy test
-  files (test_agents, test_memory, test_phase1) updated with auth fixtures and APScheduler mock.
+  files (test_agents, test_memory, test_phase1) updated with auth fixtures and APScheduler mock.<br/>
+  <strong>New in v17.1:</strong> Clickable agent catalog cards — click any card to open the Chat tab with
+  that agent pre-selected instantly. Native inline file attachment — attach images, Markdown, and plain-text
+  files directly in the chat input bar (📎 icon) without a separate sidebar upload step. Tab position now
+  persists across page reruns and dark/light theme switches. Performance: BM25 corpus cache per namespace,
+  separate context-builder thread pool, and retriever timeouts ensure agent responses are never blocked by
+  slow vector-search operations.
 </p>
 """
 
@@ -258,8 +264,9 @@ application on your own infrastructure, so your data never leaves your environme
 
 <p>Think of it as a team of 12 specialist AI assistants, all sharing the same memory, working
 from the same context, and all governed by the same security and quality rules &mdash; accessible
-from any browser. Version 14.0 adds per-namespace white-labeling, custom background colours,
-a dedicated client usage dashboard with a Pulse Score, and email notifications for tickets.</p>
+from any browser. v17.1 adds clickable agent catalog cards, native inline file attachment
+(images, Markdown, plain text), tab persistence across theme changes, and retrieval performance
+improvements.</p>
 
 <h2>Core Capabilities</h2>
 <table>
@@ -672,9 +679,11 @@ press Enter. The response streams back in real time. Follow up with additional m
 of Q2 analysis results for the mobile app project, highlighting the top 3 risks&rdquo; scores
 significantly higher than &ldquo;write a report&rdquo;.</div>
 
-<h3>2. Catalog (For one-shot tasks)</h3>
-<p>Go to <strong>Agents &rarr; Catalog</strong>. Find the agent, fill in prompt and namespace,
-click <strong>Run</strong>. Polled every 3 seconds until complete.</p>
+<h3>2. Catalog (Browse &amp; Launch)</h3>
+<p>Go to <strong>Agents &rarr; Catalog</strong>. All agents are shown as cards with their
+category, model, and description. <strong>Click any card</strong> to open the Chat tab with
+that agent already selected &mdash; no dropdown hunting required. Use the search box and
+category filter to narrow a large registry.</p>
 
 <h3>3. Quick Dispatch (From Overview)</h3>
 <p>The Overview page Quick Dispatch widget &mdash; select agent, namespace, enter prompt, run.</p>
@@ -683,12 +692,22 @@ click <strong>Run</strong>. Polled every 3 seconds until complete.</p>
 <p>Every agent run is scoped to a namespace. The namespace controls which memory entries are
 injected into context and where output is stored. Client and Viewer roles only see their own namespace.</p>
 
-<h2>Image Analysis</h2>
-<ul>
-<li>Attach a screenshot, chart, or document for visual analysis in the Chat tab</li>
-<li>Agent receives the image as a content block alongside your prompt</li>
-<li>Uses: dashboard analysis, UI review, chart interpretation, document extraction</li>
-</ul>
+<h2>Attaching Files &mdash; Images and Documents</h2>
+<p>In the Chat tab, use the <strong>📎 clip icon</strong> in the message bar to attach files inline,
+or use the sidebar uploader for larger files. Both sources are merged before the message is sent.</p>
+<table>
+<tr><th style="width:30%;">File Type</th><th>What Happens</th></tr>
+<tr><td>Images (PNG, JPG, WebP, GIF)</td>
+    <td>Encoded as base64 and sent as a visual content block alongside your prompt.
+    The agent sees the image directly.</td></tr>
+<tr><td>Markdown files (.md)</td>
+    <td>File text is injected into your prompt as a fenced context block
+    (<code>--- FILE: name.md ---</code>). Useful for sharing briefs, specs, or notes.</td></tr>
+<tr><td>Plain text files (.txt)</td>
+    <td>Same as Markdown &mdash; injected as a fenced context block.</td></tr>
+</table>
+<div class="tip"><strong>Multiple files:</strong> attach several images in one message for
+comparative analysis. Each is sent as a separate content block.</div>
 
 <h2>Voice Input</h2>
 <p>Click the microphone in the Chat tab. Record your request (up to 30 seconds). FaiykeOS
@@ -1253,9 +1272,15 @@ def s16_advanced() -> str:
 Refreshing the page does not lose the conversation within the same session. Click
 <strong>Clear Conversation</strong> when moving to a new topic to avoid stale context.</p>
 
-<h2>Image and Screenshot Analysis</h2>
-<p>In the Chat tab, attach any image file. The image is encoded as a base64 content block
-and sent alongside your prompt to Claude's vision API. Practical uses:</p>
+<h2>Image, Screenshot &amp; Document Analysis</h2>
+<p>In the Chat tab, use the <strong>📎 clip icon</strong> in the message bar to attach files inline,
+or use the sidebar uploader. Both sources are merged before dispatch. Supported types:</p>
+<table>
+<tr><th style="width:30%;">Type</th><th>How Sent to Agent</th></tr>
+<tr><td>PNG, JPG, WebP, GIF</td><td>Base64 content block &mdash; agent sees image directly via Claude vision API</td></tr>
+<tr><td>.md, .txt</td><td>Injected as fenced text block in prompt (<code>--- FILE: name.md ---</code>)</td></tr>
+</table>
+<p>Practical uses for images:</p>
 <ul>
 <li>Summarise or critique a report screenshot</li>
 <li>Interpret chart trends with the Analysis Agent</li>
