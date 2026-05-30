@@ -165,6 +165,8 @@ The FaiykeOS login page appears. Enter the username and password you created in 
 - Type: `Give me a brief introduction to what you can do`
 - Press Enter and watch the response stream in
 
+> **Tip:** You can also attach images or document files to your message using the 📎 icon in the chat bar — useful for sharing screenshots, reports, or notes with an agent.
+
 ### 2. Add some memory about your business
 - Click **Memory** in the left menu
 - Click **Add Entry**
@@ -178,6 +180,7 @@ Now every agent knows your business name automatically.
 ### 3. Explore the catalog
 - Click **Agents** → **Catalog** tab
 - See all 12 agents and what they each do
+- **Click any card** to go straight to Chat with that agent already selected — no need to use the dropdown
 
 ---
 
@@ -229,3 +232,4 @@ Once you are comfortable with the basics:
 | Invite a team member | Admin → Users → Create User |
 | Run a workflow automatically | Workflows → find a workflow → toggle Schedule on |
 | Connect to Claude Desktop | Run `.\scripts\start_mcp.ps1` (optional) |
+| Attach files to agent messages | In Chat tab, use the 📎 icon to attach images or .md/.txt documents inline |
