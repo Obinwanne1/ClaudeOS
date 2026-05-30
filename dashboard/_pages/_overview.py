@@ -10,17 +10,75 @@ from dashboard.components.brand import aurora_hero, PRIMARY
 _DISPLAY_TZ = ZoneInfo(os.environ.get("DISPLAY_TZ", "UTC"))
 
 
+_KPI_PAGE_MAP = {
+    "Memory":       "Memory",
+    "Agents":       "Agents",
+    "Runs":         "Agents",
+    "Workflows":    "Workflows",
+    "Outputs":      "Outputs",
+    "Open Tickets": "Tickets",
+    "Projects":     "Projects",
+}
+
+
+def _make_nav_cb(target: str):
+    """Factory returning on_click callback that sets nav_page before radio re-renders."""
+    def _cb():
+        st.session_state["nav_page"] = target
+    return _cb
+
+
 def _render_kpi_grid(kpis: list) -> None:
     from dashboard.components.brand import get_theme_vars
+    import streamlit.components.v1 as _cv1
     t = get_theme_vars()
-    cards = ""
-    for label, value, delta in kpis:
-        d = f'<div style="font-size:0.72rem;color:#f87171;margin-top:2px;">{delta}</div>' if delta else ""
-        cs = f"background:{t['SURFACE']};border:1px solid {t['BORDER']};border-radius:10px;padding:14px 16px;min-width:0;"
-        ls = f"font-size:0.78rem;color:{t['TEXT_MUTED']};font-weight:500;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
-        vs = f"font-size:1.9rem;font-weight:700;color:{t['TEXT']};line-height:1.1;"
-        cards += f'<div style="{cs}"><div style="{ls}">{label}</div><div style="{vs}">{value}</div>{d}</div>'
-    st.markdown(f'<div class="cos-kpi-grid">{cards}</div>', unsafe_allow_html=True)
+
+    # Hide nav trigger buttons (zero-height, used only as Python callbacks)
+    st.markdown("""<style>
+[class*="st-key-kpi_nav_"] {
+    height: 0 !important; min-height: 0 !important;
+    overflow: hidden !important; margin: 0 !important; padding: 0 !important;
+}
+</style>""", unsafe_allow_html=True)
+
+    cols_per_row = 3
+    for row_start in range(0, len(kpis), cols_per_row):
+        row_kpis = kpis[row_start:row_start + cols_per_row]
+        cols = st.columns(cols_per_row)
+        for col_idx, (label, value, delta) in enumerate(row_kpis):
+            target_page = _KPI_PAGE_MAP.get(label, "")
+            _safe = label.replace(" ", "_").replace("-", "_").lower()
+            _btn_key = f"kpi_nav_{_safe}"
+            delta_html = f'<div class="delta">{delta}</div>' if delta else ""
+            cursor = "pointer" if target_page else "default"
+            onclick = (
+                f"var el=window.parent.document.querySelector('[class*=st-key-{_btn_key}] button');"
+                f"if(el)el.click();"
+            ) if target_page else ""
+            with cols[col_idx]:
+                _cv1.html(f"""<!DOCTYPE html><html><head><style>
+*{{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}}
+body{{background:transparent;padding:0 0 8px 0;}}
+.card{{background:{t['SURFACE']};border:1px solid {t['BORDER']};border-radius:10px;
+       padding:14px 16px;cursor:{cursor};
+       transition:background 0.15s,border-color 0.15s,box-shadow 0.15s;user-select:none;}}
+.card:hover{{border-color:#407E3C;box-shadow:0 0 0 2px #407E3C44;background:#407E3C18;}}
+.card:active{{background:#407E3C33;}}
+.label{{font-size:0.78rem;color:{t['TEXT_MUTED']};font-weight:500;margin-bottom:4px;
+        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
+.value{{font-size:1.9rem;font-weight:700;color:{t['TEXT']};line-height:1.1;}}
+.delta{{font-size:0.72rem;color:#f87171;margin-top:2px;}}
+</style></head><body>
+<div class="card" onclick="{onclick}">
+  <div class="label">{label}</div>
+  <div class="value">{value}</div>
+  {delta_html}
+</div>
+</body></html>""", height=90, scrolling=False)
+                if target_page:
+                    # on_click runs at start of next rerun — before sidebar radio instantiated
+                    st.button("\u200b", key=_btn_key, use_container_width=True,
+                              on_click=_make_nav_cb(target_page))
 
 
 def render(api_get, api_post, bulk_delete=None):
