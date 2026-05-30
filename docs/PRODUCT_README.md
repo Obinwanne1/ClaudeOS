@@ -1,6 +1,6 @@
 # FaiykeOS — Product Package
 
-**Version:** 17.0 | **Built by:** faiyke-ai | **License:** See below
+**Version:** 17.1 | **Built by:** faiyke-ai | **License:** See below
 
 ---
 
@@ -105,6 +105,17 @@ Open `http://localhost:8501` — login with your admin credentials.
 
 ---
 
+## What's New in v17.1
+
+| Change | Detail |
+|--------|--------|
+| Clickable agent catalog cards | Click any card in Catalog → opens Chat tab with that agent pre-selected |
+| Inline file attachment | Attach images (PNG/JPG/WebP/GIF) and documents (.md/.txt) directly in the chat bar via 📎; sidebar uploader still available as fallback |
+| Tab persistence | Active tab (Chat / Catalog / Run History) survives page reruns and dark/light theme switches |
+| Retrieval performance | BM25 corpus cached per namespace; separate context-builder thread pool; retriever timeouts prevent slow ChromaDB from blocking agent responses |
+
+---
+
 ## What's Included — Feature Summary
 
 ### AI Agents (12)
@@ -125,7 +136,7 @@ Open `http://localhost:8501` — login with your admin credentials.
 
 ### Dashboard Pages (10)
 - **Overview** — KPIs, activity feed, quick dispatch, eval pills, auto-refresh
-- **Agents** — Chat (streaming, images, voice, multi-turn), Catalog, Run History
+- **Agents** — Chat (streaming, images, voice, multi-turn, inline file attach), Catalog (clickable cards → pre-select agent in Chat), Run History
 - **Memory** — FTS + semantic + hybrid search, write/edit/delete, bulk ops
 - **Workflows** — Manage, trigger, schedule, webhook setup
 - **Projects** — Namespaces, project management, context file upload
