@@ -63,41 +63,41 @@ def render(api_get, api_post, bulk_delete=None):
         st.info("No agents registered. Run `python scripts/seed_agents.py`")
         return
 
-    # Tab navigation and persistence across reruns (card clicks + theme toggles)
+    # Tab navigation and persistence across reruns (card clicks + theme toggles).
+    # Python signals target=0 on card click; all other reruns use sessionStorage
+    # (browser-side, invisible to Streamlit backend, survives theme-toggle reruns).
     _goto_chat_now = st.session_state.pop("_goto_chat", False)
-    if _goto_chat_now:
-        st.session_state["_agents_tab"] = 0
+    _target_tab = 0 if _goto_chat_now else -1  # -1 = "restore from sessionStorage"
 
-    # Query param is source of truth for user's last manual tab selection
-    try:
-        _target_tab = int(st.query_params.get("agents_tab", st.session_state.get("_agents_tab", 1)))
-    except Exception:
-        _target_tab = 1
-
-    # Nonce forces a fresh iframe on every rerun so JS always executes.
-    # aria-selected guard prevents clicking (and thus a rerun) when already on correct tab.
     import time as _t
     import streamlit.components.v1 as _cv1
     _cv1.html(f"""<script>
 (function(){{
     var target={_target_tab}, nonce={int(_t.time()*1000)};
+    var KEY='claudeos_agents_tab';
     setTimeout(function(){{
         var tabs=window.parent.document.querySelectorAll('[data-testid="stTab"]');
         if(!tabs.length) return;
-        // Restore target tab only if not already active (prevents infinite rerun loop)
-        if(target<tabs.length && tabs[target].getAttribute('aria-selected')!=='true'){{
-            tabs[target].click();
+        var desired;
+        if(target>=0){{
+            // Explicit navigation (catalog card click) — go to target and save
+            desired=target;
+            window.parent.sessionStorage.setItem(KEY,desired);
+        }}else{{
+            // Restore: read last user-selected tab (default 1 = Catalog on first visit)
+            var stored=window.parent.sessionStorage.getItem(KEY);
+            desired=stored!==null?parseInt(stored):1;
         }}
-        // Track user tab clicks via URL query param (replaceState does NOT trigger rerun)
+        // Only click if tab is not already active (prevents infinite rerun loop)
+        if(desired<tabs.length&&tabs[desired].getAttribute('aria-selected')!=='true'){{
+            tabs[desired].click();
+        }}
+        // Track future user tab clicks into sessionStorage (no rerun triggered)
         tabs.forEach(function(tab,idx){{
             if(!tab._agentsBound){{
                 tab._agentsBound=true;
                 tab.addEventListener('click',function(){{
-                    try{{
-                        var url=new URL(window.parent.location.href);
-                        url.searchParams.set('agents_tab',idx);
-                        window.parent.history.replaceState({{}},'',url);
-                    }}catch(e){{}}
+                    window.parent.sessionStorage.setItem(KEY,idx);
                 }});
             }}
         }});
