@@ -52,7 +52,7 @@ Layer 14: Commercial (namespace white-labeling, client usage dashboard, email no
 - `dashboard/app.py` — Streamlit entry point, auth gate, role nav (10 pages)
 - `dashboard/components/login_form.py` — branded login + self-registration form (st.form)
 - `dashboard/components/brand.py` — CSS injection, theme toggle, all visual primitives
-- `dashboard/_pages/_agents.py` — Chat/Catalog/Runs tabs, streaming, image, voice, eval
+- `dashboard/_pages/_agents.py` — Chat/Catalog/Runs tabs, streaming, image, voice, eval; clickable catalog cards; tab persistence via sessionStorage
 - `dashboard/_pages/_overview.py` — Live feed, auto-refresh, error alerts, eval score pills
 - `dashboard/_pages/_observability.py` — Quality trends, latency, tokens, memory health, namespace usage
 - `dashboard/_pages/_workflows.py` — Workflows + Webhooks tab
@@ -64,7 +64,7 @@ Layer 14: Commercial (namespace white-labeling, client usage dashboard, email no
 - `mcp/server.py` — MCP Tool Server, exposes 12 agents as MCP tools (port 5100)
 - `scripts/create_admin.py` — first-run admin seed script
 - `scripts/seed_client_schema.py` — pre-populate 14 onboarding fields for a client namespace (skips existing keys)
-- `scripts/build_package.py` — builds `dist/FaiykeOS-v17.0.zip` (153 files, excludes .env/data/logs/__pycache__/dev scripts)
+- `scripts/build_package.py` — builds `dist/FaiykeOS-v17.1.zip` (158 files, excludes .env/data/logs/__pycache__/dev scripts)
 - `scripts/start.ps1` — kills ports, starts Flask + Streamlit
 - `scripts/start_mcp.ps1` — starts MCP server on port 5100
 - `scripts/stop.ps1` — stops Flask + Streamlit processes
@@ -75,7 +75,7 @@ Layer 14: Commercial (namespace white-labeling, client usage dashboard, email no
 - `docs/AGENCY_LICENSE.md` — agency/reseller license terms (v17.0)
 - `docs/landing/index.html` — marketing landing page (standalone HTML, no build system)
 - `docs/landing/pricing.html` — pricing page with 3-tier cards, comparison table, Formspree booking form
-- `dist/FaiykeOS-v17.0.zip` — distributable buyer package (gitignored — rebuild with build_package.py)
+- `dist/FaiykeOS-v17.1.zip` — distributable buyer package (gitignored — rebuild with build_package.py)
 
 ## Stack
 - Python: Flask (API), Streamlit (dashboard)
@@ -149,6 +149,9 @@ Layer 14: Commercial (namespace white-labeling, client usage dashboard, email no
 - Admin Users action bar: 5 columns — Unlock/Status | Deactivate/Reactivate | Reset Password | Edit | Delete
 - `_ALLOWED_USER_UPDATES` in admin_routes.py: whitelist includes `role`, `namespace`, `is_active`, `email`, `must_change_password` — SQL column names never taken from request keys directly
 - Onboarding tour: only shown to `client` and `viewer` roles — `admin`, `operator`, `staff` skip it entirely
+- Agents catalog cards: rendered via `st.components.v1.html` per card (isolated iframe — Streamlit brand CSS cannot reach inside); JS onclick clicks hidden `st.button` (`card_chat_{safe}` key); buttons hidden with `[class*="st-key-card_chat_"]` height:0 CSS
+- Agent pre-select from catalog: set `st.session_state["chat_agent"] = name` BEFORE `st.selectbox()` instantiation — never use `index=` workaround, it is silently ignored when the key already exists
+- Agents tab persistence: nonce-stamped `components.html` on every render (forces fresh iframe so JS always runs); JS reads `sessionStorage["claudeos_agents_tab"]` to restore tab; `aria-selected !== 'true'` guard prevents clicking already-active tab (prevents infinite rerun loop); `_goto_chat=True` → target=0 written to storage; all other reruns pass target=-1 (restore from storage)
 
 ## Phase 14 — Commercial Upgrade Rules
 - Rate limiting: agent /run 30/min, /stream 20/min, workflow /trigger 10/min, workflow /run 20/min (flask-limiter)
@@ -315,5 +318,10 @@ python scripts/seed_client_schema.py --namespace <client-slug>   # optional: pre
   - Sales template: `docs/landing/index.html` (landing page) + `docs/landing/pricing.html` (3-tier pricing + Formspree booking form)
   - Buyer collateral: `docs/PRODUCT_README.md` (package overview + feature tables), `docs/SETUP_GUIDE_NONTECHNICAL.md` (10-part zero-experience setup guide), `docs/AGENCY_LICENSE.md` (agency reseller license, governed by Nigerian law)
   - 3-tier pricing: Developer $197 one-time | Business $997 + $147/mo | Agency $497 + $97/mo or $997 flat unlimited
-  - Distribution script: `scripts/build_package.py` → `dist/FaiykeOS-v17.0.zip` (475 KB, 153 files); excludes .env, data/, logs/, vault/workspaces/, outputs/store/, dev scripts, __pycache__
+  - Distribution script: `scripts/build_package.py` → `dist/FaiykeOS-v17.1.zip` (501 KB, 158 files); excludes .env, data/, logs/, vault/workspaces/, outputs/store/, dev scripts, __pycache__
   - dist/ is gitignored — ZIP not committed; rebuild with `python scripts/build_package.py`
+- v17.1 Patch ✅
+  - Clickable agent catalog cards: `st.components.v1.html` per card (isolated iframe, native CSS hover, single-color states); JS onclick clicks hidden `st.button` (key `card_chat_{safe}`) to fire Python callback; hidden via `[class*="st-key-card_chat_"]` CSS height:0
+  - Agent pre-selection fix: set `st.session_state["chat_agent"] = _pending` BEFORE selectbox instantiation — `index=` param silently ignored when key already exists in session state
+  - Tab persistence: nonce-stamped `components.html` on every render forces fresh iframe; JS reads/writes `sessionStorage["claudeos_agents_tab"]`; `aria-selected` guard prevents clicking already-active tab (breaks infinite rerun loop); `_goto_chat=True` → target=0, all other reruns → target=-1 (restore from storage)
+  - Handbook bumped to v17.1: updated Section 6 (clickable cards, file attachment table), Section 16 (image+doc analysis), Section 1 intro, TOC new-features note
