@@ -98,13 +98,17 @@ def _render_chat_tab(agents: list, api_get, api_post):
         st.markdown("---")
         st.markdown("**Attach**")
         uploaded = st.file_uploader(
-            "Image / Screenshot",
-            type=["png", "jpg", "jpeg", "webp", "gif"],
+            "Image or Markdown file",
+            type=["png", "jpg", "jpeg", "webp", "gif", "md", "txt"],
             key=f"chat_img_{sel_agent}",
             label_visibility="collapsed",
         )
         if uploaded:
-            st.image(uploaded, width=140)
+            _ext = uploaded.name.lower().split(".")[-1]
+            if _ext in ("md", "txt"):
+                st.caption(f"📄 {uploaded.name} ({round(uploaded.size/1024,1)} KB)")
+            else:
+                st.image(uploaded, width=140)
 
         # Voice input — key includes clear-counter so widget resets on Clear
         _audio_gen = st.session_state.get(f"_audio_gen_{sel_agent}", 0)
@@ -169,9 +173,15 @@ def _render_chat_tab(agents: list, api_get, api_post):
             prompt = st.session_state.pop("_transcribed_text")
 
         if prompt:
+            # Inject text file content into prompt if attached
+            _up_ext = uploaded.name.lower().split(".")[-1] if uploaded else ""
+            if uploaded and _up_ext in ("md", "txt"):
+                _file_text = uploaded.read().decode("utf-8", errors="replace")
+                prompt = f"--- FILE: {uploaded.name} ---\n{_file_text}\n---\n\n{prompt}"
+
             # Add user message to history
             user_turn = {"role": "user", "content": prompt}
-            if uploaded:
+            if uploaded and _up_ext not in ("md", "txt"):
                 user_turn["has_image"] = True
             history.append(user_turn)
 
@@ -181,9 +191,9 @@ def _render_chat_tab(agents: list, api_get, api_post):
             # Build API messages for multi-turn
             api_messages = _history_to_api_messages(history[:-1])  # exclude current turn
 
-            # Prepare image data
+            # Prepare image data (images only — text files injected into prompt above)
             images = None
-            if uploaded:
+            if uploaded and _up_ext not in ("md", "txt"):
                 img_bytes = uploaded.read()
                 b64 = base64.b64encode(img_bytes).decode("utf-8")
                 mt = _mime_type(uploaded.name)
