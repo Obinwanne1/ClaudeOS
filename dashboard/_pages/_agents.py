@@ -63,6 +63,48 @@ def render(api_get, api_post, bulk_delete=None):
         st.info("No agents registered. Run `python scripts/seed_agents.py`")
         return
 
+    # Tab navigation and persistence across reruns (card clicks + theme toggles)
+    _goto_chat_now = st.session_state.pop("_goto_chat", False)
+    if _goto_chat_now:
+        st.session_state["_agents_tab"] = 0
+
+    # Query param is source of truth for user's last manual tab selection
+    try:
+        _target_tab = int(st.query_params.get("agents_tab", st.session_state.get("_agents_tab", 1)))
+    except Exception:
+        _target_tab = 1
+
+    # Nonce forces a fresh iframe on every rerun so JS always executes.
+    # aria-selected guard prevents clicking (and thus a rerun) when already on correct tab.
+    import time as _t
+    import streamlit.components.v1 as _cv1
+    _cv1.html(f"""<script>
+(function(){{
+    var target={_target_tab}, nonce={int(_t.time()*1000)};
+    setTimeout(function(){{
+        var tabs=window.parent.document.querySelectorAll('[data-testid="stTab"]');
+        if(!tabs.length) return;
+        // Restore target tab only if not already active (prevents infinite rerun loop)
+        if(target<tabs.length && tabs[target].getAttribute('aria-selected')!=='true'){{
+            tabs[target].click();
+        }}
+        // Track user tab clicks via URL query param (replaceState does NOT trigger rerun)
+        tabs.forEach(function(tab,idx){{
+            if(!tab._agentsBound){{
+                tab._agentsBound=true;
+                tab.addEventListener('click',function(){{
+                    try{{
+                        var url=new URL(window.parent.location.href);
+                        url.searchParams.set('agents_tab',idx);
+                        window.parent.history.replaceState({{}},'',url);
+                    }}catch(e){{}}
+                }});
+            }}
+        }});
+    }},120);
+}})();
+</script>""", height=0)
+
     tab_chat, tab_catalog, tab_runs = st.tabs(["💬 Chat", "📋 Catalog", "📊 Run History"])
 
     with tab_chat:
@@ -86,6 +128,10 @@ def _render_chat_tab(agents: list, api_get, api_post):
     with col_settings:
         st.markdown("**Agent Settings**")
         agent_names = [a["name"] for a in agents if a.get("enabled")]
+        _pending = st.session_state.pop("_pending_agent", None)
+        # Must set session state BEFORE widget instantiation (not after) to avoid StreamlitAPIException
+        if _pending and _pending in agent_names:
+            st.session_state["chat_agent"] = _pending
         sel_agent = st.selectbox("Agent", agent_names, key="chat_agent")
 
         _role = st.session_state.get("user_role", "admin")
@@ -467,6 +513,14 @@ def _render_catalog_tab(agents: list, api_get, api_post):
     st.markdown(f"**{len(filtered)}** agents")
     st.markdown("---")
 
+    # Hide all card trigger buttons (used only as Streamlit callbacks)
+    st.markdown("""<style>
+[class*="st-key-card_chat_"] {
+    height: 0 !important; min-height: 0 !important;
+    overflow: hidden !important; margin: 0 !important; padding: 0 !important;
+}
+</style>""", unsafe_allow_html=True)
+
     for i in range(0, len(filtered), 2):
         cols = st.columns(2)
         for j, col in enumerate(cols):
@@ -475,24 +529,54 @@ def _render_catalog_tab(agents: list, api_get, api_post):
             a = filtered[i + j]
             color = CATEGORY_COLORS.get(a["category"], PRIMARY)
             with col:
-                enabled_dot = f'<span style="color:#5a9e56;">●</span>' if a["enabled"] else '<span style="color:#6b7280;">○</span>'
-                st.markdown(f"""
-<div style="background:{tv['SURFACE']};border:1px solid {tv['BORDER']};
-            border-radius:10px;padding:14px 16px;margin-bottom:8px;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-    <strong style="color:{tv['TEXT']};">{enabled_dot} {a['display_name']}</strong>
-    <span style="background:{color}33;color:{color};border:1px solid {color}55;
-                 padding:2px 8px;border-radius:12px;font-size:0.7rem;font-weight:600;">
-      {a['category'].upper()}
-    </span>
+                _safe = a['name'].replace('-', '_').replace(' ', '_')
+                _btn_key = f"card_chat_{_safe}"
+                enabled_dot = "●" if a["enabled"] else "○"
+                enabled_color = "#5a9e56" if a["enabled"] else "#6b7280"
+                ns_lock = f"· 🔒 {a['namespace_lock']}" if a.get('namespace_lock') else ""
+                import streamlit.components.v1 as _cv1
+                _cv1.html(f"""<!DOCTYPE html><html><head><style>
+*{{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}}
+body{{background:transparent;padding:0 0 8px 0;}}
+.card{{
+    background:{tv['SURFACE']};
+    border:1px solid {tv['BORDER']};
+    border-radius:10px;
+    padding:14px 16px;
+    cursor:pointer;
+    transition:background 0.15s,border-color 0.15s,box-shadow 0.15s;
+    user-select:none;
+}}
+.card:hover{{
+    background:{color}28;
+    border-color:{color};
+    box-shadow:0 0 0 2px {color}44;
+}}
+.card:active{{background:{color}44;}}
+.row{{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}}
+.name{{font-weight:700;color:{tv['TEXT']};font-size:0.88rem;}}
+.dot{{color:{enabled_color};margin-right:5px;}}
+.badge{{background:{color}33;color:{color};border:1px solid {color}55;padding:2px 8px;border-radius:12px;font-size:0.68rem;font-weight:600;}}
+.desc{{color:{tv['TEXT_MUTED']};font-size:0.82rem;margin-bottom:8px;line-height:1.4;}}
+.meta{{font-size:0.72rem;color:{tv['TEXT_MUTED']};}}
+code{{background:rgba(255,255,255,0.1);padding:1px 5px;border-radius:3px;font-family:monospace;font-size:0.7rem;}}
+</style></head><body>
+<div class="card" onclick="
+  var el=window.parent.document.querySelector('[class*=st-key-{_btn_key}] button');
+  if(el)el.click();
+">
+  <div class="row">
+    <div class="name"><span class="dot">{enabled_dot}</span>{a['display_name']}</div>
+    <div class="badge">{a['category'].upper()}</div>
   </div>
-  <div style="color:{tv['TEXT_MUTED']};font-size:0.85rem;margin-bottom:8px;">{a['description']}</div>
-  <div style="font-size:0.75rem;color:{tv['TEXT_MUTED']};">
-    model: <code>{a['model']}</code> · max_tokens: {a['max_tokens']}
-    {f" · 🔒 {a['namespace_lock']}" if a.get('namespace_lock') else ""}
-  </div>
+  <div class="desc">{a['description']}</div>
+  <div class="meta">model: <code>{a['model']}</code> · max_tokens: {a['max_tokens']} {ns_lock}</div>
 </div>
-""", unsafe_allow_html=True)
+</body></html>""", height=112, scrolling=False)
+                if st.button("\u200b", key=_btn_key, use_container_width=True):
+                    st.session_state["_pending_agent"] = a["name"]
+                    st.session_state["_goto_chat"] = True
+                    st.rerun()
 
 
 # ── Runs Tab ──────────────────────────────────────────────────────────────────
