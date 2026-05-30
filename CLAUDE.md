@@ -165,6 +165,9 @@ Layer 14: Commercial (namespace white-labeling, client usage dashboard, email no
 
 ## Phase 10-13 Rules
 - SSE streaming: `execute_stream()` in executor.py is a generator — yields text chunks. Flask wraps with `stream_with_context`. Never buffer the full response.
+- Output save on stream: handled entirely in `stream_agent()` (`core/api/routes/agents.py`) — NOT in `_stream_response()` in `_agents.py`. `agent.name` comes from URL path registry lookup; never use selectbox state for attribution. Save uses `threading.Thread(daemon=True)` — NOT `_bg_pool` — because `_bg_pool` (max_workers=2) can be fully occupied by concurrent eval jobs, blocking the save indefinitely.
+- Stream error persistence: SSE/exception errors stored in `st.session_state["_stream_error"]` in `_stream_response()`, then appended to conversation history as an assistant message in `_render_chat_tab`. Survives `st.rerun()`. Never call `st.error()` inside streaming context — it disappears on the next rerun.
+- `_parse_stream_inputs()` returns 6 values: `(prompt, namespace, context, messages, images, save_output)`. GET param: `save_output=true`; POST body: `"save_output": true`.
 - Eval scoring: always async via `_bg_pool.submit(_trigger_eval, ...)` — never block agent run on eval
 - Eval uses claude-haiku-4-5-20251001 (cheap+fast). Score = tc×0.40 + fg×0.30 + cc×0.20 + sf×0.10
 - Eval rubric (2026-05-28): correct scope refusals score task_completion=5.0 — agents that decline out-of-scope requests without fabricating anything are not penalised; factual_grounding=5.0 when no claims made (commit 11f51e5)

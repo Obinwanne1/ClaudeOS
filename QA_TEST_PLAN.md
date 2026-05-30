@@ -298,6 +298,14 @@ Invoke-WebRequest -Uri "http://localhost:5000/api/v1/workflows/<workflow-name>/t
 1. **Stats** tab
 2. **Expected:** Total count, per-namespace breakdown, per-type breakdown, no error
 
+### 6.5 Agent Attribution on Saved Outputs
+1. Run `research-agent` with a prompt and **Save output** checked
+2. Run `analysis-agent` with a different prompt and **Save output** checked
+3. Navigate to Outputs → Browse
+
+**Expected:** Two output entries — one titled `research-agent — <date>`, one titled `analysis-agent — <date>`. Both use correct agent name, not the same one.
+**Fail signal:** Both entries show the same agent name (e.g. both say "analysis-agent") → output save is using frontend selectbox state instead of backend registry. Fixed in commit 2afe202.
+
 ---
 
 ## SECTION 7 — TICKETS PAGE
@@ -607,6 +615,9 @@ Invoke-WebRequest "http://localhost:5000/api/v1/agents" -Headers @{"X-API-Key" =
 | Evaluator penalizes correct scope refusals (task_completion: 0.0) | `11f51e5` | Run client-manager-agent on an out-of-scope prompt (e.g. "draft an email") — Observability Quality Scores must show ≥4.0, not near 0 |
 | Sync log delete returns "Delete failed" | `26d1d38` | Section 9.3 — delete a sync log entry, confirm it disappears. Was false 404 due to SELECT changes() resetting after commit |
 | Voice widget not resetting on Clear Conversation | `b969309` | Section 2.5 — After Clear, microphone widget resets to default state |
+| Both outputs from different agents show same agent name | `2afe202` | Section 6.5 — run research-agent then analysis-agent with save; outputs must show correct agent names |
+| Stream error message flashes and disappears on rerun | `2afe202` | Run any agent when API is down/exhausted — error must appear as a persistent red message in chat history, not flash once and vanish |
+| Output not saving after streaming completes | `2afe202` | Section 6.5 — saved outputs appear in Outputs page immediately after stream finishes; no silent drop |
 
 ---
 
@@ -666,6 +677,7 @@ SECTION 6 — OUTPUTS
   6.2 Search                   [ ]
   6.3 Export                   [ ]
   6.4 Stats                    [ ]
+  6.5 Agent Attribution        [ ]
 
 SECTION 7 — TICKETS
   7.1 Create                   [ ]

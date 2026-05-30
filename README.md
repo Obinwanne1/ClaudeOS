@@ -187,6 +187,8 @@ The Agents page adds a Chat tab with full conversational history per agent per s
 - Image/screenshot upload for visual analysis
 - Voice input (record audio, auto-transcribed via Whisper)
 - Eval score badges on each assistant response
+- Persistent error messages — stream errors survive page reruns and appear inline in chat history
+- Correct agent attribution on saved outputs — backend saves with registry-resolved agent name, not UI selectbox state
 
 **Live Overview Dashboard**
 Overview now includes an auto-refresh toggle (every 8 seconds), an error alert strip (red banner when recent runs failed), a running-now indicator (yellow banner for in-flight agents), and eval score pills on each run entry (green ≥4.0, amber ≥2.5, red <2.5).
