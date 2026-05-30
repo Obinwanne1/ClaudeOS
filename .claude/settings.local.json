@@ -102,7 +102,22 @@
       "WebFetch(domain:api.github.com)",
       "Bash(findstr \":5000 \\\\|:8501 \")",
       "Bash(Start-Process powershell:*)",
-      "Bash(pandoc --version)"
+      "Bash(pandoc --version)",
+      "Bash(find:*)",
+      "Bash(Get-Process)",
+      "Bash(Sort-Object CPU -Descending)",
+      "Bash(Select-Object -First 20)",
+      "Bash(Format-Table Name, CPU, Id, WorkingSet -AutoSize)",
+      "Bash(del REVIEW.md REVIEW-FIX.md)",
+      "Bash(rm:*)",
+      "Bash(findstr /R \"FAILED PASSED ERROR\")",
+      "Bash(findstr \"FAILED\")",
+      "Bash(findstr \"FAILED\\\\|passed\\\\|failed\\\\|error\")",
+      "Bash(head -5 ls /c/Users/rigwe/Desktop/ClaudeOS/.env*)",
+      "Bash(ls -1 /c/Users/rigwe/Desktop/ClaudeOS/memory/db/migrations/*.sql)",
+      "Bash(ls -1 /c/Users/rigwe/Desktop/ClaudeOS/scripts/*.py)",
+      "Bash(xargs -I {} basename {})",
+      "Bash(Start-Sleep 5)"
     ]
   }
 }

@@ -3,7 +3,10 @@
 New capabilities:
 - Multi-turn conversation chat UI (Phase 13.4)
 - SSE streaming responses via requests (Phase 10.1)
-- Image / file upload for multimodal analysis (Phase 13.2)
+- Native file attachment via chat_input(accept_file=True): images + .md/.txt (Phase 13.2+)
+  - Sidebar file_uploader kept as fallback; both merged into _all_files
+  - Text files (.md/.txt) injected as fenced context block in prompt
+  - Images encoded as base64 content blocks, multiple supported
 - Voice input via audio recording (Phase 13.1)
 - Eval score display on run history (Phase 10.3)
 - A2A Agent Card viewer (Phase 12.3)
@@ -162,42 +165,68 @@ def _render_chat_tab(agents: list, api_get, api_post):
                             unsafe_allow_html=True,
                         )
 
-        # Input area
-        prompt = st.chat_input(
-            f"Message {sel_agent}…",
+        # Input area — accepts text + files (images, md, txt) natively
+        _chat_val = st.chat_input(
+            f"Message {sel_agent}… (attach images/files via 📎)",
             key=f"chat_input_{sel_agent}",
+            accept_file=True,
+            file_type=["png", "jpg", "jpeg", "webp", "gif", "md", "txt"],
         )
 
-        # Use transcribed text if available
-        if st.session_state.get("_transcribed_text"):
-            prompt = st.session_state.pop("_transcribed_text")
+        # Normalise: chat_input returns str OR ChatInputValue OR None
+        _chat_files = []
+        if _chat_val is not None and not isinstance(_chat_val, str):
+            _raw_prompt = _chat_val.text or ""
+            _chat_files = list(_chat_val.files or [])
+        elif isinstance(_chat_val, str):
+            _raw_prompt = _chat_val
+        else:
+            _raw_prompt = None
 
-        if prompt:
-            # Inject text file content into prompt if attached
-            _up_ext = uploaded.name.lower().split(".")[-1] if uploaded else ""
-            if uploaded and _up_ext in ("md", "txt"):
-                _file_text = uploaded.read().decode("utf-8", errors="replace")
-                prompt = f"--- FILE: {uploaded.name} ---\n{_file_text}\n---\n\n{prompt}"
+        # Use transcribed text if available (overrides empty chat prompt)
+        if st.session_state.get("_transcribed_text"):
+            _raw_prompt = st.session_state.pop("_transcribed_text")
+
+        # Merge sidebar uploader with chat-input files
+        _all_files = _chat_files[:]
+        if uploaded:
+            _all_files.append(uploaded)
+
+        prompt = _raw_prompt
+
+        if prompt is not None:
+            # Split files into images vs text
+            _IMG_EXTS = {"png", "jpg", "jpeg", "webp", "gif"}
+            _img_files  = [f for f in _all_files if f.name.lower().split(".")[-1] in _IMG_EXTS]
+            _text_files = [f for f in _all_files if f.name.lower().split(".")[-1] in ("md", "txt")]
+
+            # Inject text file content into prompt
+            for _tf in _text_files:
+                _file_text = _tf.read().decode("utf-8", errors="replace")
+                prompt = f"--- FILE: {_tf.name} ---\n{_file_text}\n---\n\n{prompt}"
 
             # Add user message to history
             user_turn = {"role": "user", "content": prompt}
-            if uploaded and _up_ext not in ("md", "txt"):
+            if _img_files:
                 user_turn["has_image"] = True
             history.append(user_turn)
 
             with st.chat_message("user", avatar="🧑"):
                 st.markdown(prompt)
+                for _imf in _img_files:
+                    st.image(_imf, width=200)
 
             # Build API messages for multi-turn
             api_messages = _history_to_api_messages(history[:-1])  # exclude current turn
 
-            # Prepare image data (images only — text files injected into prompt above)
+            # Prepare image data as base64 content blocks
             images = None
-            if uploaded and _up_ext not in ("md", "txt"):
-                img_bytes = uploaded.read()
-                b64 = base64.b64encode(img_bytes).decode("utf-8")
-                mt = _mime_type(uploaded.name)
-                images = [{"data": b64, "media_type": mt}]
+            if _img_files:
+                images = []
+                for _imf in _img_files:
+                    _imf.seek(0)
+                    _b64 = base64.b64encode(_imf.read()).decode("utf-8")
+                    images.append({"data": _b64, "media_type": _mime_type(_imf.name)})
 
             # Dispatch agent — always stream (non-blocking, logs run record)
             with st.chat_message("assistant", avatar="🤖"):

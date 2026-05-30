@@ -135,6 +135,7 @@ Layer 14: Commercial (namespace white-labeling, client usage dashboard, email no
 - Login form uses `st.form` — Enter-to-submit
 - Streaming: use `requests.get(..., stream=True)` + `resp.iter_lines()` for SSE consumption
 - Multi-turn chat: conversation stored in `st.session_state[f"conv_{agent}_{ns}"]` list of dicts
+- File attach: `chat_input(accept_file=True)` returns `ChatInputValue` (`.text`, `.files`) or plain str — normalise before use; sidebar uploader merged via `_all_files`
 - Observability page visible to admin + operator only (hidden from client, viewer, staff)
 - Observability has 5 tabs: Quality Scores, Latency, Token Cost, Memory Health, Namespace Usage
 - Admin Panel has 7 tabs: Users, API Keys, Audit Log, Sessions, Security, Client Onboarding, Branding
@@ -285,7 +286,8 @@ python scripts/seed_client_schema.py --namespace <client-slug>   # optional: pre
   - A2A Agent Cards (GET /agents/<name>/.well-known/agent.json)
 - Phase 13: Multimodal Input & Live Dashboard ✅
   - Multi-turn chat UI (conversation history, migration 017)
-  - Image/screenshot analysis (base64 content blocks via executor)
+  - Image/screenshot analysis (base64 content blocks via executor); multiple images supported
+  - File attachment: `chat_input(accept_file=True, file_type=[...])` — native inline attach for images + .md/.txt; sidebar file_uploader kept as fallback; both merged; text files injected as fenced prompt block, images as base64 content blocks
   - Voice input (st.audio_input + local Whisper, optional); voice widget resets on Clear Conversation
   - Live Overview (auto-refresh toggle, eval score pills, error/running alerts)
   - Onboarding tour (first login only, persists via migration 018 onboarding_done column)
