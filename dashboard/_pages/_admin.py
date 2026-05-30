@@ -381,7 +381,8 @@ def _render_audit(api_get):
         params["username"] = un_filter.strip()
     url = f"/admin/audit?{urlencode(params)}"
 
-    events = api_get(url) or []
+    _audit_resp = api_get(url) or {}
+    events = _audit_resp.get("events", []) if isinstance(_audit_resp, dict) else (_audit_resp or [])
     if events:
         rows = [{
             "Time":      (e.get("created_at") or "")[:16],
