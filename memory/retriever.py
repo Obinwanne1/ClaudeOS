@@ -12,7 +12,9 @@ Falls back gracefully if rank-bm25 is unavailable (returns pure vector results).
 from __future__ import annotations
 
 import logging
-from concurrent.futures import ThreadPoolExecutor
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from typing import Optional
 
 from memory.schemas import MemoryEntry
@@ -20,6 +22,20 @@ from memory.schemas import MemoryEntry
 logger = logging.getLogger("claudeos.memory.retriever")
 
 _RRF_K = 60  # standard RRF constant — balances precision vs. recall
+
+# BM25 corpus cache — keyed by namespace, stores (BM25Okapi, entries, expiry)
+# Rebuilt on first query per namespace, then reused until TTL expires.
+_bm25_cache: dict[str, tuple] = {}
+_bm25_cache_lock = threading.Lock()
+_BM25_CACHE_TTL = 120  # seconds — refresh corpus if memory was written recently
+
+_RETRIEVER_POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="retriever")
+
+
+def invalidate_bm25_cache(namespace: str) -> None:
+    """Call after writing/deleting memory entries so next search rebuilds corpus."""
+    with _bm25_cache_lock:
+        _bm25_cache.pop(namespace, None)
 
 
 def hybrid_search(
@@ -32,13 +48,22 @@ def hybrid_search(
     """Hybrid BM25+vector search with RRF reranking.
 
     Returns top_k entries merged from both retrieval paths, deduped.
+    Each future has a 2.5s timeout — slow ChromaDB or BM25 degrades gracefully.
     """
-    # Run BM25 and vector search in parallel
-    with ThreadPoolExecutor(max_workers=2) as ex:
-        bm25_fut = ex.submit(_bm25_search, query, namespace, top_k * 2, min_confidence, category)
-        vec_fut  = ex.submit(_vector_search, query, namespace, top_k * 2, min_confidence)
-        bm25_results = bm25_fut.result()
-        vec_results  = vec_fut.result()
+    bm25_fut = _RETRIEVER_POOL.submit(_bm25_search, query, namespace, top_k * 2, min_confidence, category)
+    vec_fut  = _RETRIEVER_POOL.submit(_vector_search, query, namespace, top_k * 2, min_confidence)
+
+    try:
+        bm25_results = bm25_fut.result(timeout=2.5)
+    except (FutureTimeout, Exception) as e:
+        logger.warning("BM25 timed out or failed: %s", e)
+        bm25_results = []
+
+    try:
+        vec_results = vec_fut.result(timeout=2.5)
+    except (FutureTimeout, Exception) as e:
+        logger.warning("Vector search timed out or failed: %s", e)
+        vec_results = []
 
     if not bm25_results and not vec_results:
         return []
@@ -60,30 +85,50 @@ def _bm25_search(
     min_confidence: float,
     category: Optional[str],
 ) -> list[MemoryEntry]:
-    """BM25 search over SQLite memory entries for this namespace."""
+    """BM25 search over SQLite memory entries for this namespace.
+
+    Corpus is cached per namespace for _BM25_CACHE_TTL seconds.
+    Call invalidate_bm25_cache(namespace) after writes to force rebuild.
+    """
     try:
         from rank_bm25 import BM25Okapi
         from memory import store
 
-        entries = store.list_entries(
-            namespace=namespace,
-            category=category,
-            min_confidence=min_confidence,
-            limit=500,  # BM25 corpus — cap at 500 for performance
-        )
+        now = time.monotonic()
+        bm25 = None
+        entries = None
+
+        with _bm25_cache_lock:
+            cached = _bm25_cache.get(namespace)
+            if cached and now < cached[2]:
+                bm25, entries, _ = cached
+
+        if bm25 is None:
+            entries = store.list_entries(
+                namespace=namespace,
+                category=category,
+                min_confidence=min_confidence,
+                limit=500,
+            )
+            if not entries:
+                return []
+            corpus = [f"{e.key} {e.value}".lower().split() for e in entries]
+            bm25 = BM25Okapi(corpus)
+            with _bm25_cache_lock:
+                _bm25_cache[namespace] = (bm25, entries, now + _BM25_CACHE_TTL)
+                if len(_bm25_cache) > 50:
+                    oldest = sorted(_bm25_cache.keys(),
+                                    key=lambda k: _bm25_cache[k][2])[:10]
+                    for k in oldest:
+                        _bm25_cache.pop(k, None)
+
         if not entries:
             return []
 
-        # Build corpus: combine key + value for each entry
-        corpus = [f"{e.key} {e.value}".lower().split() for e in entries]
-        bm25 = BM25Okapi(corpus)
         scores = bm25.get_scores(query.lower().split())
-
-        # Rank entries by score, return top_k
         scored = sorted(zip(scores, entries), key=lambda x: -x[0])
         return [e for score, e in scored[:top_k] if score > 0]
     except ImportError:
-        # rank-bm25 not installed — fall back to FTS5
         try:
             from memory import store
             return store.search_text(query, namespace, category, top_k)

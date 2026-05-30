@@ -33,6 +33,10 @@ _client_lock = threading.Lock()
 # Background pool for fire-and-forget event log inserts + eval jobs.
 _bg_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="exec-bg")
 
+# Dedicated pool for context building — isolated from eval so a busy eval
+# queue never causes _build_memory_context to time out and fall back.
+_ctx_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="exec-ctx")
+
 
 def _get_client():
     global _client
@@ -388,11 +392,14 @@ def get_conversation_turns(conversation_id: str) -> list[dict]:
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 def _build_memory_context(namespace: str, query: str) -> str:
-    """Build tiered context with 4s timeout — falls back to flat FTS context if slow/unavailable."""
-    from concurrent.futures import Future
+    """Build tiered context with 4s timeout — falls back to flat FTS context if slow/unavailable.
+
+    Uses _ctx_pool (dedicated, isolated from eval jobs) so eval queue saturation
+    never causes a false timeout here.
+    """
     try:
         from memory.context_builder import build_context
-        fut: Future = _bg_pool.submit(build_context, namespace, query, 1500)
+        fut = _ctx_pool.submit(build_context, namespace, query, 1500)
         return fut.result(timeout=4.0)
     except Exception:
         return memory_engine.get_agent_context(namespace, min_confidence=0.8)

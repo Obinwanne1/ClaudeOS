@@ -82,6 +82,13 @@ def write(
     )
     entry = store.write(entry_create)
 
+    # Invalidate BM25 corpus cache for this namespace — next search rebuilds.
+    try:
+        from memory.retriever import invalidate_bm25_cache
+        invalidate_bm25_cache(namespace)
+    except Exception:
+        pass
+
     # Fire-and-forget: ChromaDB upsert + vector metadata + event log.
     # Semantic search has eventual consistency (~100-300ms lag after write).
     # FTS5 / exact-key lookups are immediately consistent (SQLite already committed above).
