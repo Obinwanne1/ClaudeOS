@@ -19,6 +19,14 @@ class Settings(BaseSettings):
     # Claude API
     ANTHROPIC_API_KEY: str = ""
 
+    # Web Intelligence — all optional, system works without any keys (falls back to DuckDuckGo)
+    # Brave Search: 2000 free/month — https://api.search.brave.com (best free-tier quality)
+    BRAVE_SEARCH_KEY: str = ""
+    # Tavily: 1000 free/month — https://tavily.com (built for AI agents)
+    TAVILY_API_KEY: str = ""
+    # NewsAPI: 100 free/day — https://newsapi.org (structured news with full dates)
+    NEWSAPI_KEY: str = ""
+
     # Database
     SQLITE_PATH: str = "data/claudeos.db"
     CHROMADB_PATH: str = "data/chromadb"

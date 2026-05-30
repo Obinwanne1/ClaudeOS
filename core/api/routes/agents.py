@@ -221,6 +221,7 @@ def stream_agent(agent_name: str):
                 context=context,
                 messages=messages,
                 images=images,
+                tools=agent.tools,
             ):
                 if isinstance(chunk, dict) and chunk.get("_done"):
                     tokens_in = chunk["tokens_in"]

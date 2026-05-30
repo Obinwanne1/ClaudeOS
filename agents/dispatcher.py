@@ -74,6 +74,7 @@ def dispatch(
             workflow_run_id=request.workflow_run_id,
             save_output=request.save_output,
             agent_id=agent.id,
+            tools=agent.tools,
         )
 
     if block:

@@ -18,6 +18,9 @@ sentence-transformers==3.1.1
 # Phase 11.2: Hybrid BM25+Vector RAG
 rank-bm25==0.2.2
 
+# Web Intelligence — real-time web search + news for agents (no API key needed)
+ddgs>=1.0.0
+
 # Scheduler
 apscheduler==3.10.4
 

@@ -242,9 +242,9 @@ def _stream_response(
         if messages:
             body["messages"] = messages
         body["images"] = images
-        req_ctx = requests.post(url, json=body, headers=headers, stream=True, timeout=120)
+        req_ctx = requests.post(url, json=body, headers=headers, stream=True, timeout=300)
     else:
-        req_ctx = requests.get(url, params=params, headers=headers, stream=True, timeout=120)
+        req_ctx = requests.get(url, params=params, headers=headers, stream=True, timeout=300)
 
     try:
         with req_ctx as resp:

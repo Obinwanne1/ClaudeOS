@@ -61,6 +61,7 @@ def execute(
     agent_id: str,
     messages: Optional[list] = None,
     images: Optional[list[dict]] = None,
+    tools: Optional[list[str]] = None,
 ) -> dict:
     """Execute an agent run. Returns result dict with output, tokens, status.
 
@@ -75,6 +76,9 @@ def execute(
     # Build messages list (multi-turn support)
     api_messages = _build_messages(prompt, messages, images)
 
+    # Resolve Claude tool definitions from tool name list
+    tool_defs = _get_tool_definitions(tools or [])
+
     # Mark as running
     _update_run_status(run_id, "running")
     start = time.monotonic()
@@ -87,14 +91,20 @@ def execute(
 
         for attempt in range(3):
             try:
-                response = client.messages.create(
-                    model=model,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    system=system,
-                    messages=api_messages,
-                    timeout=120.0,
-                )
+                if tool_defs:
+                    response, api_messages = _run_with_tools(
+                        client, model, max_tokens, temperature, system, api_messages, tool_defs,
+                        namespace=namespace, max_loops=10,
+                    )
+                else:
+                    response = client.messages.create(
+                        model=model,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        system=system,
+                        messages=api_messages,
+                        timeout=120.0,
+                    )
                 break
             except anthropic.APIStatusError as exc:
                 last_exc = exc
@@ -112,7 +122,14 @@ def execute(
             raise last_exc
 
         duration_ms = int((time.monotonic() - start) * 1000)
-        output_text = response.content[0].text if response.content else ""
+        # Extract final text (may be in any content block)
+        output_text = ""
+        for block in (response.content or []):
+            if getattr(block, "type", None) == "text":
+                output_text = block.text
+                break
+        if not output_text and response.content:
+            output_text = getattr(response.content[0], "text", "")
         tokens_in = response.usage.input_tokens
         tokens_out = response.usage.output_tokens
         cache_read = getattr(response.usage, "cache_read_input_tokens", 0) or 0
@@ -203,15 +220,66 @@ def execute_stream(
     context: dict,
     messages: Optional[list] = None,
     images: Optional[list[dict]] = None,
+    tools: Optional[list[str]] = None,
 ) -> Generator[str, None, None]:
     """Streaming version — yields text chunks as they arrive from Claude API.
 
+    If the agent has tools, runs a blocking tool-use pre-search pass first,
+    then streams the final synthesis. Yields status markers during pre-search
+    so the UI can show a loading indicator.
+
     Does NOT write to agent_runs (caller manages run_id separately via execute()).
-    Used by the SSE Flask endpoint for real-time dashboard display.
     """
     mem_context = _build_memory_context(namespace, prompt)
     system = _build_system_blocks(system_prompt, mem_context, namespace, context)
     api_messages = _build_messages(prompt, messages, images)
+
+    tool_defs = _get_tool_definitions(tools or [])
+
+    # Pre-search phase: run tool loop in background thread, yield keep-alive pings
+    # so the SSE connection stays alive during long tool sequences.
+    if tool_defs:
+        import queue as _queue
+        import threading as _threading
+
+        yield "\n\n*Gathering data — this may take up to a minute...*\n\n"
+
+        _done_q: _queue.Queue = _queue.Queue()
+
+        def _run_tools_bg():
+            try:
+                c = _get_client()
+                r, msgs = _run_with_tools(
+                    c, model, max_tokens, temperature, system,
+                    list(api_messages), tool_defs,
+                    namespace=namespace, max_loops=10,
+                )
+                _done_q.put(("ok", r, msgs))
+            except Exception as exc:
+                _done_q.put(("err", exc, None))
+
+        _threading.Thread(target=_run_tools_bg, daemon=True).start()
+
+        # Yield a keep-alive ping every 8 s so the HTTP connection never starves
+        elapsed = 0
+        while True:
+            try:
+                outcome = _done_q.get(timeout=8)
+                break
+            except _queue.Empty:
+                elapsed += 8
+                yield f"*...still working ({elapsed}s)...*\n"
+
+        if outcome[0] == "err":
+            logger.warning("Tool pass failed, falling back to direct stream: %s", outcome[1])
+            api_messages = _build_messages(prompt, messages, images)
+        else:
+            _, _response, api_messages = outcome
+            api_messages.append({
+                "role": "user",
+                "content": "Based on everything gathered above, provide your complete, detailed response.",
+            })
+            yield "\n\n*Synthesising...*\n\n"
 
     import anthropic
     client = _get_client()
@@ -427,6 +495,87 @@ def _log_failure_to_memory(agent_name: str, namespace: str, error_msg: str, run_
                 )
     except Exception as ex:
         logger.debug("Failed to log failure to memory: %s", ex)
+
+
+def _get_tool_definitions(tool_names: list[str]) -> list[dict]:
+    """Map agent tool name strings to Claude API tool definitions (web + system tools)."""
+    if not tool_names:
+        return []
+    try:
+        from core.tools import get_definitions
+        return get_definitions(tool_names)
+    except Exception as e:
+        logger.warning("Could not load tool definitions: %s", e)
+        return []
+
+
+def _run_with_tools(
+    client,
+    model: str,
+    max_tokens: int,
+    temperature: float,
+    system: list,
+    messages: list,
+    tool_defs: list[dict],
+    namespace: str = "global",
+    max_loops: int = 5,
+) -> tuple:
+    """Run Claude with tool_use loop. Returns (final_response, updated_messages).
+
+    Loops until stop_reason is 'end_turn' or max_loops reached.
+    Each tool_use block is executed and fed back as tool_result.
+    Namespace is passed to system tools so they query the correct workspace.
+    """
+    from core.tools import call_tool
+
+    loop_messages = list(messages)
+
+    for loop_num in range(max_loops):
+        response = client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            system=system,
+            messages=loop_messages,
+            tools=tool_defs,
+            timeout=60.0,
+        )
+
+        if response.stop_reason == "end_turn":
+            return response, loop_messages
+
+        if response.stop_reason == "tool_use":
+            # Convert response content to serialisable dicts for next API call
+            assistant_content = []
+            tool_results = []
+
+            for block in response.content:
+                btype = getattr(block, "type", None)
+                if btype == "text":
+                    assistant_content.append({"type": "text", "text": block.text})
+                elif btype == "tool_use":
+                    assistant_content.append({
+                        "type": "tool_use",
+                        "id": block.id,
+                        "name": block.name,
+                        "input": block.input,
+                    })
+                    logger.info("Tool call: %s(%s)", block.name, list(block.input.keys()))
+                    result_text = call_tool(block.name, block.input, namespace=namespace)
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result_text,
+                    })
+
+            loop_messages.append({"role": "assistant", "content": assistant_content})
+            loop_messages.append({"role": "user", "content": tool_results})
+        else:
+            # Unknown stop reason — return what we have
+            return response, loop_messages
+
+    # Max loops reached — return last response
+    return response, loop_messages
 
 
 def _update_run_status(run_id: str, status: str) -> None:
