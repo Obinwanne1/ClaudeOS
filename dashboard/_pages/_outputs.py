@@ -1,6 +1,24 @@
 """Outputs page — browse, search, and export agent/workflow outputs."""
+import os
 import requests
 import streamlit as st
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+_DISPLAY_TZ = ZoneInfo(os.environ.get("DISPLAY_TZ", "UTC"))
+
+
+def _fmt_ts(raw: str) -> str:
+    """Convert UTC ISO timestamp to DISPLAY_TZ, return 'YYYY-MM-DD HH:MM'."""
+    if not raw:
+        return ""
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(_DISPLAY_TZ).strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return raw[:16]
 
 _API_BASE = "http://localhost:5000/api/v1"
 
@@ -120,8 +138,7 @@ def _render_browse(api_get, api_post, ns_data: list, bulk_delete=None):
         title   = out.get("title", "Untitled")
         ns      = out.get("namespace", "global")
         otype   = out.get("output_type", "?")
-        _ts     = (out.get("created_at") or "").replace("T", " ")
-        created = _ts[:16] if _ts else ""   # "YYYY-MM-DD HH:MM"
+        created = _fmt_ts(out.get("created_at") or "")
         size_kb = round(out.get("size_bytes", 0) / 1024, 1)
         tags    = out.get("tags") or []
         summary = out.get("summary") or ""
@@ -216,7 +233,7 @@ def _render_search(api_get, ns_data: list):
             for r in results:
                 icon  = TYPE_ICONS.get(r.get("output_type", ""), "•")
                 score = abs(r.get("score", 0.0))
-                _rts  = (r.get("created_at") or "").replace("T", " ")[:16]
+                _rts  = _fmt_ts(r.get("created_at") or "")
                 st.markdown(
                     f"{icon} **{r.get('title','?')}** · `{r.get('namespace','')}` · "
                     f"`{r.get('output_type','')}` · `{_rts}` · score: `{score:.3f}`"

@@ -1,9 +1,13 @@
 """Overview page — Phase 13.3: Live activity feed with real-time polling."""
+import os
 import streamlit as st
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
+from datetime import datetime, timezone
 from html import escape as _esc
+from zoneinfo import ZoneInfo
 from dashboard.components.brand import aurora_hero, PRIMARY
+
+_DISPLAY_TZ = ZoneInfo(os.environ.get("DISPLAY_TZ", "UTC"))
 
 
 def _render_kpi_grid(kpis: list) -> None:
@@ -217,9 +221,11 @@ def _render_live_feed(runs_data, is_scoped: bool, username: str, api_post=None) 
                     sc_color = "#5a9e56" if eval_score >= 4 else ("#f59e0b" if eval_score >= 2.5 else "#ef4444")
                     score_pill = f'<span style="background:{sc_color}22;color:{sc_color};border:1px solid {sc_color}44;padding:1px 6px;border-radius:8px;font-size:0.7rem;">⭐{eval_score:.1f}</span>'
                 try:
-                    from datetime import datetime as _dt
-                    _parsed = _dt.fromisoformat(_raw.replace("Z", ""))
-                    _created = f"{_parsed.day} {_parsed.strftime('%b')} · {_parsed.strftime('%H:%M')}"
+                    _parsed = datetime.fromisoformat(_raw.replace("Z", "+00:00"))
+                    if _parsed.tzinfo is None:
+                        _parsed = _parsed.replace(tzinfo=timezone.utc)
+                    _local = _parsed.astimezone(_DISPLAY_TZ)
+                    _created = f"{_local.day} {_local.strftime('%b')} · {_local.strftime('%H:%M')}"
                 except Exception:
                     _created = _raw[:16]
                 _muted = _t["TEXT_MUTED"]
