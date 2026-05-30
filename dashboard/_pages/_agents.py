@@ -196,11 +196,19 @@ def _render_chat_tab(agents: list, api_get, api_post):
                     api_post=api_post, save_out=save_out,
                 )
 
+                err = st.session_state.pop("_stream_error", None)
                 if response_text:
                     history.append({
                         "role": "assistant",
                         "content": response_text,
                         "meta": meta,
+                    })
+                    st.session_state[conv_key] = history
+                    st.rerun()
+                elif err:
+                    history.append({
+                        "role": "assistant",
+                        "content": f"❌ **Error:** {err}",
                     })
                     st.session_state[conv_key] = history
                     st.rerun()
@@ -225,6 +233,7 @@ def _stream_response(
     params = {
         "prompt": prompt,
         "namespace": namespace,
+        "save_output": "true" if save_out else "false",
     }
     if messages:
         params["messages"] = json.dumps(messages)
@@ -238,7 +247,7 @@ def _stream_response(
 
     # Use POST when images present (GET can't carry body); GET otherwise
     if images:
-        body = {"prompt": prompt, "namespace": namespace}
+        body = {"prompt": prompt, "namespace": namespace, "save_output": save_out}
         if messages:
             body["messages"] = messages
         body["images"] = images
@@ -268,25 +277,15 @@ def _stream_response(
                     meta["tokens_out"] = payload.get("tokens_out", 0)
                     break
                 elif payload.get("type") == "error":
-                    st.error(payload.get("message", "Stream error"))
+                    err = payload.get("message", "Stream error")
+                    st.session_state["_stream_error"] = err
                     return full_text, {}
 
         meta["duration_ms"] = int((time.monotonic() - start) * 1000)
-
-        # Save output if requested (IN-02)
-        if save_out and full_text.strip() and api_post:
-            api_post("/outputs", {
-                "namespace": namespace,
-                "title": f"{agent_name} — {time.strftime('%Y-%m-%d %H:%M', time.gmtime())}",
-                "content": full_text,
-                "output_type": "report",
-                "tags": [agent_name, namespace],
-            })
-
         return full_text, meta
 
     except Exception as e:
-        st.error(f"Streaming failed: {e}")
+        st.session_state["_stream_error"] = f"Streaming failed: {e}"
         return "", {}
 
 

@@ -142,7 +142,7 @@ def run_agent(agent_name: str):
 
 
 def _parse_stream_inputs():
-    """Parse prompt/namespace/context/messages/images from GET params or POST JSON body."""
+    """Parse prompt/namespace/context/messages/images/save_output from GET params or POST JSON body."""
     if request.method == "POST":
         body = request.get_json(silent=True) or {}
         prompt = (body.get("prompt") or "").strip()
@@ -150,6 +150,7 @@ def _parse_stream_inputs():
         context = body.get("context") or {}
         messages = body.get("messages") or None
         images = body.get("images") or None
+        save_output = bool(body.get("save_output", False))
     else:
         prompt = request.args.get("prompt", "").strip()
         namespace = request.args.get("namespace", "global")
@@ -163,7 +164,8 @@ def _parse_stream_inputs():
         except Exception:
             messages = None
         images = None
-    return prompt, namespace, context, messages, images
+        save_output = request.args.get("save_output", "false").lower() == "true"
+    return prompt, namespace, context, messages, images, save_output
 
 
 @agents_bp.route("/<agent_name>/stream", methods=["GET", "POST"])
@@ -180,7 +182,7 @@ def stream_agent(agent_name: str):
         data: {"type": "done", "tokens_in": N, "tokens_out": N}
         data: {"type": "error", "message": "..."}
     """
-    prompt, namespace, context, messages, images = _parse_stream_inputs()
+    prompt, namespace, context, messages, images, save_output = _parse_stream_inputs()
     if not prompt:
         return jsonify({"error": "prompt required"}), 400
 
@@ -237,6 +239,19 @@ def stream_agent(agent_name: str):
                              duration_ms, utcnow_str(), run_id),
                         )
                     _bg_pool.submit(_trigger_eval, run_id, prompt, text, "")
+                    if save_output and text.strip():
+                        from agents.executor import _save_output as _do_save
+                        from datetime import datetime, timezone
+                        import threading as _threading
+                        _threading.Thread(
+                            target=_do_save,
+                            args=(
+                                namespace, run_id, None,
+                                f"{agent.name} — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}",
+                                text, agent.name,
+                            ),
+                            daemon=True,
+                        ).start()
                     yield f"data: {json.dumps({'type': 'done', 'run_id': run_id, 'tokens_in': tokens_in, 'tokens_out': tokens_out})}\n\n".encode("utf-8")
                 else:
                     full_text.append(chunk)
