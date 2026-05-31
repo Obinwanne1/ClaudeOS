@@ -168,9 +168,14 @@ def _render_sync_log(log: list, api_post):
     display_df.insert(0, "Select", False)
 
     def _on_editor_change():
-        """Fires when user checks/unchecks a box — stores selected IDs in stable state key."""
+        """Fires when user checks/unchecks a box — stores selected IDs in stable state key.
+        Guard: empty edited_rows = Streamlit widget state reset (not a user action).
+        Preserve existing selection in that case rather than clearing it.
+        """
         state = st.session_state.get("sync_log_editor") or {}
         edited_rows = state.get("edited_rows", {}) if isinstance(state, dict) else {}
+        if not edited_rows:
+            return  # widget reset, not a real user change — keep existing selection
         all_ids = st.session_state.get("_synclog_all_ids", [])
         selected = []
         for k, v in edited_rows.items():
