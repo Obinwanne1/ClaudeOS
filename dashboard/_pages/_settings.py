@@ -147,9 +147,6 @@ def _sync_headers() -> dict:
 def _render_sync_log(log: list, api_post):
     """Render sync log table with checkbox selection and bulk/single delete."""
     import pandas as pd
-    from dashboard.components.brand import get_theme_vars
-
-    t = get_theme_vars()
 
     rows = []
     for r in log:
@@ -164,17 +161,24 @@ def _render_sync_log(log: list, api_post):
         })
 
     df = pd.DataFrame(rows)
+    # Store all IDs in session_state so on_change callback can look them up
+    st.session_state["_synclog_all_ids"] = df["id"].tolist()
+
     display_df = df.drop(columns=["id"]).copy()
     display_df.insert(0, "Select", False)
 
-    # Capture session_state BEFORE data_editor renders — this is the previous cycle's edit state.
-    # On the button-click rerun, Streamlit may reset the widget because display_df is a new object,
-    # so reading here (pre-render) gives us the selections the user actually made.
-    _pre_state = st.session_state.get("sync_log_editor") or {}
-    _pre_edited = _pre_state.get("edited_rows", {}) if isinstance(_pre_state, dict) else {}
-    _pre_selected_idx = [int(k) for k, v in _pre_edited.items()
-                         if isinstance(v, dict) and v.get("Select", False)]
-    _pre_selected_ids = df.loc[[i for i in _pre_selected_idx if i in df.index], "id"].tolist()
+    def _on_editor_change():
+        """Fires when user checks/unchecks a box — stores selected IDs in stable state key."""
+        state = st.session_state.get("sync_log_editor") or {}
+        edited_rows = state.get("edited_rows", {}) if isinstance(state, dict) else {}
+        all_ids = st.session_state.get("_synclog_all_ids", [])
+        selected = []
+        for k, v in edited_rows.items():
+            if isinstance(v, dict) and v.get("Select", False):
+                idx = int(k)
+                if idx < len(all_ids):
+                    selected.append(all_ids[idx])
+        st.session_state["_synclog_sel_ids"] = selected
 
     edited = st.data_editor(
         display_df,
@@ -190,53 +194,58 @@ def _render_sync_log(log: list, api_post):
             "Error": st.column_config.TextColumn("Error", width="large"),
         },
         key="sync_log_editor",
+        on_change=_on_editor_change,
         disabled=["Started", "Table", "OK", "Fail", "ms", "Error"],
     )
 
-    # Post-render: rows the user has checked in the current state
-    _curr_selected_idx = edited.index[edited["Select"]].tolist()
-    _curr_selected_ids = df.loc[_curr_selected_idx, "id"].tolist()
-
-    # Prefer current state; fall back to pre-render state (covers button-click rerun reset)
-    selected_ids = _curr_selected_ids if _curr_selected_ids else _pre_selected_ids
+    # Use the stable on_change state as source of truth for selected IDs.
+    # Falls back to reading the post-render edited df (first interaction before on_change fires).
+    selected_ids = st.session_state.get("_synclog_sel_ids")
+    if selected_ids is None:
+        _curr_idx = edited.index[edited["Select"]].tolist()
+        selected_ids = df.loc[_curr_idx, "id"].tolist()
     n = len(selected_ids)
 
     # ── Action bar ────────────────────────────────────────────
-    st.markdown(
-        f'<div style="height:8px"></div>',
-        unsafe_allow_html=True,
-    )
-    a1, a2, a3 = st.columns([2, 3, 5])
+    st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
+    a1, a2, _ = st.columns([2, 3, 5])
 
     with a1:
         if st.button("☑ Select All", key="synclog_sel_all", use_container_width=True):
-            # Force all checkboxes on next render by pre-filling state
-            all_true = display_df.copy()
-            all_true["Select"] = True
-            st.session_state["sync_log_editor"] = {"edited_rows": {i: {"Select": True} for i in range(len(df))}}
+            all_ids = df["id"].tolist()
+            st.session_state["_synclog_sel_ids"] = all_ids
+            st.session_state["sync_log_editor"] = {
+                "edited_rows": {i: {"Select": True} for i in range(len(df))},
+                "added_rows": [],
+                "deleted_rows": [],
+            }
             st.rerun()
 
     with a2:
         del_label = f"🗑 Delete Selected ({n})" if n else "🗑 Delete Selected"
         if st.button(del_label, key="synclog_bulk_del", type="primary",
                      disabled=(n == 0), use_container_width=True):
-            import requests
-            try:
-                resp = requests.delete(
-                    f"{_sync_api_base()}/sync/log",
-                    json={"ids": selected_ids},
-                    headers=_sync_headers(),
-                    timeout=10,
-                )
-                data = resp.json()
-                if resp.ok:
-                    st.session_state.pop("sync_log_editor", None)
-                    st.success(f"Deleted {data.get('deleted', n)} log entries.")
-                    st.rerun()
-                else:
-                    st.error(data.get("error", "Delete failed"))
-            except Exception as e:
-                st.error(f"Request error: {e}")
+            if not selected_ids:
+                st.warning("Select rows first.")
+            else:
+                import requests
+                try:
+                    resp = requests.delete(
+                        f"{_sync_api_base()}/sync/log",
+                        json={"ids": selected_ids},
+                        headers=_sync_headers(),
+                        timeout=10,
+                    )
+                    data = resp.json()
+                    if resp.ok:
+                        st.session_state.pop("sync_log_editor", None)
+                        st.session_state.pop("_synclog_sel_ids", None)
+                        st.success(f"Deleted {data.get('deleted', n)} log entries.")
+                        st.rerun()
+                    else:
+                        st.error(data.get("error", "Delete failed"))
+                except Exception as e:
+                    st.error(f"Request error: {e}")
 
     if n:
         st.caption(f"{n} row{'s' if n > 1 else ''} selected — click **Delete Selected** to remove.")
