@@ -167,6 +167,15 @@ def _render_sync_log(log: list, api_post):
     display_df = df.drop(columns=["id"]).copy()
     display_df.insert(0, "Select", False)
 
+    # Capture session_state BEFORE data_editor renders — this is the previous cycle's edit state.
+    # On the button-click rerun, Streamlit may reset the widget because display_df is a new object,
+    # so reading here (pre-render) gives us the selections the user actually made.
+    _pre_state = st.session_state.get("sync_log_editor") or {}
+    _pre_edited = _pre_state.get("edited_rows", {}) if isinstance(_pre_state, dict) else {}
+    _pre_selected_idx = [int(k) for k, v in _pre_edited.items()
+                         if isinstance(v, dict) and v.get("Select", False)]
+    _pre_selected_ids = df.loc[[i for i in _pre_selected_idx if i in df.index], "id"].tolist()
+
     edited = st.data_editor(
         display_df,
         use_container_width=True,
@@ -184,15 +193,12 @@ def _render_sync_log(log: list, api_post):
         disabled=["Started", "Table", "OK", "Fail", "ms", "Error"],
     )
 
-    # Read selection from session_state edited_rows — survives the rerun triggered by button click
-    _editor_state = st.session_state.get("sync_log_editor") or {}
-    _edited_rows = _editor_state.get("edited_rows", {}) if isinstance(_editor_state, dict) else {}
-    # Rows where Select was explicitly set True in the editor
-    _selected_from_state = {int(k) for k, v in _edited_rows.items() if v.get("Select", False)}
-    # Also include rows already True in the base df (e.g. from Select All)
-    _base_true = set(edited.index[edited["Select"]].tolist())
-    selected_idx = sorted(_selected_from_state | _base_true)
-    selected_ids = df.loc[selected_idx, "id"].tolist()
+    # Post-render: rows the user has checked in the current state
+    _curr_selected_idx = edited.index[edited["Select"]].tolist()
+    _curr_selected_ids = df.loc[_curr_selected_idx, "id"].tolist()
+
+    # Prefer current state; fall back to pre-render state (covers button-click rerun reset)
+    selected_ids = _curr_selected_ids if _curr_selected_ids else _pre_selected_ids
     n = len(selected_ids)
 
     # ── Action bar ────────────────────────────────────────────
