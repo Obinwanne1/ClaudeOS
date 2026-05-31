@@ -64,7 +64,7 @@ Layer 14: Commercial (namespace white-labeling, client usage dashboard, email no
 - `mcp/server.py` — MCP Tool Server, exposes 12 agents as MCP tools (port 5100)
 - `scripts/create_admin.py` — first-run admin seed script
 - `scripts/seed_client_schema.py` — pre-populate 14 onboarding fields for a client namespace (skips existing keys)
-- `scripts/build_package.py` — builds `dist/FaiykeOS-v17.1.zip` (158 files, excludes .env/data/logs/__pycache__/dev scripts)
+- `scripts/build_package.py` — builds `dist/FaiykeOS-v17.2.zip` (158 files, excludes .env/data/logs/__pycache__/dev scripts)
 - `scripts/start.ps1` — kills ports, starts Flask + Streamlit
 - `scripts/start_mcp.ps1` — starts MCP server on port 5100
 - `scripts/stop.ps1` — stops Flask + Streamlit processes
@@ -75,7 +75,7 @@ Layer 14: Commercial (namespace white-labeling, client usage dashboard, email no
 - `docs/AGENCY_LICENSE.md` — agency/reseller license terms (v17.0)
 - `docs/landing/index.html` — marketing landing page (standalone HTML, no build system)
 - `docs/landing/pricing.html` — pricing page with 3-tier cards, comparison table, Formspree booking form
-- `dist/FaiykeOS-v17.1.zip` — distributable buyer package (gitignored — rebuild with build_package.py)
+- `dist/FaiykeOS-v17.2.zip` — distributable buyer package (gitignored — rebuild with build_package.py)
 
 ## Stack
 - Python: Flask (API), Streamlit (dashboard)
@@ -92,7 +92,7 @@ Layer 14: Commercial (namespace white-labeling, client usage dashboard, email no
 - All API routes require auth (`@require_auth`) — JWT Bearer or X-API-Key fallback
 - `/api/v1/health` is the ONLY public endpoint (webhook trigger uses X-Webhook-Secret, not JWT)
 - Roles: admin (all access) | operator (all namespaces, no user mgmt) | client (own namespace only) | viewer (own namespace, read-only) | staff (assigned tickets only)
-- JWT access tokens: 60 min TTL. Refresh tokens: 7 days, stored as SHA-256 hash
+- JWT access tokens: 60 min TTL. Refresh tokens: 24 hours (session window), stored as SHA-256 hash
 - Passwords: bcrypt 12 rounds, min 10 chars, upper+lower+digit required
 - Account lockout: 5 failed attempts → 15-min lock (configurable via system_config)
 - `must_change_password` flag: user forced to change on next login
@@ -156,7 +156,9 @@ Layer 14: Commercial (namespace white-labeling, client usage dashboard, email no
 ## Phase 14 — Commercial Upgrade Rules
 - Rate limiting: agent /run 30/min, /stream 20/min, workflow /trigger 10/min, workflow /run 20/min (flask-limiter)
 - CORS: ALLOWED_ORIGINS env var replaces wildcard — never use `*` in production
-- Security response headers on every Flask response: X-Content-Type-Options, X-Frame-Options, X-XSS-Protection
+- Security response headers on every Flask response: X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Content-Security-Policy (`default-src 'none'; frame-ancestors 'none'`), HSTS (production only)
+- Namespace slug enumeration: self-registration returns single generic error for missing vs wrong-type namespaces (no enumeration)
+- Admin audit endpoint: `?since=` and `?until=` validated against ISO datetime pattern (returns 400 on invalid)
 - Namespace Pulse Score: composite 0–100 = quality_score×40% + ticket_resolve×30% + memory_fresh×20% + workflow_ok×10%
 - `GET /system/namespace-stats?namespace=<ns>` returns tokens_in/out, cost_usd, run_count, output_count, eval_avg, pulse_score, recent_runs, ticket_total/closed, memory_count/fresh, workflow_total/ok
 - `_ns_brand_css()` in brand.py: injects namespace color/accent into CSS custom properties when client/viewer is logged in
@@ -205,6 +207,14 @@ Layer 14: Commercial (namespace white-labeling, client usage dashboard, email no
 - Namespace Usage tab: fetches up to 500 runs, stacked bar chart (plotly), cross-namespace token/cost/quality comparison
 - Agents page: uses `api_get_cached` for /namespaces fetch — 30s cache saves 300–800ms per tab render
 - Context builder: wrapped in 4s timeout via bg pool in executor.py — ChromaDB/hybrid-search slowness never blocks agent response
+- ChromaDB probe cached 30s (`core/api/routes/system.py`) — no `PersistentClient` re-init per `/system/status` call
+- `namespace_stats` compound SELECT: 7 sequential round-trips → 1 query (scalar subqueries)
+- Bulk memory delete: batch SELECT for permissions + single `DELETE WHERE id IN (...)` + grouped ChromaDB deletes per namespace
+- Agent run completion: no SELECT before UPDATE — builds JSON from in-scope vars directly
+- Streaming INSERT: `create_run_record(status='running')` skips separate `_update_run_status` call
+- Context builder `_ns_summary_cache`: stores `(result, seen_keys_set, expiry)` — eliminates string re-parse on cache hit
+- Overview live refresh: `st.fragment(run_every=8)` replaces `time.sleep(8)` — session thread never frozen
+- Agent list cache unified: `/agents?enabled_only=false` used by all callers — both Overview and Agents page now share same cache key
 
 ## Theme System
 - Dark/light mode: `st.session_state["theme"]` ("dark"/"light")
@@ -260,7 +270,7 @@ python scripts/seed_client_schema.py --namespace <client-slug>   # optional: pre
 - **Audit date filters**: `?since=&until=` on GET /admin/audit
 - **Supabase sync extended**: users, tickets, workflows tables added to sync (sensitive columns excluded)
 - **Rate limiter storage**: SQLite-backed with ImportError fallback to in-memory
-- **Scheduler timezone**: configurable via SCHEDULER_TIMEZONE env var (default: Africa/Lagos)
+- **Scheduler timezone**: configurable via SCHEDULER_TIMEZONE env var (default: Europe/Berlin)
 - **ChromaDB health**: /system/status now uses real `client.heartbeat()` instead of hardcoded "ok"
 - **Webhook hardening**: 64KB body limit + context dict validation
 - **Role enforcement**: projects namespace endpoints require admin/operator; memory consolidate requires admin/operator
@@ -318,10 +328,14 @@ python scripts/seed_client_schema.py --namespace <client-slug>   # optional: pre
   - Sales template: `docs/landing/index.html` (landing page) + `docs/landing/pricing.html` (3-tier pricing + Formspree booking form)
   - Buyer collateral: `docs/PRODUCT_README.md` (package overview + feature tables), `docs/SETUP_GUIDE_NONTECHNICAL.md` (10-part zero-experience setup guide), `docs/AGENCY_LICENSE.md` (agency reseller license, governed by Nigerian law)
   - 3-tier pricing: Developer $197 one-time | Business $997 + $147/mo | Agency $497 + $97/mo or $997 flat unlimited
-  - Distribution script: `scripts/build_package.py` → `dist/FaiykeOS-v17.1.zip` (501 KB, 158 files); excludes .env, data/, logs/, vault/workspaces/, outputs/store/, dev scripts, __pycache__
+  - Distribution script: `scripts/build_package.py` → `dist/FaiykeOS-v17.2.zip` (507 KB, 158 files); excludes .env, data/, logs/, vault/workspaces/, outputs/store/, dev scripts, __pycache__
   - dist/ is gitignored — ZIP not committed; rebuild with `python scripts/build_package.py`
 - v17.1 Patch ✅
   - Clickable agent catalog cards: `st.components.v1.html` per card (isolated iframe, native CSS hover, single-color states); JS onclick clicks hidden `st.button` (key `card_chat_{safe}`) to fire Python callback; hidden via `[class*="st-key-card_chat_"]` CSS height:0
   - Agent pre-selection fix: set `st.session_state["chat_agent"] = _pending` BEFORE selectbox instantiation — `index=` param silently ignored when key already exists in session state
   - Tab persistence: nonce-stamped `components.html` on every render forces fresh iframe; JS reads/writes `sessionStorage["claudeos_agents_tab"]`; `aria-selected` guard prevents clicking already-active tab (breaks infinite rerun loop); `_goto_chat=True` → target=0, all other reruns → target=-1 (restore from storage)
   - Handbook bumped to v17.1: updated Section 6 (clickable cards, file attachment table), Section 16 (image+doc analysis), Section 1 intro, TOC new-features note
+- v17.2 — Performance, Security & Architecture Hardening ✅ (commit b5436df)
+  - **Performance**: SELECT-before-UPDATE eliminated in executor; streaming INSERT starts as `running`; ChromaDB probe cached 30s; namespace_stats 7→1 query; bulk memory delete batched; duplicate `_entry_dict` removed; context_builder seen_keys cached in tuple; Overview sleep→st.fragment; duplicate cv1 import removed from render loop; agent list cache key unified
+  - **Security**: MCP server bound to 127.0.0.1 (was 0.0.0.0); workflow delete/scheduler/webhook routes require admin/operator; workflow limit params wrapped in try/except (400 on bad int, max 200); bulk delete capped at 200; XSS fix in Admin Branding (html.escape on company name + icon); system/status DB path/platform gated by admin/operator; CSP header (`default-src 'none'; frame-ancestors 'none'`) on all Flask responses; HSTS in production; Settings repr masks credentials; worktree weak secret default removed; audit date params validated (ISO pattern); session TTL 7d→24h; namespace slug enumeration closed
+  - **Architecture**: stale run cleanup on startup (`_cleanup_stale_runs()` resets pending/running>1h to failed); memory write endpoint rejects values >64KB (422); SCHEDULER_TIMEZONE default changed Africa/Lagos→Europe/Berlin
