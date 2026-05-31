@@ -225,6 +225,13 @@ def get_audit():
     since      = request.args.get("since")   # ISO datetime e.g. "2026-01-01T00:00:00"
     until      = request.args.get("until")
 
+    import re as _re
+    _DT_PAT = _re.compile(r"^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$")
+    if since and not _DT_PAT.match(since):
+        return jsonify({"error": "since must be ISO datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)"}), 400
+    if until and not _DT_PAT.match(until):
+        return jsonify({"error": "until must be ISO datetime (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)"}), 400
+
     conditions, params = [], []
     if event_type:
         conditions.append("event_type = ?")

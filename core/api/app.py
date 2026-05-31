@@ -37,6 +37,9 @@ def create_app() -> Flask:
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+        if settings.is_production:
+            response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
         return response
 
     # Middleware
@@ -44,6 +47,8 @@ def create_app() -> Flask:
 
     # Run DB migrations (idempotent — CREATE IF NOT EXISTS)
     _run_migrations()
+    # Clean up stuck runs from any previous server crash
+    _cleanup_stale_runs()
 
     # Routes — Phase 1
     app.register_blueprint(system_bp)
@@ -65,6 +70,29 @@ def create_app() -> Flask:
     _warmup_vector_store()
 
     return app
+
+
+def _cleanup_stale_runs():
+    """Reset stuck agent/workflow runs left over from a previous server crash.
+
+    Any run still in 'pending' or 'running' state older than 1 hour is a crash
+    artifact — it will never complete. Mark as 'failed' so the UI reflects reality.
+    """
+    try:
+        from core.database import get_db
+        with get_db() as conn:
+            conn.execute(
+                """UPDATE agent_runs SET status='failed', error='Server restarted — run was interrupted'
+                   WHERE status IN ('pending','running')
+                     AND created_at < datetime('now', '-1 hour')"""
+            )
+            conn.execute(
+                """UPDATE workflow_runs SET status='failed', error='Server restarted — run was interrupted'
+                   WHERE status IN ('pending','running')
+                     AND created_at < datetime('now', '-1 hour')"""
+            )
+    except Exception as e:
+        logging.getLogger("claudeos.api").warning("Stale run cleanup failed: %s", e)
 
 
 def _run_migrations():

@@ -139,7 +139,8 @@ def main():
     server = build_server()
     # FastMCP provides a streamable_http_app for HTTP transport
     app = server.streamable_http_app()
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+    # Bind to 127.0.0.1 — MCP has no auth layer; external exposure = full agent access
+    uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")
 
 
 if __name__ == "__main__":

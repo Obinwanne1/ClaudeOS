@@ -145,18 +145,13 @@ def execute(
             "stop_reason": response.stop_reason,
         }
 
-        # Save to agent_runs — update input to include injected mem_context for auditability
+        # Save to agent_runs — build input JSON directly (no SELECT round-trip needed)
         with get_db() as conn:
-            row = conn.execute("SELECT input FROM agent_runs WHERE id=?", (run_id,)).fetchone()
-            if row:
-                try:
-                    inp = json.loads(row["input"] or "{}")
-                    inp["mem_context"] = mem_context[:3000] if mem_context else ""
-                    updated_input = json.dumps(inp)
-                except Exception:
-                    updated_input = row["input"]
-            else:
-                updated_input = None
+            updated_input = json.dumps({
+                "prompt": prompt,
+                "context": context,
+                "mem_context": mem_context[:3000] if mem_context else "",
+            })
             conn.execute(
                 """UPDATE agent_runs SET
                    input=?, output=?, status='done', tokens_in=?, tokens_out=?,
@@ -314,16 +309,21 @@ def create_run_record(
     session_id: Optional[str],
     triggered_by: str,
     workflow_run_id: Optional[str],
+    status: str = "pending",
 ) -> str:
-    """Insert a pending agent_run record. Returns run_id."""
+    """Insert an agent_run record. Returns run_id.
+
+    Pass status='running' from the streaming path to skip the separate
+    _update_run_status('running') call — saves one DB round-trip.
+    """
     run_id = new_id()
     input_data = json.dumps({"prompt": prompt, "context": context})
     with get_db() as conn:
         conn.execute(
             """INSERT INTO agent_runs
                (id, agent_id, session_id, namespace, input, status, triggered_by, workflow_run_id, created_at)
-               VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)""",
-            (run_id, agent_id, session_id, namespace, input_data, triggered_by, workflow_run_id, utcnow_str()),
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (run_id, agent_id, session_id, namespace, input_data, status, triggered_by, workflow_run_id, utcnow_str()),
         )
     return run_id
 

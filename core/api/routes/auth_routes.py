@@ -109,10 +109,9 @@ def register():
         ns_row = conn.execute(
             "SELECT slug, type FROM namespaces WHERE slug = ? AND enabled = 1", (namespace,)
         ).fetchone()
-    if not ns_row:
-        return jsonify({"error": f"Namespace '{namespace}' not found"}), 422
-    if ns_row["type"] not in ("client",):
-        return jsonify({"error": "Self-registration only allowed for client namespaces"}), 422
+    if not ns_row or ns_row["type"] not in ("client",):
+        # Same error for both cases — prevents namespace slug enumeration
+        return jsonify({"error": "Registration not available for this namespace"}), 422
 
     # One client account per namespace
     with get_db() as conn:
@@ -327,7 +326,7 @@ def create_dashboard_session():
     access_token = auth_header[7:] if auth_header.startswith("Bearer ") else ""
 
     key = secrets.token_urlsafe(32)
-    expires_at = (utcnow() + datetime.timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+    expires_at = (utcnow() + datetime.timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
 
     # Fetch must_change_password from user record if available
     mcp = 0

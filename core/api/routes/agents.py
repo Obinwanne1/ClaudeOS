@@ -193,8 +193,9 @@ def stream_agent(agent_name: str):
         return jsonify({"error": "Agent is disabled"}), 400
 
     # Create run record so streaming runs appear in history + observability
+    # status='running' directly — skips a separate UPDATE round-trip
     import time as _time
-    from agents.executor import create_run_record, _trigger_eval, _bg_pool, _update_run_status
+    from agents.executor import create_run_record, _trigger_eval, _bg_pool
     from core.database import get_db
     run_id = create_run_record(
         agent_id=agent.id,
@@ -204,8 +205,8 @@ def stream_agent(agent_name: str):
         session_id=None,
         triggered_by="user",
         workflow_run_id=None,
+        status="running",
     )
-    _update_run_status(run_id, "running")
 
     def _generate():
         full_text = []

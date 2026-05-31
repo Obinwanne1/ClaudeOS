@@ -23,8 +23,8 @@ from typing import Optional
 
 logger = logging.getLogger("claudeos.memory.context_builder")
 
-# In-process cache: (namespace) → (summary_str, expiry)
-_ns_summary_cache: dict[str, tuple[str, float]] = {}
+# In-process cache: (namespace) → (summary_str, seen_keys_set, expiry)
+_ns_summary_cache: dict[str, tuple[str, set, float]] = {}
 _NS_CACHE_TTL = 300.0   # 5 minutes
 _NS_CACHE_MAX = 50      # max namespaces before eviction
 
@@ -82,12 +82,9 @@ def _get_namespace_summary(namespace: str) -> tuple[str, set[str]]:
     """Return cached namespace summary paragraph and set of included keys."""
     cached = _ns_summary_cache.get(namespace)
     if cached:
-        result, expiry = cached
+        result, seen_cached, expiry = cached
         if time.monotonic() < expiry:
-            # Re-derive seen keys from cached text (cheap string parse)
-            seen = {line.split("] ", 1)[-1].split(":")[0].strip()
-                    for line in result.splitlines() if line.startswith("- [")}
-            return result, seen
+            return result, seen_cached
 
     try:
         from memory import store
@@ -118,7 +115,7 @@ def _get_namespace_summary(namespace: str) -> tuple[str, set[str]]:
                 seen.add(e.key)
             result = "\n".join(lines)
 
-        _ns_summary_cache[namespace] = (result, time.monotonic() + _NS_CACHE_TTL)
+        _ns_summary_cache[namespace] = (result, seen, time.monotonic() + _NS_CACHE_TTL)
         if len(_ns_summary_cache) > _NS_CACHE_MAX:
             for k in list(_ns_summary_cache.keys())[:_NS_CACHE_MAX // 5]:
                 _ns_summary_cache.pop(k, None)

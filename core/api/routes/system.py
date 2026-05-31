@@ -10,16 +10,30 @@ from core.auth import require_auth, effective_namespace
 
 system_bp = Blueprint("system", __name__, url_prefix="/api/v1")
 
+# Cache ChromaDB health result — prevents a 200-800ms PersistentClient init on every status poll
+_chroma_cache: dict = {}
+_CHROMA_CACHE_TTL = 30.0  # seconds
+
 
 def _chromadb_probe(path: str) -> dict:
-    """Actually probe ChromaDB — returns real status instead of hardcoded 'ok'."""
+    """Probe ChromaDB via the shared singleton — cached 30s to avoid blocking Overview page."""
+    import time
+    cached = _chroma_cache.get("result")
+    if cached and time.monotonic() < _chroma_cache.get("expiry", 0):
+        return cached
     try:
-        import chromadb
-        client = chromadb.PersistentClient(path=path)
-        client.heartbeat()
-        return {"status": "ok", "path": path}
+        from memory import vector_store
+        vector_store._init()
+        if vector_store._client is None:
+            result = {"status": "error", "path": path, "error": "client not initialized"}
+        else:
+            vector_store._client.heartbeat()
+            result = {"status": "ok", "path": path}
     except Exception as e:
-        return {"status": "error", "path": path, "error": str(e)[:120]}
+        result = {"status": "error", "path": path, "error": str(e)[:120]}
+    _chroma_cache["result"] = result
+    _chroma_cache["expiry"] = time.monotonic() + _CHROMA_CACHE_TTL
+    return result
 
 
 @system_bp.get("/health")
@@ -36,6 +50,7 @@ def health():
 @system_bp.get("/system/status")
 @require_auth
 def status():
+    from flask import g as _g
     settings = get_settings()
     db_ok = False
     db_path = str(settings.sqlite_path)
@@ -46,23 +61,36 @@ def status():
     except Exception:
         pass
 
-    db_size_kb = 0
-    if Path(db_path).exists():
-        db_size_kb = round(Path(db_path).stat().st_size / 1024, 1)
+    is_privileged = getattr(_g, "user_role", "client") in ("admin", "operator")
 
-    return jsonify({
+    base = {
         "status": "ok",
         "version": settings.CLAUDEOS_VERSION,
         "env": settings.CLAUDEOS_ENV,
         "timestamp": utcnow_str(),
-        "platform": platform.system(),
-        "python": platform.python_version(),
-        "services": {
-            "api": {"status": "ok", "port": settings.FLASK_PORT},
-            "database": {"status": "ok" if db_ok else "error", "path": db_path, "size_kb": db_size_kb},
-            "chromadb": _chromadb_probe(str(settings.chromadb_path)),
-        },
-    })
+    }
+
+    if is_privileged:
+        db_size_kb = 0
+        if Path(db_path).exists():
+            db_size_kb = round(Path(db_path).stat().st_size / 1024, 1)
+        base.update({
+            "platform": platform.system(),
+            "python": platform.python_version(),
+            "services": {
+                "api": {"status": "ok", "port": settings.FLASK_PORT},
+                "database": {"status": "ok" if db_ok else "error", "path": db_path, "size_kb": db_size_kb},
+                "chromadb": _chromadb_probe(str(settings.chromadb_path)),
+            },
+        })
+    else:
+        base["services"] = {
+            "api": {"status": "ok"},
+            "database": {"status": "ok" if db_ok else "error"},
+            "chromadb": {"status": _chromadb_probe(str(settings.chromadb_path))["status"]},
+        }
+
+    return jsonify(base)
 
 
 @system_bp.get("/system/stats")
@@ -124,63 +152,58 @@ def namespace_stats():
 
     try:
         with get_db() as conn:
-            # Token usage (last 30 days)
-            tok = conn.execute(
-                """SELECT COALESCE(SUM(tokens_in),0), COALESCE(SUM(tokens_out),0),
-                          COUNT(*), COALESCE(AVG(eval_score),0)
-                   FROM agent_runs WHERE namespace=? AND created_at>=? AND status='done'""",
-                (ns, month_ago),
+            # Compound query — collapses 7 round-trips into 1
+            row = conn.execute(
+                """SELECT
+                     COALESCE(SUM(CASE WHEN ar.status='done' AND ar.created_at>=? THEN ar.tokens_in  ELSE 0 END), 0) AS tokens_in,
+                     COALESCE(SUM(CASE WHEN ar.status='done' AND ar.created_at>=? THEN ar.tokens_out ELSE 0 END), 0) AS tokens_out,
+                     COUNT(CASE WHEN ar.status='done' AND ar.created_at>=? THEN 1 END)                               AS run_count,
+                     COALESCE(AVG(CASE WHEN ar.status='done' AND ar.created_at>=? THEN ar.eval_score END), 0)        AS eval_avg,
+                     (SELECT COUNT(*) FROM tickets   WHERE namespace=? AND created_at>=?)                            AS t_total,
+                     (SELECT COUNT(*) FROM tickets   WHERE namespace=? AND created_at>=?
+                        AND status IN ('completed','closed','resolved'))                                              AS t_closed,
+                     (SELECT COUNT(*) FROM memory_entries WHERE namespace=? AND archived=0)                          AS m_total,
+                     (SELECT COUNT(*) FROM memory_entries WHERE namespace=? AND archived=0 AND updated_at>=?)        AS m_fresh,
+                     (SELECT MAX(updated_at) FROM memory_entries WHERE namespace=? AND is_consolidated=1)            AS last_cons,
+                     (SELECT COUNT(*) FROM outputs   WHERE namespace=?)                                              AS out_count
+                   FROM agent_runs ar WHERE ar.namespace=?""",
+                (month_ago, month_ago, month_ago, month_ago,  # agent_runs aggregates
+                 ns, month_ago,                                # t_total
+                 ns, month_ago,                                # t_closed
+                 ns,                                           # m_total
+                 ns, week_ago,                                 # m_fresh
+                 ns,                                           # last_cons
+                 ns,                                           # out_count
+                 ns),                                          # WHERE ar.namespace
             ).fetchone()
-            tokens_in, tokens_out, run_count, eval_avg = tok[0], tok[1], tok[2], tok[3]
+
+            tokens_in  = row["tokens_in"]
+            tokens_out = row["tokens_out"]
+            run_count  = row["run_count"]
+            eval_avg   = row["eval_avg"] or 0
+            t_total    = row["t_total"]
+            t_closed   = row["t_closed"]
+            m_total    = row["m_total"]
+            m_fresh    = row["m_fresh"]
+            last_cons  = row["last_cons"]
+            out_count  = row["out_count"]
 
             # Cost estimate (Claude Sonnet 4.6 pricing)
             cost_usd = round((tokens_in / 1_000_000 * 3.0) + (tokens_out / 1_000_000 * 15.0), 4)
 
-            # Ticket resolution rate (last 30 days)
-            t_total = conn.execute(
-                "SELECT COUNT(*) FROM tickets WHERE namespace=? AND created_at>=?",
-                (ns, month_ago),
-            ).fetchone()[0]
-            t_closed = conn.execute(
-                "SELECT COUNT(*) FROM tickets WHERE namespace=? AND created_at>=? "
-                "AND status IN ('completed','closed','resolved')",
-                (ns, month_ago),
-            ).fetchone()[0]
-
-            # Memory freshness (entries updated in last 7 days)
-            m_total = conn.execute(
-                "SELECT COUNT(*) FROM memory_entries WHERE namespace=? AND archived=0",
-                (ns,),
-            ).fetchone()[0]
-            m_fresh = conn.execute(
-                "SELECT COUNT(*) FROM memory_entries WHERE namespace=? AND archived=0 AND updated_at>=?",
-                (ns, week_ago),
-            ).fetchone()[0]
-
-            # Memory last consolidated
-            last_cons = conn.execute(
-                "SELECT MAX(updated_at) FROM memory_entries WHERE namespace=? AND is_consolidated=1",
-                (ns,),
-            ).fetchone()[0]
-
-            # Workflow success rate (last 30 days) — scoped via workflows.namespace join
+            # Workflow success rate — separate query (JOIN makes it awkward in compound)
             wf_total, wf_ok = 0, 0
             try:
                 wf_row = conn.execute(
-                    "SELECT COUNT(*), SUM(CASE WHEN wr.status='done' THEN 1 ELSE 0 END) "
-                    "FROM workflow_runs wr "
-                    "JOIN workflows w ON wr.workflow_id=w.id "
-                    "WHERE w.namespace=? AND wr.created_at>=?",
+                    """SELECT COUNT(*), SUM(CASE WHEN wr.status='done' THEN 1 ELSE 0 END)
+                       FROM workflow_runs wr
+                       JOIN workflows w ON wr.workflow_id=w.id
+                       WHERE w.namespace=? AND wr.created_at>=?""",
                     (ns, month_ago),
                 ).fetchone()
                 wf_total, wf_ok = wf_row[0], (wf_row[1] or 0)
             except Exception:
                 pass
-
-            # Output count
-            out_count = conn.execute(
-                "SELECT COUNT(*) FROM outputs WHERE namespace=?", (ns,)
-            ).fetchone()[0]
 
             # Recent runs (last 10 for activity feed)
             recent_rows = conn.execute(

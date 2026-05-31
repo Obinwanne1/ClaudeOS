@@ -576,12 +576,13 @@ def _render_branding(api_get, api_post, ns_data=None):
             _text_on_bg = t["TEXT"]
             _muted = t["TEXT_MUTED"]
         _bord = t["BORDER"]
+        import html as _html
         _preview_html = (
             f'<div style="background:{_surf};border:1px solid {_bord};'
             f'border-radius:10px;padding:16px 20px;">'
             f'<div style="font-size:1.2rem;font-weight:800;color:{_c};'
             f'font-family:Poppins,sans-serif;letter-spacing:1px;">'
-            f'{_icon} {_name}</div>'
+            f'{_html.escape(str(_icon))} {_html.escape(str(_name))}</div>'
             f'<div style="font-size:0.6rem;color:{_muted};letter-spacing:1px;margin-top:2px;">'
             f'POWERED BY <span style="color:{_a};font-weight:700;">CLAUDEOS</span></div>'
             f'<div style="margin-top:8px;font-size:0.78rem;color:{_text_on_bg};">Sample text — readable on this background.</div>'

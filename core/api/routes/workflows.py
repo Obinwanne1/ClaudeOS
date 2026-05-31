@@ -10,7 +10,7 @@ import secrets
 import threading
 from flask import Blueprint, jsonify, request
 
-from core.auth import require_auth, effective_namespace
+from core.auth import require_auth, require_role, effective_namespace
 require_api_key = require_auth  # alias
 from core.utils import utcnow_str
 from core.api.limiter import limiter
@@ -77,7 +77,10 @@ def get_workflow_runs(name: str):
     wf = get_by_name(name)
     if not wf:
         return jsonify({"error": "Workflow not found"}), 404
-    limit = int(request.args.get("limit", 20))
+    try:
+        limit = min(int(request.args.get("limit", 20)), 200)
+    except (ValueError, TypeError):
+        return jsonify({"error": "limit must be an integer"}), 400
     status = request.args.get("status")
     runs = list_runs(workflow_id=wf.id, status=status, limit=limit)
     return jsonify(runs)
@@ -87,7 +90,10 @@ def get_workflow_runs(name: str):
 @require_api_key
 def list_all_runs():
     from workflows.pipeline import list_runs
-    limit = int(request.args.get("limit", 30))
+    try:
+        limit = min(int(request.args.get("limit", 30)), 200)
+    except (ValueError, TypeError):
+        return jsonify({"error": "limit must be an integer"}), 400
     status = request.args.get("status")
     runs = list_runs(status=status, limit=limit)
     return jsonify(runs)
@@ -105,6 +111,7 @@ def get_run(run_id: str):
 
 @workflows_bp.delete("/runs/<run_id>")
 @require_api_key
+@require_role("admin", "operator")
 def delete_run(run_id: str):
     from core.database import get_db
     with get_db() as conn:
@@ -116,11 +123,14 @@ def delete_run(run_id: str):
 
 @workflows_bp.delete("/runs")
 @require_api_key
+@require_role("admin", "operator")
 def bulk_delete_runs():
     body = request.get_json(silent=True) or {}
     ids = body.get("ids", [])
     if not ids:
         return jsonify({"error": "No ids provided"}), 400
+    if len(ids) > 200:
+        return jsonify({"error": "Maximum 200 ids per bulk delete"}), 422
     from core.database import get_db
     placeholders = ",".join("?" * len(ids))
     with get_db() as conn:
@@ -137,6 +147,7 @@ def list_scheduler_jobs():
 
 @workflows_bp.post("/scheduler/reload")
 @require_api_key
+@require_role("admin", "operator")
 def reload_scheduler():
     """Reload scheduled workflows from DB (after enable/disable changes)."""
     from workflows.scheduler import get_scheduler, _load_scheduled_workflows, list_scheduled_jobs
@@ -153,6 +164,7 @@ def reload_scheduler():
 
 @workflows_bp.patch("/<name>")
 @require_api_key
+@require_role("admin", "operator")
 def update_workflow(name: str):
     """Enable/disable a workflow."""
     from workflows.registry import get_by_name, upsert
@@ -176,6 +188,7 @@ def update_workflow(name: str):
 
 @workflows_bp.post("/<name>/webhook/enable")
 @require_api_key
+@require_role("admin", "operator")
 def enable_webhook(name: str):
     """Generate or regenerate a webhook secret for this workflow."""
     from workflows.registry import get_by_name, upsert
@@ -202,6 +215,7 @@ def enable_webhook(name: str):
 
 @workflows_bp.post("/<name>/webhook/disable")
 @require_api_key
+@require_role("admin", "operator")
 def disable_webhook(name: str):
     from workflows.registry import get_by_name
     wf = get_by_name(name)

@@ -534,7 +534,6 @@ def _render_catalog_tab(agents: list, api_get, api_post):
                 enabled_dot = "●" if a["enabled"] else "○"
                 enabled_color = "#5a9e56" if a["enabled"] else "#6b7280"
                 ns_lock = f"· 🔒 {a['namespace_lock']}" if a.get('namespace_lock') else ""
-                import streamlit.components.v1 as _cv1
                 _cv1.html(f"""<!DOCTYPE html><html><head><style>
 *{{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}}
 body{{background:transparent;padding:0 0 8px 0;}}

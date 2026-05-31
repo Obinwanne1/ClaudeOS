@@ -118,7 +118,7 @@ def render(api_get, api_post, bulk_delete=None):
 
     _calls = {
         "status":     "/system/status",
-        "agents":     "/agents",
+        "agents":     "/agents?enabled_only=false",
         "runs":       _runs_url,
         "namespaces": "/memory/namespaces",
     }
@@ -337,9 +337,11 @@ def _render_live_feed(runs_data, is_scoped: bool, username: str, api_post=None) 
         )
 
     if live_on:
-        import time
-        time.sleep(8)
-        st.rerun()
+        # st.fragment(run_every=8) fires from JS every 8s — no thread blocking
+        @st.fragment(run_every=8)
+        def _live_ticker():
+            st.rerun(scope="app")
+        _live_ticker()
 
 
 def _render_live_refresh_toggle() -> None:

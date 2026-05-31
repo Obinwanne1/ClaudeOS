@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     SUPABASE_ACCESS_TOKEN: str = ""  # Personal access token for Management API
 
     # Scheduler
-    SCHEDULER_TIMEZONE: str = "Africa/Lagos"
+    SCHEDULER_TIMEZONE: str = "Europe/Berlin"  # Set in .env to override (e.g. UTC, Africa/Lagos, America/New_York)
 
     # Memory bridge
     CLAUDE_MEMORY_PATH: str = ""  # Set in .env to enable /memory/import
@@ -98,6 +98,14 @@ class Settings(BaseSettings):
         if not p.is_absolute():
             return str(BASE_DIR / v)
         return v
+
+    def __repr__(self) -> str:
+        _MASKED = {"CLAUDEOS_SECRET_KEY", "ANTHROPIC_API_KEY", "SMTP_PASSWORD",
+                   "SUPABASE_SERVICE_KEY", "SUPABASE_ANON_KEY", "SUPABASE_ACCESS_TOKEN"}
+        parts = []
+        for k, v in self.__dict__.items():
+            parts.append(f"{k}={'***' if k in _MASKED and v else repr(v)}")
+        return f"Settings({', '.join(parts)})"
 
     @property
     def is_production(self) -> bool:

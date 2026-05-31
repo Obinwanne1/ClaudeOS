@@ -64,6 +64,11 @@ def write_memory():
     except Exception as e:
         return jsonify({"error": str(e)}), 422
 
+    # Cap value size — prevents DoS via huge ChromaDB embed + FTS5 index bloat
+    _MAX_VALUE_BYTES = 65536  # 64 KB
+    if len((entry_create.value or "").encode("utf-8")) > _MAX_VALUE_BYTES:
+        return jsonify({"error": f"value exceeds maximum size of {_MAX_VALUE_BYTES // 1024}KB"}), 422
+
     entry = engine.write(
         namespace=entry_create.namespace,
         category=entry_create.category,
@@ -85,17 +90,51 @@ def bulk_delete_memory():
     ids = (request.get_json(silent=True) or {}).get("ids") or []
     if not isinstance(ids, list) or not ids:
         return jsonify({"error": "ids list required"}), 422
+
+    from core.database import get_db
+    from memory import vector_store as vs
+
     deleted, failed = [], []
+
+    # Single batch fetch for permission checks
+    with get_db() as conn:
+        placeholders = ",".join("?" * len(ids))
+        rows = conn.execute(
+            f"SELECT id, namespace FROM memory_entries WHERE id IN ({placeholders}) AND archived=0",
+            ids,
+        ).fetchall()
+
+    fetched = {r["id"]: r["namespace"] for r in rows}
+    valid_ids: list[str] = []
+    ids_by_ns: dict[str, list[str]] = {}
+
     for eid in ids:
-        entry = engine.get_by_id(eid)
-        if not entry:
+        if eid not in fetched:
             failed.append(eid)
             continue
-        allowed_ns = effective_namespace(entry.namespace)
-        if allowed_ns and entry.namespace != allowed_ns:
+        ns = fetched[eid]
+        allowed_ns = effective_namespace(ns)
+        if allowed_ns and ns != allowed_ns:
             failed.append(eid)
             continue
-        (deleted if engine.delete(eid) else failed).append(eid)
+        valid_ids.append(eid)
+        ids_by_ns.setdefault(ns, []).append(eid)
+
+    if valid_ids:
+        # Batch SQLite delete — one round-trip for all valid IDs
+        with get_db() as conn:
+            placeholders = ",".join("?" * len(valid_ids))
+            conn.execute(
+                f"DELETE FROM memory_entries WHERE id IN ({placeholders})", valid_ids
+            )
+        # Batch ChromaDB delete per namespace
+        for ns, ns_ids in ids_by_ns.items():
+            try:
+                vs.delete_bulk(ns_ids, ns)
+            except Exception:
+                pass
+        deleted = valid_ids
+
     return jsonify({"deleted": deleted, "failed": failed, "count": len(deleted)})
 
 
@@ -259,9 +298,3 @@ def hybrid_search():
     })
 
 
-def _entry_dict(e) -> dict:
-    return {
-        "id": e.id, "namespace": e.namespace, "category": e.category,
-        "key": e.key, "value": e.value, "confidence": e.confidence,
-        "tags": e.tags, "source": e.source,
-    }
