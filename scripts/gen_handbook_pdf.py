@@ -8,7 +8,7 @@ from datetime import date
 from pathlib import Path
 from xhtml2pdf import pisa
 
-VERSION = "17.1"
+VERSION = "17.2"
 CLIENT  = "faiyke-ai"
 TODAY   = date.today().isoformat()
 
@@ -243,7 +243,14 @@ def toc() -> str:
   files directly in the chat input bar (📎 icon) without a separate sidebar upload step. Tab position now
   persists across page reruns and dark/light theme switches. Performance: BM25 corpus cache per namespace,
   separate context-builder thread pool, and retriever timeouts ensure agent responses are never blocked by
-  slow vector-search operations.
+  slow vector-search operations.<br/>
+  <strong>New in v17.2:</strong> Performance hardening — ChromaDB health probe cached 30s, namespace stats
+  collapsed to a single query, bulk memory delete batched, agent run completion eliminates redundant DB read,
+  Overview live-refresh non-blocking (no session freeze). Security hardening — MCP server restricted to
+  localhost, workflow management routes require admin/operator, Content-Security-Policy header on all
+  responses, HSTS in production, stored XSS fix in Admin Branding, session window reduced to 24 hours,
+  memory write capped at 64 KB. Architecture — stale run auto-cleanup on startup, scheduler timezone
+  defaults to Europe/Berlin.
 </p>
 """
 
@@ -264,9 +271,9 @@ application on your own infrastructure, so your data never leaves your environme
 
 <p>Think of it as a team of 12 specialist AI assistants, all sharing the same memory, working
 from the same context, and all governed by the same security and quality rules &mdash; accessible
-from any browser. v17.1 adds clickable agent catalog cards, native inline file attachment
-(images, Markdown, plain text), tab persistence across theme changes, and retrieval performance
-improvements.</p>
+from any browser. v17.2 adds performance and security hardening: faster Overview, faster agent
+runs, faster namespace stats, MCP server restricted to localhost, Content-Security-Policy on all
+responses, stale run auto-cleanup, and memory write size limits.</p>
 
 <h2>Core Capabilities</h2>
 <table>
