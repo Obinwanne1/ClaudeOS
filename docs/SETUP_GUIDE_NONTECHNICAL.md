@@ -88,7 +88,13 @@ You will see a lot of text scrolling. When it stops and you see a `>` prompt aga
    ```
    CLAUDEOS_SECRET_KEY=my-super-secret-key-for-faiykeOS-2026
    ```
-6. Save the file (`Ctrl + S`)
+6. Find (or add) the line `SCHEDULER_TIMEZONE=` and set it to your local timezone:
+   ```
+   SCHEDULER_TIMEZONE=Europe/Berlin
+   ```
+   Common values: `UTC`, `Europe/London`, `America/New_York`, `America/Los_Angeles`, `Asia/Lagos`, `Africa/Lagos`. This controls when scheduled workflows and daily backups run. If you skip this, it defaults to `Europe/Berlin`.
+
+7. Save the file (`Ctrl + S`)
 
 ---
 
@@ -206,6 +212,8 @@ Then open `http://localhost:8501` in your browser.
 | "Invalid credentials" at login | Check you typed your username and password correctly |
 | Agent gives no response | Check your Anthropic API key in `.env` is correct and has billing set up |
 | Page shows error after restart | Run `.\scripts\start.ps1` again |
+| Agents show "running" but never finish | This cleans up automatically on next restart — FaiykeOS resets any stuck runs when it starts |
+| Scheduled workflows fire at wrong time | Set `SCHEDULER_TIMEZONE=` in your `.env` file to match your local timezone (see Part 6) |
 
 ---
 

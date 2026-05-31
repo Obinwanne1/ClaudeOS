@@ -1,6 +1,6 @@
 # FaiykeOS — Product Package
 
-**Version:** 17.1 | **Built by:** faiyke-ai | **License:** See below
+**Version:** 17.2 | **Built by:** faiyke-ai | **License:** See below
 
 ---
 
@@ -105,6 +105,22 @@ Open `http://localhost:8501` — login with your admin credentials.
 
 ---
 
+## What's New in v17.2
+
+| Change | Detail |
+|--------|--------|
+| Faster Overview page | ChromaDB health probe cached 30s; live refresh non-blocking (no more 8s session freeze) |
+| Faster agent runs | Eliminated redundant DB read on every run completion; streaming path saves one extra write per request |
+| Faster namespace stats | 7 sequential queries collapsed into 1 compound query |
+| Faster bulk memory delete | Batch SQL replaces N individual deletes — up to 500× faster on large selections |
+| MCP server secured | Now binds to localhost only — previously reachable from any network with zero authentication |
+| Role enforcement hardened | Workflow delete, scheduler reload, webhook management now restricted to admin/operator |
+| XSS fix in Admin Branding | Company name and icon are now HTML-escaped before rendering in the live preview |
+| Content-Security-Policy | Added to all API responses |
+| Stale run auto-cleanup | Runs stuck in "running" from a crashed server are automatically reset to "failed" on startup |
+| Memory value size limit | Write endpoint rejects values over 64 KB (returns 422) — prevents accidental DoS |
+| Timezone default | `SCHEDULER_TIMEZONE` now defaults to `Europe/Berlin`; set your own in `.env` |
+
 ## What's New in v17.1
 
 | Change | Detail |
@@ -148,13 +164,15 @@ Open `http://localhost:8501` — login with your admin credentials.
 - **Usage** — Client/viewer: Pulse Score, KPI grid, activity feed (client/viewer only)
 
 ### Security
-- JWT access tokens (60-min TTL) + refresh tokens (7-day, SHA-256 hashed)
+- JWT access tokens (60-min TTL) + refresh tokens (24-hour session window, SHA-256 hashed)
 - bcrypt passwords (12 rounds), min 10 chars, complexity enforced
 - 5 roles: admin, operator, client, viewer, staff
 - Account lockout after 5 failed attempts
 - CORS via ALLOWED_ORIGINS env var (no wildcard in production)
 - Rate limiting: 30/min agent run, 20/min stream, 10/min webhook
-- Security headers on all responses
+- Security headers: X-Frame-Options, X-Content-Type-Options, X-XSS-Protection, CSP, HSTS (production)
+- MCP server localhost-only (no unauthenticated external access)
+- Role-gated destructive operations (admin/operator required for delete, webhook, scheduler)
 - Full audit log
 
 ---
@@ -192,6 +210,9 @@ STREAMLIT_PORT=8501
 
 # Security
 ALLOWED_ORIGINS=http://localhost:8501
+
+# Scheduler timezone (default: Europe/Berlin)
+SCHEDULER_TIMEZONE=Europe/Berlin
 
 # Optional — Email notifications
 SMTP_HOST=smtp.gmail.com
