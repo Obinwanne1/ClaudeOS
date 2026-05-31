@@ -184,7 +184,14 @@ def _render_sync_log(log: list, api_post):
         disabled=["Started", "Table", "OK", "Fail", "ms", "Error"],
     )
 
-    selected_idx = edited.index[edited["Select"]].tolist()
+    # Read selection from session_state edited_rows — survives the rerun triggered by button click
+    _editor_state = st.session_state.get("sync_log_editor") or {}
+    _edited_rows = _editor_state.get("edited_rows", {}) if isinstance(_editor_state, dict) else {}
+    # Rows where Select was explicitly set True in the editor
+    _selected_from_state = {int(k) for k, v in _edited_rows.items() if v.get("Select", False)}
+    # Also include rows already True in the base df (e.g. from Select All)
+    _base_true = set(edited.index[edited["Select"]].tolist())
+    selected_idx = sorted(_selected_from_state | _base_true)
     selected_ids = df.loc[selected_idx, "id"].tolist()
     n = len(selected_ids)
 
