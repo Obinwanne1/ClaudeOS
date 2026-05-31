@@ -1,0 +1,8 @@
+{
+  "tests/test_tickets.py::test_resolve_ticket": true,
+  "tests/test_workflows.py::test_create_workflow": true,
+  "tests/test_workflows.py::test_create_duplicate_workflow": true,
+  "tests/test_workflows.py::test_update_workflow": true,
+  "tests/test_workflows.py::test_delete_workflow": true,
+  "tests/test_workflows.py::test_update_workflow_description": true
+}

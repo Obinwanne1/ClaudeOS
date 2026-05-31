@@ -117,7 +117,10 @@
       "Bash(ls -1 /c/Users/rigwe/Desktop/ClaudeOS/memory/db/migrations/*.sql)",
       "Bash(ls -1 /c/Users/rigwe/Desktop/ClaudeOS/scripts/*.py)",
       "Bash(xargs -I {} basename {})",
-      "Bash(Start-Sleep 5)"
+      "Bash(Start-Sleep 5)",
+      "Bash(Start-Sleep -Seconds 2)",
+      "Bash(Start-Process -FilePath \"powershell\" -ArgumentList \"-Command streamlit run dashboard/app.py --server.port 8501\" -WindowStyle Hidden)",
+      "Bash(Start-Sleep -Seconds 3)"
     ]
   }
 }
