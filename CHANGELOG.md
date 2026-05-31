@@ -4,6 +4,43 @@ All notable changes to ClaudeOS / FaiykeOS. Follows [Keep a Changelog](https://k
 
 ---
 
+## [v17.2] — 2026-05-31 — Performance, Security & Architecture Hardening
+
+### Performance
+- **Eliminated SELECT before UPDATE** (`b5436df`): agent run completion no longer reads input row before updating — builds JSON directly from in-scope vars (saves 1 DB round-trip per run).
+- **Streaming INSERT now starts as `running`** (`b5436df`): `create_run_record(status='running')` skips the separate `_update_run_status` UPDATE call per stream.
+- **ChromaDB probe cached** (`b5436df`): `/system/status` reuses the existing singleton client with a 30s TTL cache — eliminates 200–800ms `PersistentClient` init on every Overview page load.
+- **`namespace_stats` query collapsed** (`b5436df`): 7 sequential SQLite round-trips replaced with 1 compound SELECT using scalar subqueries.
+- **Bulk memory delete batched** (`b5436df`): replaced N×`engine.delete()` calls (N selects + N deletes + N ChromaDB calls) with a single batch SELECT for permission checks, one `DELETE WHERE id IN (...)`, and grouped ChromaDB deletes per namespace.
+- **Duplicate `_entry_dict` removed** (`b5436df`): second definition at end of `memory.py` was shadowing the first, silently returning fewer fields (missing `source`, `agent_id`, `session_id`, etc.) on all hybrid-search results.
+- **Context builder seen_keys cached** (`b5436df`): `_ns_summary_cache` now stores `(result, seen_keys_set, expiry)` — eliminates string re-parse on every cache hit.
+- **Non-blocking live refresh** (`b5436df`): Overview `time.sleep(8)` replaced with `st.fragment(run_every=8)` — session thread no longer frozen for 8s per refresh cycle (native Streamlit 1.38).
+- **Duplicate import removed from render loop** (`b5436df`): `import streamlit.components.v1` was executing inside the agent catalog card loop (up to 6× per render); deduplicated to module-level import.
+- **Agent list cache hit fixed** (`b5436df`): Overview used `/agents`, Agents page used `/agents?enabled_only=false` — different cache keys meant both always hit Flask. Standardized to `?enabled_only=false`.
+
+### Security
+- **MCP server bound to localhost** (`b5436df`): was `0.0.0.0` with zero authentication — any LAN host could invoke all 12 agents in any namespace. Now `127.0.0.1` only.
+- **Workflow run delete role-gated** (`b5436df`): `DELETE /workflows/runs/<id>` and bulk variant now require `admin`/`operator` — any authenticated role (including `viewer`) could previously destroy audit trail records.
+- **Workflow management role-gated** (`b5436df`): scheduler reload, webhook enable/disable, and workflow enable/disable now require `admin`/`operator`.
+- **Workflow limit params hardened** (`b5436df`): `int()` casts on `?limit=` params wrapped in try/except returning 400; all limits bounded to max 200.
+- **Workflow bulk delete capped** (`b5436df`): max 200 IDs per bulk delete request; returns 422 if exceeded.
+- **Stored XSS closed in Admin Branding** (`b5436df`): company name and icon injected into `unsafe_allow_html` preview are now escaped with `html.escape()`.
+- **System status info gated by role** (`b5436df`): DB path, absolute filesystem path, platform, and Python version no longer returned to `client`/`viewer` roles.
+- **Content-Security-Policy header added** (`b5436df`): `default-src 'none'; frame-ancestors 'none'` on all Flask API responses.
+- **HSTS header added** (`b5436df`): `Strict-Transport-Security` set when `CLAUDEOS_ENV=production`.
+- **Settings repr masks credentials** (`b5436df`): `ANTHROPIC_API_KEY`, `SMTP_PASSWORD`, `SUPABASE_*`, `CLAUDEOS_SECRET_KEY` shown as `***` in any log/repr output.
+- **Worktree weak secret default removed** (`b5436df`): `.claude/worktrees/…/config.py` had `CLAUDEOS_SECRET_KEY = "dev-secret-change-in-prod"` — removed, now required field.
+- **Audit log date params validated** (`b5436df`): `?since=` and `?until=` on `GET /admin/audit` validated against ISO datetime pattern; returns 400 on invalid format.
+- **Dashboard session TTL shortened** (`b5436df`): session key window reduced from 7 days to 24 hours.
+- **Namespace slug enumeration closed** (`b5436df`): self-registration returned different errors for missing vs wrong-type namespaces; now returns a single generic message.
+
+### Architecture
+- **Stale run cleanup on startup** (`b5436df`): `_cleanup_stale_runs()` resets any `pending`/`running` agent or workflow runs older than 1 hour to `failed` on Flask startup — eliminates perpetually-stuck records from crash artifacts.
+- **Memory value size limit** (`b5436df`): memory write endpoint caps `value` at 64KB; returns 422 if exceeded — prevents DoS via ChromaDB embed + FTS5 index bloat.
+- **Scheduler timezone default** (`b5436df`): `SCHEDULER_TIMEZONE` changed from `Africa/Lagos` to `Europe/Berlin`; override via `.env`.
+
+---
+
 ## [v17.0.1] — 2026-05-30
 
 ### Fixed
