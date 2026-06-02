@@ -8,7 +8,7 @@ from datetime import date
 from pathlib import Path
 from xhtml2pdf import pisa
 
-VERSION = "17.2"
+VERSION = "17.2.1"
 CLIENT  = "faiyke-ai"
 TODAY   = date.today().isoformat()
 

@@ -46,12 +46,15 @@ def render(api_get, api_post, bulk_delete=None):
     with tab_tokens:
         _render_tokens(runs, tv)
 
+    # Fetch /memory/namespaces once — shared by both memory health and namespace usage tabs
+    _mem_data = api_get("/memory/namespaces") or {}
+
     with tab_memory:
-        _render_memory_health(api_get, api_post, tv)
+        _render_memory_health(api_get, api_post, tv, _mem_data)
 
     if tab_ns:
         with tab_ns:
-            _render_namespace_usage(runs, api_get, tv)
+            _render_namespace_usage(runs, _mem_data, tv)
 
 
 def _render_quality(runs: list, tv: dict) -> None:
@@ -242,10 +245,10 @@ def _render_tokens(runs: list, tv: dict) -> None:
     st.caption("Pricing based on Claude Sonnet 4.6 rates (~$3/M input, ~$15/M output). Actual costs may vary.")
 
 
-def _render_memory_health(api_get, api_post, tv: dict) -> None:
+def _render_memory_health(api_get, api_post, tv: dict, mem_data: dict | None = None) -> None:
     st.subheader("Memory System Health")
 
-    ns_data = api_get("/memory/namespaces") or {}
+    ns_data = mem_data or {}
     namespaces = ns_data.get("namespaces", {})
 
     if not namespaces:
@@ -281,7 +284,7 @@ def _render_memory_health(api_get, api_post, tv: dict) -> None:
             st.error("Consolidation endpoint not available")
 
 
-def _render_namespace_usage(runs: list, api_get, tv: dict) -> None:
+def _render_namespace_usage(runs: list, mem_data: dict | None, tv: dict) -> None:
     st.subheader("Namespace Usage Comparison")
     st.caption("Aggregated across all namespaces — token consumption, run count, cost, and quality.")
 
@@ -302,9 +305,8 @@ def _render_namespace_usage(runs: list, api_get, tv: dict) -> None:
         if r.get("eval_score") is not None:
             ns_stats[ns]["scores"].append(r["eval_score"])
 
-    # Memory counts
-    mem_data = api_get("/memory/namespaces") or {}
-    mem_counts = mem_data.get("namespaces", {})
+    # Memory counts — passed in from render(), no extra HTTP call
+    mem_counts = (mem_data or {}).get("namespaces", {})
 
     # Build table
     rows = []

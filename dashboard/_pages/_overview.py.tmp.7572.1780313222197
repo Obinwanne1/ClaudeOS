@@ -29,37 +29,17 @@ def _make_nav_cb(target: str):
 
 
 def _render_kpi_grid(kpis: list) -> None:
-    from dashboard.components.brand import get_theme_vars, get_ns_brand, get_theme, _mix, PRIMARY
+    from dashboard.components.brand import get_theme_vars, get_ns_brand, PRIMARY
     import streamlit.components.v1 as _cv1
     t = get_theme_vars()
     brand = get_ns_brand()
-    _theme = get_theme()
-    _color = (brand.get("color") or "").strip()
 
-    if _color and _theme == "dark":
-        # Derive dark palette from brand primary — same logic as _ns_brand_css()
-        _card_bg     = _mix(_color, False, 0.78)              # dark plum surface
-        _card_hover  = _mix(_color, False, 0.65)              # slightly lighter for hover
-        _card_border = _mix(_color, False, 0.52)              # mid-dark border
-        _card_text   = "#FAF8F7"                              # brand ivory
-        _card_muted  = (brand.get("accent_color") or "#C8A96E").strip()
-        _accent      = _color                                 # brand primary for glow/border
-    elif _color:
-        # Light mode — brand tokens directly
-        _card_bg     = (brand.get("surface_color") or "").strip() or t["SURFACE"]
-        _card_hover  = (brand.get("surface2_color") or "").strip() or _mix(_color, True, 0.88)
-        _card_border = (brand.get("border_color") or "").strip() or t["BORDER"]
-        _card_text   = (brand.get("text_color") or "").strip() or t["TEXT"]
-        _card_muted  = (brand.get("text_muted_color") or "").strip() or t["TEXT_MUTED"]
-        _accent      = _color
-    else:
-        # No brand — theme defaults
-        _card_bg     = t["SURFACE"]
-        _card_hover  = t["SURFACE2"]
-        _card_border = t["BORDER"]
-        _card_text   = t["TEXT"]
-        _card_muted  = t["TEXT_MUTED"]
-        _accent      = PRIMARY
+    # Brand-aware colors — ns brand wins over theme defaults
+    _card_bg     = (brand.get("surface_color") or "").strip() or t["SURFACE"]
+    _card_border = (brand.get("border_color") or "").strip() or t["BORDER"]
+    _card_text   = (brand.get("text_color") or "").strip() or t["TEXT"]
+    _card_muted  = (brand.get("text_muted_color") or "").strip() or t["TEXT_MUTED"]
+    _accent      = (brand.get("color") or "").strip() or PRIMARY
 
     # Hide nav trigger buttons (zero-height, used only as Python callbacks)
     st.markdown("""<style>
@@ -85,13 +65,15 @@ def _render_kpi_grid(kpis: list) -> None:
             ) if target_page else ""
             with cols[col_idx]:
                 _cv1.html(f"""<!DOCTYPE html><html><head>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{{margin:0;padding:0;box-sizing:border-box;font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}}
-body{{background:{_card_bg};padding:0 0 8px 0;}}
+body{{background:transparent;padding:0 0 8px 0;}}
 .card{{background:{_card_bg};border:1px solid {_card_border};border-radius:10px;
        padding:14px 16px;cursor:{cursor};
        transition:background 0.15s,border-color 0.15s,box-shadow 0.15s;user-select:none;}}
-.card:hover{{border-color:{_accent};box-shadow:0 0 0 2px {_accent}44;background:{_card_hover};}}
+.card:hover{{border-color:{_accent};box-shadow:0 0 0 2px {_accent}44;background:{_accent}14;}}
 .card:active{{background:{_accent}28;}}
 .label{{font-size:0.78rem;color:{_card_muted};font-weight:500;margin-bottom:4px;
         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
@@ -126,12 +108,11 @@ def render(api_get, api_post, bulk_delete=None):
     )
 
     if is_scoped:
-        _wp = (ns_brand.get("color") or PRIMARY).strip() or PRIMARY
         st.markdown(
             f'<div style="display:inline-flex;align-items:center;gap:8px;'
-            f'background:{_wp}1F;border:1px solid {_wp};'
+            f'background:rgba(64,126,60,0.12);border:1px solid {PRIMARY};'
             f'border-radius:8px;padding:6px 14px;margin-bottom:12px;font-size:0.85rem;">'
-            f'<span style="color:{_wp};font-weight:700;">🏢 Workspace</span>'
+            f'<span style="color:{PRIMARY};font-weight:700;">🏢 Workspace</span>'
             f'<span style="color:inherit;">{_esc(user_ns)}</span></div>',
             unsafe_allow_html=True,
         )
@@ -259,23 +240,8 @@ def render(api_get, api_post, bulk_delete=None):
 
 def _render_live_feed(runs_data, is_scoped: bool, username: str, api_post=None) -> None:
     """Live activity feed — auto-refreshes every 8 seconds when live mode is on."""
-    from dashboard.components.brand import get_theme_vars as _tv, get_ns_brand, get_theme, _mix
+    from dashboard.components.brand import get_theme_vars as _tv
     _t = _tv()
-    _brand = get_ns_brand()
-    _theme = get_theme()
-    if _brand and (_bc := (_brand.get("color") or "").strip()):
-        if _theme == "dark":
-            _muted  = (_brand.get("accent_color") or "#D4859A").strip()
-            _surf2  = _mix(_bc, False, 0.70)
-            _txt    = "#FAF8F7"
-            _brd    = _mix(_bc, False, 0.52)
-        else:
-            _muted  = (_brand.get("text_muted_color") or _t["TEXT_MUTED"]).strip()
-            _surf2  = (_brand.get("surface2_color")   or _t["SURFACE2"]).strip()
-            _txt    = (_brand.get("text_color")        or _t["TEXT"]).strip()
-            _brd    = (_brand.get("border_color")      or _t["BORDER"]).strip()
-    else:
-        _muted, _surf2, _txt, _brd = _t["TEXT_MUTED"], _t["SURFACE2"], _t["TEXT"], _t["BORDER"]
 
     col_title, col_toggle = st.columns([3, 1])
     with col_title:
@@ -331,6 +297,9 @@ def _render_live_feed(runs_data, is_scoped: bool, username: str, api_post=None) 
                     _created = f"{_local.day} {_local.strftime('%b')} · {_local.strftime('%H:%M')}"
                 except Exception:
                     _created = _raw[:16]
+                _muted = _t["TEXT_MUTED"]
+                _surf2 = _t["SURFACE2"]
+                _txt   = _t["TEXT"]
                 _ns_part = "" if is_scoped else f'<span style="color:{_muted};font-size:0.75rem;"> · {_ns}</span>'
                 _color = {"done": "#5a9e56", "failed": "#ef4444", "running": "#f59e0b", "pending": "#6b7280"}.get(_status, "#6b7280")
                 _pill = f"background:{_surf2};color:{_txt};padding:1px 6px;border-radius:4px;font-size:0.78rem;font-family:monospace;"
@@ -338,7 +307,7 @@ def _render_live_feed(runs_data, is_scoped: bool, username: str, api_post=None) 
                     _col_main, _col_btn = st.columns([10, 1])
                     with _col_main:
                         st.markdown(
-                            f'<div style="padding:7px 0;font-size:0.82rem;border-bottom:1px solid {_brd};">'
+                            f'<div style="padding:7px 0;font-size:0.82rem;border-bottom:1px solid {_t["BORDER"]};">'
                             f'<span style="color:{_color};font-weight:600;">{_icon} {_status}</span>'
                             f'&nbsp;&nbsp;·&nbsp;&nbsp;<span style="{_pill}">{_agent}</span>{_ns_part}'
                             f'&nbsp;&nbsp;{score_pill}'
@@ -362,7 +331,7 @@ def _render_live_feed(runs_data, is_scoped: bool, username: str, api_post=None) 
                                 st.rerun()
                 else:
                     st.markdown(
-                        f'<div style="padding:7px 0;font-size:0.82rem;border-bottom:1px solid {_brd};">'
+                        f'<div style="padding:7px 0;font-size:0.82rem;border-bottom:1px solid {_t["BORDER"]};">'
                         f'<span style="color:{_color};font-weight:600;">{_icon} {_status}</span>'
                         f'&nbsp;&nbsp;·&nbsp;&nbsp;<span style="{_pill}">{_agent}</span>{_ns_part}'
                         f'&nbsp;&nbsp;{score_pill}'
@@ -388,21 +357,10 @@ def _render_live_feed(runs_data, is_scoped: bool, username: str, api_post=None) 
 
 def _render_live_refresh_toggle() -> None:
     """Token burn rate mini-chart."""
-    from dashboard.components.brand import get_theme_vars, get_ns_brand, get_theme
+    from dashboard.components.brand import get_theme_vars
     t = get_theme_vars()
-    brand = get_ns_brand()
-    theme = get_theme()
-    _color = (brand.get("color") or "").strip()
-    if _color:
-        # Use brand muted (accent in dark, text_muted in light) — avoid inheriting green
-        if theme == "dark":
-            _muted = (brand.get("accent_color") or "#C8A96E").strip()
-        else:
-            _muted = (brand.get("text_muted_color") or "#4A4A4C").strip()
-    else:
-        _muted = t["TEXT_MUTED"]
     st.markdown(
-        f'<div style="color:{_muted};font-size:0.75rem;text-align:center;">'
+        f'<div style="color:{t["TEXT_MUTED"]};font-size:0.75rem;text-align:center;">'
         f'Auto-refresh: toggle "Live Activity" above · Quality scores powered by LLM-as-Judge</div>',
         unsafe_allow_html=True,
     )

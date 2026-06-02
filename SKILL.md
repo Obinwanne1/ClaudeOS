@@ -169,7 +169,7 @@ Create the following directory structure in the current working directory:
 │   ├── seed_client_schema.py   ← pre-populate 14 onboarding fields per namespace
 │   ├── seed_namespaces.py
 │   ├── seed_workflows.py
-│   ├── build_package.py        ← builds dist/FaiykeOS-v17.0.zip for distribution
+│   ├── build_package.py        ← builds dist/FaiykeOS-v17.2.1.zip for distribution
 │   ├── gen_handbook_pdf.py     ← regenerates FaiykeOS_Handbook_faiyke-ai.pdf
 │   ├── serve_api.py
 │   ├── start.ps1
@@ -643,7 +643,7 @@ Every deployment built by this skill includes all of the following. Nothing is c
 | Pricing page | `docs/landing/pricing.html` — 3-tier cards, comparison table, Formspree booking form; replace `YOUR_FORM_ID` with real Formspree endpoint |
 | Pricing tiers | Developer $197 one-time \| Business $997 + $147/mo \| Agency $497 + $97/mo or $997 flat unlimited |
 | Buyer collateral | `docs/PRODUCT_README.md`, `docs/SETUP_GUIDE_NONTECHNICAL.md`, `docs/AGENCY_LICENSE.md` |
-| Distribution ZIP | `scripts/build_package.py` → `dist/FaiykeOS-v17.0.zip` (475 KB, 153 files); excludes .env, data/, logs/, dev scripts |
+| Distribution ZIP | `scripts/build_package.py` → `dist/FaiykeOS-v17.2.1.zip` (475 KB, 153 files); excludes .env, data/, logs/, dev scripts |
 | Replacements needed | Update `hello@faiyke-ai.com` email + Formspree form ID in landing/pricing HTML before distributing |
 
 ### Authentication & Roles

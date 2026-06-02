@@ -120,7 +120,13 @@
       "Bash(Start-Sleep 5)",
       "Bash(Start-Sleep -Seconds 2)",
       "Bash(Start-Process -FilePath \"powershell\" -ArgumentList \"-Command streamlit run dashboard/app.py --server.port 8501\" -WindowStyle Hidden)",
-      "Bash(Start-Sleep -Seconds 3)"
+      "Bash(Start-Sleep -Seconds 3)",
+      "Bash(py -m streamlit --version)",
+      "Bash(xargs -I{} powershell -Command \"Stop-Process -Id {} -Force -ErrorAction SilentlyContinue\")",
+      "Bash(Start-Process -FilePath \"powershell\" -ArgumentList \"-Command\", \"cd C:\\\\Users\\\\rigwe\\\\Desktop\\\\ClaudeOS; streamlit run dashboard/app.py\" -WindowStyle Hidden)",
+      "Bash(Start-Process -FilePath \"powershell\" -ArgumentList \"-Command\", \"cd 'C:\\\\Users\\\\rigwe\\\\Desktop\\\\ClaudeOS'; streamlit run dashboard/app.py\" -WindowStyle Hidden)",
+      "Bash(ls C:\\\\Users\\\\rigwe\\\\Desktop\\\\ClaudeOS\\\\scripts\\\\*pdf* C:\\\\Users\\\\rigwe\\\\Desktop\\\\ClaudeOS\\\\scripts\\\\*handbook* C:\\\\Users\\\\rigwe\\\\Desktop\\\\ClaudeOS\\\\scripts\\\\*qa*)",
+      "Bash(ls C:\\\\Users\\\\rigwe\\\\Desktop\\\\ClaudeOS\\\\scripts\\\\gen_*.py)"
     ]
   }
 }

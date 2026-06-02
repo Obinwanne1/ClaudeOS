@@ -20,7 +20,7 @@ st.set_page_config(
     initial_sidebar_state="auto",
 )
 
-from dashboard.components.brand import inject, sidebar_logo, theme_toggle, PRIMARY, get_theme_vars
+from dashboard.components.brand import inject, sidebar_logo, theme_toggle, system_health_bar, clear_health_bar, PRIMARY, get_theme_vars
 inject()
 theme_toggle()  # available on all pages including login
 
@@ -70,6 +70,7 @@ if not st.session_state.get("jwt_token"):
 
 # ── Auth gate ─────────────────────────────────────────────────────────────────
 if not st.session_state.get("jwt_token"):
+    clear_health_bar()
     from dashboard.components.login_form import render_login
     render_login()
     st.stop()
@@ -135,11 +136,18 @@ if _role_now in ("client", "viewer") and _ns_now:
                 _nd = _nb.json()
                 _nm = _nd.get("metadata") or {}
                 st.session_state["ns_brand"] = {
-                    "color":        (_nd.get("color") or "").strip(),
-                    "icon":         (_nd.get("icon") or "").strip(),
-                    "company_name": (_nm.get("company_name") or "").strip(),
-                    "accent_color": (_nm.get("accent_color") or "").strip(),
-                    "bg_color":     (_nm.get("bg_color") or "").strip(),
+                    "color":            (_nd.get("color") or "").strip(),
+                    "icon":             (_nd.get("icon") or "").strip(),
+                    "company_name":     (_nm.get("company_name") or "").strip(),
+                    "accent_color":     (_nm.get("accent_color") or "").strip(),
+                    "bg_color":         (_nm.get("bg_color") or "").strip(),
+                    "hover_color":      (_nm.get("hover_color") or "").strip(),
+                    "surface_color":    (_nm.get("surface_color") or "").strip(),
+                    "surface2_color":   (_nm.get("surface2_color") or "").strip(),
+                    "text_color":       (_nm.get("text_color") or "").strip(),
+                    "text_muted_color": (_nm.get("text_muted_color") or "").strip(),
+                    "border_color":     (_nm.get("border_color") or "").strip(),
+                    "input_bg":         (_nm.get("input_bg") or "").strip(),
                 }
                 st.session_state["_ns_brand_loaded"] = True
                 st.rerun()  # re-render so inject() at top picks up brand
@@ -173,10 +181,12 @@ _READ_ONLY_PREFIXES = (
     "/system/status",
     "/system/stats",
     "/system/events",
+    "/system/namespace-stats",
     "/agents",
     "/memory/namespaces",
     "/outputs/stats",
     "/namespaces",
+    "/tickets",
 )
 # NOTE: /agents/runs intentionally excluded — user-scoped, must never be cached cross-user
 
@@ -233,6 +243,12 @@ def api_post(path: str, data: dict = None, timeout: int = 5, method: str = "POST
     return None
 
 
+# ── System health bar (admin only) ───────────────────────────────────────────
+if st.session_state.get("user_role") == "admin":
+    system_health_bar(API_BASE, st.session_state.get("jwt_token", ""))
+else:
+    clear_health_bar()
+
 # ── Onboarding modal (client/viewer first-login) ──────────────────────────────
 from dashboard.components.onboarding import maybe_show_onboarding
 maybe_show_onboarding(st.session_state.get("user_role", "viewer"))
@@ -276,7 +292,7 @@ if role == "staff":
 
 # Ticket badge — fetch before radio so count shows in nav label (cached 30s)
 _ticket_stats = _cached_api_get(
-    "/tickets?status=open&limit=200",
+    "/tickets?status=open&limit=50",
     token=st.session_state.get("jwt_token", ""),
     timeout=3,
 )
@@ -313,11 +329,14 @@ st.sidebar.markdown("---")
 
 # User info + logout
 _tv = get_theme_vars()
+_sidebar_brand = st.session_state.get("ns_brand") or {}
+_brand_primary = (_sidebar_brand.get("color") or "").strip() or PRIMARY
+_brand_muted   = (_sidebar_brand.get("text_muted_color") or "").strip() or _tv["TEXT_MUTED"]
 _user_ns = st.session_state.get("user_namespace")
 st.sidebar.markdown(f"**{username}** ({role})")
 if _user_ns and role in ("client", "viewer"):
     st.sidebar.markdown(
-        f'<div style="font-size:0.78rem;color:{PRIMARY};margin:-6px 0 4px;">🏢 {_user_ns}</div>',
+        f'<div style="font-size:0.78rem;color:{_brand_primary};margin:-6px 0 4px;">🏢 {_user_ns}</div>',
         unsafe_allow_html=True,
     )
 
@@ -366,11 +385,11 @@ st.sidebar.markdown("---")
 
 health = api_get_cached("/health")
 if health and health.get("status") == "ok":
-    st.sidebar.markdown(f'<div style="color:#5a9e56;font-size:0.8rem;">● API online · v{health.get("version","?")}</div>', unsafe_allow_html=True)
+    st.sidebar.markdown(f'<div style="color:{_brand_primary};font-size:0.8rem;">● API online · v{health.get("version","?")}</div>', unsafe_allow_html=True)
 else:
     st.sidebar.markdown('<div style="color:#ef4444;font-size:0.8rem;">● API offline</div>', unsafe_allow_html=True)
 
-st.sidebar.markdown(f'<div style="color:{_tv["TEXT_MUTED"]};font-size:0.75rem;margin-top:4px;">{datetime.now().strftime("%a %d %b · %H:%M")}</div>', unsafe_allow_html=True)
+st.sidebar.markdown(f'<div style="color:{_brand_muted};font-size:0.75rem;margin-top:4px;">{datetime.now().strftime("%a %d %b · %H:%M")}</div>', unsafe_allow_html=True)
 
 # ── Page dispatch ─────────────────────────────────────────────────────────────
 # Lazy imports — only load the selected page module, not all 9 at once.

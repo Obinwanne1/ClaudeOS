@@ -1,6 +1,6 @@
 # FaiykeOS — Product Package
 
-**Version:** 17.2 | **Built by:** faiyke-ai | **License:** See below
+**Version:** 17.2.1 | **Built by:** faiyke-ai | **License:** See below
 
 ---
 

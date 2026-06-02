@@ -55,6 +55,9 @@ bcrypt==4.2.0
 # Phase 13.3: Live charts
 plotly>=5.18.0
 
+# System monitoring (Phase health bar)
+psutil>=5.9.0
+
 # Dev / testing
 pytest==8.3.3
 pytest-cov==5.0.0

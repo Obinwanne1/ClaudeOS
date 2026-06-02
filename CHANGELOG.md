@@ -4,6 +4,13 @@ All notable changes to ClaudeOS / FaiykeOS. Follows [Keep a Changelog](https://k
 
 ---
 
+## [v17.2.1] — 2026-06-01 — UI Bugfix
+
+### Fixed
+- **Streamlit toolbar icon solid-square bug** (`brand.py`): The MoreVert (⋮) settings menu button in the Streamlit header was rendering as a solid colored square in both dark and light modes. Root cause: the MoreVert SVG contains a 24×24 bounding-box path (`M0 0h24v24H0V0z`) with `fill="none"` attribute; our CSS/JS fill override was ignoring that attribute and painting it solid. Fix: added `:not([fill="none"])` to all `svg path` selectors in both CSS blocks, added explicit `path[fill="none"]` → `fill: none` rules, and added `getAttribute('fill') === 'none'` guard in the JS `fixHeader` loop. Also targeted the correct Streamlit 1.56 testids: `stToolbarActionButton`, `stToolbarActionButtonIcon`, `stToolbarActionButtonLabel`, `stAppDeployButton`, `stToolbarItems`.
+
+---
+
 ## [v17.2] — 2026-05-31 — Performance, Security & Architecture Hardening
 
 ### Performance

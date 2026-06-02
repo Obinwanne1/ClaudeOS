@@ -225,6 +225,9 @@ Layer 14: Commercial (namespace white-labeling, client usage dashboard, email no
   - `st.html()` is sandboxed (scripts blocked); `st.markdown` strips scripts
   - Position: `fixed; bottom:24px; left:220px` — clears sidebar text (commit 86bbade)
 - Aurora background removed — no animated gradients, no will-change: transform
+- **SVG fill override rule**: header toolbar `svg path` selectors must use `:not([fill="none"])` — Streamlit's MoreVert icon includes a 24×24 bounding-box path with `fill="none"` that becomes a solid colored square if overridden. JS guard: `if (p.getAttribute('fill') === 'none') return` before setting fill.
+- **`stToolbarActionButtonIcon`** is a styled div with `background: url(...) no-repeat center/contain` (CSS background-image, not SVG). Do NOT set `background: transparent` on it — that destroys the image. Use `display: none` to hide or `filter:` to colorize.
+- Streamlit 1.56 toolbar testids: `stAppDeployButton`, `stAppToolbar`, `stToolbarActionButton`, `stToolbarActionButtonIcon`, `stToolbarActionButtonLabel`, `stToolbarItems`
 
 ## Rules
 - Never use gunicorn — use waitress on Windows

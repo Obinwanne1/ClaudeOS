@@ -10,6 +10,10 @@ from core.auth import require_auth, effective_namespace
 
 system_bp = Blueprint("system", __name__, url_prefix="/api/v1")
 
+# Record the moment this module is imported — used as server process start time
+import time as _time
+_SERVER_START: float = _time.time()
+
 # Cache ChromaDB health result — prevents a 200-800ms PersistentClient init on every status poll
 _chroma_cache: dict = {}
 _CHROMA_CACHE_TTL = 30.0  # seconds
@@ -243,6 +247,60 @@ def namespace_stats():
         "recent_runs":    recent_runs,
         "timestamp":      utcnow_str(),
     })
+
+
+@system_bp.get("/system/hardware")
+@require_auth
+def hardware():
+    """Real-time host metrics for the admin system health bar.
+    Admin/operator only — returns CPU%, RAM, disk, and uptime.
+    """
+    from flask import g as _g
+    if getattr(_g, "user_role", "client") not in ("admin", "operator"):
+        return jsonify({"error": "forbidden"}), 403
+
+    try:
+        import psutil, time
+    except ImportError:
+        return jsonify({"error": "psutil not installed"}), 503
+
+    def _fmt_duration(seconds: int) -> str:
+        days, rem  = divmod(seconds, 86400)
+        hours, rem = divmod(rem, 3600)
+        mins       = rem // 60
+        if days:
+            return f"{days}d {hours}h"
+        if hours:
+            return f"{hours}h {mins}m"
+        return f"{mins}m"
+
+    try:
+        cpu_pct   = psutil.cpu_percent(interval=0.1)
+        vm        = psutil.virtual_memory()
+        try:
+            disk = psutil.disk_usage("C:\\")
+        except Exception:
+            disk = psutil.disk_usage("/")
+
+        # Server uptime = time since this module was imported (Flask startup)
+        server_uptime_str = _fmt_duration(int(_time.time() - _SERVER_START))
+        # OS uptime = time since Windows last booted
+        os_uptime_str = _fmt_duration(int(_time.time() - psutil.boot_time()))
+
+        return jsonify({
+            "cpu_pct":        round(cpu_pct, 1),
+            "ram_used_gb":    round(vm.used  / 1024**3, 1),
+            "ram_total_gb":   round(vm.total / 1024**3, 1),
+            "ram_pct":        round(vm.percent, 1),
+            "disk_used_gb":   round(disk.used  / 1024**3, 1),
+            "disk_total_gb":  round(disk.total / 1024**3, 1),
+            "disk_pct":       round(disk.percent, 1),
+            "server_uptime":  server_uptime_str,
+            "os_uptime":      os_uptime_str,
+            "timestamp":      utcnow_str(),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @system_bp.get("/system/events")

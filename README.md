@@ -9,7 +9,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.11+-407E3C?style=flat-square&logo=python&logoColor=white"/>
   <img src="https://img.shields.io/badge/Flask-3.0-407E3C?style=flat-square&logo=flask&logoColor=white"/>
-  <img src="https://img.shields.io/badge/Streamlit-1.38-407E3C?style=flat-square&logo=streamlit&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Streamlit-1.56-407E3C?style=flat-square&logo=streamlit&logoColor=white"/>
   <img src="https://img.shields.io/badge/Supabase-cloud_sync-407E3C?style=flat-square&logo=supabase&logoColor=white"/>
   <img src="https://img.shields.io/badge/Windows-10-407E3C?style=flat-square&logo=windows&logoColor=white"/>
   <img src="https://img.shields.io/badge/license-MIT-5a9e56?style=flat-square"/>

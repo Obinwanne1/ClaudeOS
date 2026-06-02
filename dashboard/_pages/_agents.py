@@ -180,11 +180,12 @@ def _render_chat_tab(agents: list, api_get, api_post):
         st.button("Clear conversation", key="chat_clear",
                   on_click=_do_clear, use_container_width=True)
 
-        # Agent Card viewer
-        with st.expander("🪪 Agent Card (A2A)"):
-            card = api_get(f"/agents/{sel_agent}/.well-known/agent.json")
-            if card:
-                st.json(card)
+        # Agent Card viewer — fetch only when expander is open
+        with st.expander("🪪 Agent Card (A2A)") as _card_expander:
+            if _card_expander:
+                card = api_get(f"/agents/{sel_agent}/.well-known/agent.json")
+                if card:
+                    st.json(card)
 
     with col_chat:
         conv_key = f"conv_{sel_agent}_{sel_ns}"
@@ -492,7 +493,33 @@ def _history_to_api_messages(history: list) -> list:
 # ── Catalog Tab ───────────────────────────────────────────────────────────────
 
 def _render_catalog_tab(agents: list, api_get, api_post):
+    import streamlit.components.v1 as _cv1
+    from dashboard.components.brand import _mix, get_theme
     tv = get_theme_vars()
+
+    # Brand-aware card colors — override ClaudeOS green SURFACE for namespace clients
+    _ns_brand = st.session_state.get("ns_brand") or {}
+    _brand_color = (_ns_brand.get("color") or "").strip()
+    if _brand_color:
+        _is_dark = (get_theme() == "dark")
+        if _is_dark:
+            _card_bg     = _mix(_brand_color, False, 0.78)
+            _card_text   = "#FAF8F7"
+            _card_muted  = (_ns_brand.get("accent_color") or _ns_brand.get("text_muted_color") or "#C8A96E").strip()
+            _card_border = _mix(_brand_color, False, 0.52)
+        else:
+            _card_bg     = (_ns_brand.get("surface_color") or "").strip() or tv["SURFACE"]
+            _card_text   = (_ns_brand.get("text_color") or tv["TEXT"]).strip()
+            _card_muted  = (_ns_brand.get("text_muted_color") or tv["TEXT_MUTED"]).strip()
+            _card_border = (_ns_brand.get("border_color") or tv["BORDER"]).strip()
+        _enabled_dot_color = _brand_color
+    else:
+        _card_bg           = tv["SURFACE"]
+        _card_text         = tv["TEXT"]
+        _card_muted        = tv["TEXT_MUTED"]
+        _card_border       = tv["BORDER"]
+        _enabled_dot_color = "#5a9e56"
+
     col1, col2 = st.columns([2, 1])
     with col1:
         search = st.text_input("Search agents", placeholder="name, category, tag…",
@@ -527,19 +554,22 @@ def _render_catalog_tab(agents: list, api_get, api_post):
             if i + j >= len(filtered):
                 break
             a = filtered[i + j]
-            color = CATEGORY_COLORS.get(a["category"], PRIMARY)
+            color = CATEGORY_COLORS.get(a["category"], _brand_color or PRIMARY)
+            # Replace ClaudeOS green category colors with brand primary when brand is set
+            if _brand_color and color in ("#407E3C", "#5a9e56"):
+                color = _brand_color
             with col:
                 _safe = a['name'].replace('-', '_').replace(' ', '_')
                 _btn_key = f"card_chat_{_safe}"
                 enabled_dot = "●" if a["enabled"] else "○"
-                enabled_color = "#5a9e56" if a["enabled"] else "#6b7280"
+                enabled_color = _enabled_dot_color if a["enabled"] else "#6b7280"
                 ns_lock = f"· 🔒 {a['namespace_lock']}" if a.get('namespace_lock') else ""
                 _cv1.html(f"""<!DOCTYPE html><html><head><style>
 *{{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}}
 body{{background:transparent;padding:0 0 8px 0;}}
 .card{{
-    background:{tv['SURFACE']};
-    border:1px solid {tv['BORDER']};
+    background:{_card_bg};
+    border:1px solid {_card_border};
     border-radius:10px;
     padding:14px 16px;
     cursor:pointer;
@@ -553,11 +583,11 @@ body{{background:transparent;padding:0 0 8px 0;}}
 }}
 .card:active{{background:{color}44;}}
 .row{{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}}
-.name{{font-weight:700;color:{tv['TEXT']};font-size:0.88rem;}}
+.name{{font-weight:700;color:{_card_text};font-size:0.88rem;}}
 .dot{{color:{enabled_color};margin-right:5px;}}
 .badge{{background:{color}33;color:{color};border:1px solid {color}55;padding:2px 8px;border-radius:12px;font-size:0.68rem;font-weight:600;}}
-.desc{{color:{tv['TEXT_MUTED']};font-size:0.82rem;margin-bottom:8px;line-height:1.4;}}
-.meta{{font-size:0.72rem;color:{tv['TEXT_MUTED']};}}
+.desc{{color:{_card_muted};font-size:0.82rem;margin-bottom:8px;line-height:1.4;}}
+.meta{{font-size:0.72rem;color:{_card_muted};}}
 code{{background:rgba(255,255,255,0.1);padding:1px 5px;border-radius:3px;font-family:monospace;font-size:0.7rem;}}
 </style></head><body>
 <div class="card" onclick="

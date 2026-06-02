@@ -7,7 +7,7 @@ Visible to client/viewer roles only. Shows:
 - Memory summary
 """
 import streamlit as st
-from dashboard.components.brand import aurora_hero, get_theme_vars, get_ns_brand
+from dashboard.components.brand import aurora_hero, get_theme_vars, get_ns_brand, _mix, get_theme
 
 
 def render(api_get, api_post, bulk_delete=None):
@@ -40,6 +40,24 @@ def render(api_get, api_post, bulk_delete=None):
 
     t = get_theme_vars()
 
+    # Brand-aware color overrides — replace ClaudeOS green surfaces for namespace clients
+    _brand_color = (brand.get("color") or "").strip()
+    _is_dark = (get_theme() == "dark")
+    if _brand_color:
+        _done_color   = _brand_color
+        _card_surface = _mix(_brand_color, False, 0.78) if _is_dark else (brand.get("surface_color") or "").strip() or t["SURFACE"]
+        _card_border  = _mix(_brand_color, False, 0.52) if _is_dark else (brand.get("border_color") or "").strip() or t["BORDER"]
+        _surface2     = _mix(_brand_color, False, 0.72) if _is_dark else (brand.get("surface2_color") or "").strip() or t["SURFACE"]
+        _text         = "#FAF8F7" if _is_dark else (brand.get("text_color") or "").strip() or _text
+        _text_muted   = (brand.get("accent_color") or "#C8A96E").strip() if _is_dark else (brand.get("text_muted_color") or "").strip() or _text_muted
+    else:
+        _done_color   = "#5a9e56"
+        _card_surface = t["SURFACE"]
+        _card_border  = t["BORDER"]
+        _surface2     = t.get("SURFACE2", t["SURFACE"])
+        _text         = _text
+        _text_muted   = _text_muted
+
     # ── KPI row ──────────────────────────────────────────────────────────────
     tok_in  = data.get("tokens_in", 0)
     tok_out = data.get("tokens_out", 0)
@@ -58,14 +76,14 @@ def render(api_get, api_post, bulk_delete=None):
     ]
     cards = ""
     for label, value, delta in kpis:
-        d = (f'<div style="font-size:0.7rem;color:{t["TEXT_MUTED"]};margin-top:2px;">{delta}</div>'
+        d = (f'<div style="font-size:0.7rem;color:{_text_muted};margin-top:2px;">{delta}</div>'
              if delta else "")
         cards += (
-            f'<div style="background:{t["SURFACE"]};border:1px solid {t["BORDER"]};'
+            f'<div style="background:{_card_surface};border:1px solid {_card_border};'
             f'border-radius:10px;padding:14px 16px;min-width:0;">'
-            f'<div style="font-size:0.78rem;color:{t["TEXT_MUTED"]};font-weight:500;'
+            f'<div style="font-size:0.78rem;color:{_text_muted};font-weight:500;'
             f'margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{label}</div>'
-            f'<div style="font-size:1.9rem;font-weight:700;color:{t["TEXT"]};line-height:1.1;">{value}</div>'
+            f'<div style="font-size:1.9rem;font-weight:700;color:{_text};line-height:1.1;">{value}</div>'
             f'{d}</div>'
         )
     st.markdown(f'<div class="cos-kpi-grid">{cards}</div>', unsafe_allow_html=True)
@@ -81,7 +99,7 @@ def render(api_get, api_post, bulk_delete=None):
         _no_data = runs == 0 and data.get("memory_count", 0) == 0
         _pulse_color = (
             "#6b7280" if _no_data
-            else ("#5a9e56" if pulse >= 75 else ("#f59e0b" if pulse >= 50 else "#ef4444"))
+            else (_done_color if pulse >= 75 else ("#f59e0b" if pulse >= 50 else "#ef4444"))
         )
         _pulse_label = (
             "Getting Started" if _no_data
@@ -105,14 +123,14 @@ def render(api_get, api_post, bulk_delete=None):
             f'stroke-dasharray="{_dash:.1f} {_gap:.1f}" '
             f'stroke-dashoffset="{_circ * 0.25:.1f}" stroke-linecap="round"/>'
             f'<text x="70" y="66" text-anchor="middle" dominant-baseline="middle" '
-            f'font-size="22" font-weight="800" fill="{_pulse_color}" '
+            f'font-size="22" font-weight="800" fill="{_text}" '
             f'font-family="Poppins,sans-serif">{pulse:.0f}</text>'
             f'<text x="70" y="84" text-anchor="middle" dominant-baseline="middle" '
-            f'font-size="10" fill="{t["TEXT_MUTED"]}" font-family="Poppins,sans-serif">/ 100</text>'
+            f'font-size="10" fill="{_text_muted}" font-family="Poppins,sans-serif">/ 100</text>'
             f'</svg>'
-            f'<div style="font-size:0.95rem;font-weight:700;color:{_pulse_color};'
+            f'<div style="font-size:0.95rem;font-weight:700;color:{_text};'
             f'margin-top:4px;">{_pulse_label}</div>'
-            f'<div style="font-size:0.72rem;color:{t["TEXT_MUTED"]};margin-top:2px;'
+            f'<div style="font-size:0.72rem;color:{_text_muted};margin-top:2px;'
             f'text-align:center;">Composite workspace health</div>'
             f'</div>',
             unsafe_allow_html=True,
@@ -136,9 +154,9 @@ def render(api_get, api_post, bulk_delete=None):
             st.markdown(
                 f'<div style="display:flex;justify-content:space-between;'
                 f'align-items:center;padding:3px 0;font-size:0.78rem;">'
-                f'<span style="color:{t["TEXT_MUTED"]};">{dim}</span>'
-                f'<span style="color:{t["TEXT"]};font-weight:600;">{val}</span>'
-                f'<span style="color:{t["TEXT_MUTED"]};font-size:0.68rem;">{weight}</span>'
+                f'<span style="color:{_text_muted};">{dim}</span>'
+                f'<span style="color:{_text};font-weight:600;">{val}</span>'
+                f'<span style="color:{_text_muted};font-size:0.68rem;">{weight}</span>'
                 f'</div>',
                 unsafe_allow_html=True,
             )
@@ -152,7 +170,7 @@ def render(api_get, api_post, bulk_delete=None):
                 _status = run.get("status", "?")
                 _icon_map = {"done": "✅", "failed": "❌", "running": "⏳", "pending": "⏸️"}
                 _icon_r = _icon_map.get(_status, "•")
-                _color_map = {"done": "#5a9e56", "failed": "#ef4444",
+                _color_map = {"done": _done_color, "failed": "#ef4444",
                               "running": "#f59e0b", "pending": "#6b7280"}
                 _col = _color_map.get(_status, "#6b7280")
                 _agent = (run.get("agent_id") or "")[:14]
@@ -170,22 +188,22 @@ def render(api_get, api_post, bulk_delete=None):
                 _dur_str = f"{_dur / 1000:.1f}s" if _dur else ""
                 _score_pill = ""
                 if _es is not None:
-                    _sc = "#5a9e56" if _es >= 4 else ("#f59e0b" if _es >= 2.5 else "#ef4444")
+                    _sc = _done_color if _es >= 4 else ("#f59e0b" if _es >= 2.5 else "#ef4444")
                     _score_pill = (
                         f'<span style="background:{_sc}22;color:{_sc};border:1px solid {_sc}44;'
                         f'padding:1px 6px;border-radius:8px;font-size:0.7rem;">⭐{_es:.1f}</span>'
                     )
                 _pill = (
-                    f'background:{t["SURFACE2"]};color:{t["TEXT"]};'
+                    f'background:{_surface2};color:{_text};'
                     f'padding:1px 6px;border-radius:4px;font-size:0.78rem;font-family:monospace;'
                 )
                 st.markdown(
                     f'<div style="padding:7px 0;font-size:0.82rem;'
-                    f'border-bottom:1px solid {t["BORDER"]};">'
+                    f'border-bottom:1px solid {_card_border};">'
                     f'<span style="color:{_col};font-weight:600;">{_icon_r} {_status}</span>'
                     f'&nbsp;·&nbsp;<span style="{_pill}">{_agent}</span>'
                     f'&nbsp;{_score_pill}'
-                    f'<span style="float:right;color:{t["TEXT_MUTED"]};font-size:0.75rem;">'
+                    f'<span style="float:right;color:{_text_muted};font-size:0.75rem;">'
                     f'{_ts}{(" · " + _dur_str) if _dur_str else ""}</span>'
                     f'</div>',
                     unsafe_allow_html=True,
@@ -201,16 +219,16 @@ def render(api_get, api_post, bulk_delete=None):
         st.markdown(
             f'<div style="display:flex;gap:24px;flex-wrap:wrap;">'
             f'<div style="text-align:center;">'
-            f'<div style="font-size:1.6rem;font-weight:700;color:{t["TEXT"]};">{m_total}</div>'
-            f'<div style="font-size:0.75rem;color:{t["TEXT_MUTED"]};">Total Entries</div>'
+            f'<div style="font-size:1.6rem;font-weight:700;color:{_text};">{m_total}</div>'
+            f'<div style="font-size:0.75rem;color:{_text_muted};">Total Entries</div>'
             f'</div>'
             f'<div style="text-align:center;">'
-            f'<div style="font-size:1.6rem;font-weight:700;color:#5a9e56;">{m_fresh}</div>'
-            f'<div style="font-size:0.75rem;color:{t["TEXT_MUTED"]};">Fresh (7d)</div>'
+            f'<div style="font-size:1.6rem;font-weight:700;color:{_done_color};">{m_fresh}</div>'
+            f'<div style="font-size:0.75rem;color:{_text_muted};">Fresh (7d)</div>'
             f'</div>'
             f'<div style="text-align:center;">'
-            f'<div style="font-size:1rem;font-weight:600;color:{t["TEXT_MUTED"]};">{_cons_str}</div>'
-            f'<div style="font-size:0.75rem;color:{t["TEXT_MUTED"]};">Last Consolidated</div>'
+            f'<div style="font-size:1rem;font-weight:600;color:{_text_muted};">{_cons_str}</div>'
+            f'<div style="font-size:0.75rem;color:{_text_muted};">Last Consolidated</div>'
             f'</div>'
             f'</div>',
             unsafe_allow_html=True,

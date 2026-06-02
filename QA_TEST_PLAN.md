@@ -1,5 +1,5 @@
 # ClaudeOS — Manual QA Test Plan
-**Version:** 1.0 | **System:** Flask :5000 + Streamlit :8501
+**Version:** 1.1 | **System:** Flask :5000 + Streamlit :8501
 **How to use:** Work top-to-bottom. Mark each item PASS / FAIL / SKIP. Fix all FAILs before client handover.
 
 ---
@@ -561,6 +561,18 @@ These apply to ALL pages.
 1. Click the circular toggle button (bottom area, fixed at `left:220px` — clears sidebar text)
 2. **Expected:** Entire dashboard switches theme — background, text, cards, sidebar all update
 3. Switch back — state persists during session
+
+### 11.2a Toolbar Header Icons (visual regression)
+Check the Streamlit native header bar (top-right: Stop / Deploy / ⋮ menu) in **both** themes.
+
+| Element | Dark Mode Expected | Light Mode Expected |
+|---------|-------------------|---------------------|
+| Header background | Dark green `#0A1F0A` | White `#ffffff` |
+| "Deploy" button text | Light `#E8F5E8` | Dark `#1A1A1A` |
+| ⋮ menu button | Three visible dots, transparent bg | Three visible dots, transparent bg |
+| No solid squares | No filled square anywhere in header | No filled square anywhere in header |
+
+**Fail signal:** A solid colored square appears next to "Deploy". Root cause: CSS fill override on the MoreVert SVG bounding-box path. Fix: ensure `brand.py` path selectors use `:not([fill="none"])` and JS checks `getAttribute('fill') === 'none'` before setting fill.
 
 ### 11.5 Onboarding Tour (first-time user)
 1. Create a brand-new user with role `client` or `viewer` (tour ONLY shows for these two roles — admin/operator/staff skip it entirely)
