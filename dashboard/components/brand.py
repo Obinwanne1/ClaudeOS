@@ -1084,6 +1084,8 @@ button[data-testid="stChatInputSubmitButton"],
     background: {PRIMARY} !important;
     border: none !important;
     border-radius: 6px !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
 }}
 button[data-testid="stChatInputSubmitButton"]:hover,
 [data-testid="stChatInputSubmitButton"]:hover {{
@@ -1842,14 +1844,17 @@ def _inject_header_fix_js(header_bg: str, text_color: str) -> None:
   function fixChatSubmit() {{
     function applySubmit(btn) {{
       btn.style.setProperty('background-color', '#407E3C', 'important');
-      // Do NOT set background shorthand — it would clear background-image icons
       btn.style.setProperty('border', 'none', 'important');
       btn.style.setProperty('border-radius', '6px', 'important');
-      // Only color SVG paths — skip divs so background-image icons survive
+      // color drives fill:currentColor on the SVG arrow
+      btn.style.setProperty('color', '#ffffff', 'important');
       btn.querySelectorAll('svg path, svg line, svg polyline, svg circle, svg ellipse').forEach(function(p) {{
-        if (p.getAttribute('fill') === 'none') return;
         p.style.setProperty('fill', '#ffffff', 'important');
         p.style.setProperty('stroke', '#ffffff', 'important');
+      }});
+      // Also target any child span/div that renders the icon as text/currentColor
+      btn.querySelectorAll('span, div').forEach(function(el) {{
+        el.style.setProperty('color', '#ffffff', 'important');
       }});
     }}
     doc.querySelectorAll('button[data-testid="stChatInputSubmitButton"]').forEach(applySubmit);
