@@ -996,16 +996,49 @@ header[data-testid="stHeader"] button:active,
     color: {t['TEXT']} !important;
 }}
 
-/* ── Inputs / selects / textareas ── */
+/* ── Inputs / selects / textareas — kill all dark grey ── */
 input, textarea,
 .stTextInput input,
 .stTextArea textarea,
 div[data-baseweb="select"] > div,
-div[data-baseweb="input"] > div {{
+div[data-baseweb="select"] > div > div,
+div[data-baseweb="select"] > div > div > div,
+div[data-baseweb="select"] div[data-baseweb="select-dropdown"],
+div[data-baseweb="popover"] > div,
+div[data-baseweb="input"] > div,
+[data-testid="stSelectbox"] [data-baseweb="select"] > div,
+[data-testid="stSelectbox"] [data-baseweb="select"] > div * {{
     background-color: {t['INPUT_BG']} !important;
     color: {t['INPUT_TEXT']} !important;
     border-color: {t['BORDER']} !important;
     font-family: 'Poppins', sans-serif !important;
+}}
+/* Selectbox chevron / icon */
+[data-testid="stSelectbox"] svg, [data-testid="stSelectbox"] svg path {{
+    fill: {t['TEXT_MUTED']} !important;
+}}
+/* Selectbox open dropdown list */
+[data-baseweb="menu"], [data-baseweb="menu"] ul,
+[data-baseweb="list"], [data-baseweb="list-item"] {{
+    background-color: {t['SURFACE']} !important;
+    border-color: {t['BORDER']} !important;
+}}
+[data-baseweb="list-item"]:hover, [data-baseweb="list-item"]:focus {{
+    background-color: {PRIMARY}22 !important;
+}}
+/* Voice input — kill grey progress/timer bar */
+[data-testid="stAudioInput"],
+[data-testid="stAudioInput"] > div,
+[data-testid="stAudioInput"] > div > div {{
+    background-color: {t['INPUT_BG']} !important;
+    border: 1.5px solid {t['BORDER']} !important;
+    border-radius: 10px !important;
+}}
+[data-testid="stAudioInput"] [class*="progress"],
+[data-testid="stAudioInput"] [class*="timer"],
+[data-testid="stAudioInput"] div:not(button):not(:has(button)) {{
+    background-color: transparent !important;
+    color: {PRIMARY} !important;
 }}
 .stTextInput input:focus,
 .stTextArea textarea:focus,
