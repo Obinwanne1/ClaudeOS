@@ -1069,37 +1069,36 @@ div[data-baseweb="input"]:focus-within > div {{
     border-color: {PRIMARY} !important;
     box-shadow: 0 0 0 2px {PRIMARY}22 !important;
 }}
-/* Submit button — green */
-[data-testid="stChatInputSubmitButton"] button,
-[data-testid="stChatInputContainer"] [data-testid="stChatInputSubmitButton"] button {{
+/* Submit button — testid is on the button itself, not a wrapper */
+button[data-testid="stChatInputSubmitButton"],
+[data-testid="stChatInputSubmitButton"],
+[data-testid="stChatInputSubmitButton"] button {{
     background-color: {PRIMARY} !important;
     background: {PRIMARY} !important;
     border: none !important;
     border-radius: 6px !important;
 }}
-[data-testid="stChatInputSubmitButton"] button:hover,
-[data-testid="stChatInputContainer"] [data-testid="stChatInputSubmitButton"] button:hover {{
+button[data-testid="stChatInputSubmitButton"]:hover,
+[data-testid="stChatInputSubmitButton"]:hover {{
     background-color: {t['BTN_HOVER_BG']} !important;
     background: {t['BTN_HOVER_BG']} !important;
 }}
-[data-testid="stChatInputSubmitButton"] button svg *,
-[data-testid="stChatInputSubmitButton"] button svg path {{
+button[data-testid="stChatInputSubmitButton"] svg *,
+[data-testid="stChatInputSubmitButton"] svg *,
+[data-testid="stChatInputSubmitButton"] svg path {{
     fill: #ffffff !important;
     stroke: #ffffff !important;
 }}
-/* Attach "+" action button — green icon, transparent bg */
-[data-testid="stChatInputActionButton"],
-[data-testid="stChatInputActionButton"] button,
-[data-testid="stChatInputContainer"] button:not([data-testid="stChatInputSubmitButton"] button) {{
+/* Attach "+" action button */
+button[data-testid="stChatInputActionButton"],
+[data-testid="stChatInputActionButton"] {{
     background-color: transparent !important;
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
 }}
-[data-testid="stChatInputActionButton"] svg *,
-[data-testid="stChatInputActionButton"] svg path,
-[data-testid="stChatInputContainer"] button:not([data-testid="stChatInputSubmitButton"] button) svg *,
-[data-testid="stChatInputContainer"] button:not([data-testid="stChatInputSubmitButton"] button) svg path {{
+button[data-testid="stChatInputActionButton"] svg *,
+[data-testid="stChatInputActionButton"] svg * {{
     fill: {PRIMARY} !important;
     stroke: {PRIMARY} !important;
 }}
@@ -1136,6 +1135,29 @@ div[data-baseweb="input"]:focus-within > div {{
     border-color: {PRIMARY} !important;
     color: {PRIMARY} !important;
     -webkit-text-fill-color: {PRIMARY} !important;
+}}
+
+/* ── Dataframe / table — kill dark grey header ── */
+[data-testid="stDataFrame"] th,
+[data-testid="stDataFrame"] thead th,
+[data-testid="stDataFrame"] [role="columnheader"],
+.stDataFrame thead tr th,
+table thead tr th {{
+    background-color: {t['SURFACE2']} !important;
+    color: {t['TEXT']} !important;
+    border-color: {t['BORDER']} !important;
+}}
+[data-testid="stDataFrame"] td,
+[data-testid="stDataFrame"] [role="gridcell"],
+.stDataFrame tbody tr td,
+table tbody tr td {{
+    background-color: {t['SURFACE']} !important;
+    color: {t['TEXT']} !important;
+    border-color: {t['BORDER']} !important;
+}}
+[data-testid="stDataFrame"] tr:hover td,
+.stDataFrame tbody tr:hover td {{
+    background-color: {t['SURFACE2']} !important;
 }}
 
 /* ── Selectbox dropdown options ── */
@@ -1809,27 +1831,48 @@ def _inject_header_fix_js(header_bg: str, text_color: str) -> None:
     }});
   }}
 
-  // ── Chat submit button — force brand green ──────────────────────────────
+  // ── Chat submit button — testid is ON the button itself ────────────────
   function fixChatSubmit() {{
-    doc.querySelectorAll('[data-testid="stChatInputSubmitButton"] button').forEach(function(btn) {{
-      btn.style.setProperty('background-color', '#407E3C', 'important');
-      btn.style.setProperty('background', '#407E3C', 'important');
-      btn.style.setProperty('border', 'none', 'important');
-      btn.style.setProperty('border-radius', '6px', 'important');
-      btn.querySelectorAll('svg *').forEach(function(p) {{
+    // Cover both: testid on button, and testid on wrapper containing button
+    var submitBtns = doc.querySelectorAll(
+      'button[data-testid="stChatInputSubmitButton"], [data-testid="stChatInputSubmitButton"] button, [data-testid="stChatInputSubmitButton"]'
+    );
+    submitBtns.forEach(function(btn) {{
+      if (btn.tagName !== 'BUTTON' && !btn.querySelector('button')) return;
+      var target = btn.tagName === 'BUTTON' ? btn : btn.querySelector('button');
+      if (!target) return;
+      target.style.setProperty('background-color', '#407E3C', 'important');
+      target.style.setProperty('background', '#407E3C', 'important');
+      target.style.setProperty('border', 'none', 'important');
+      target.style.setProperty('border-radius', '6px', 'important');
+      target.querySelectorAll('svg *').forEach(function(p) {{
         p.style.setProperty('fill', '#ffffff', 'important');
         p.style.setProperty('stroke', '#ffffff', 'important');
       }});
     }});
-    // Attach "+" button — transparent bg, green icon
-    doc.querySelectorAll('[data-testid="stChatInputActionButton"]').forEach(function(btn) {{
-      btn.style.setProperty('background-color', 'transparent', 'important');
-      btn.style.setProperty('background', 'transparent', 'important');
-      btn.style.setProperty('border', 'none', 'important');
-      btn.style.setProperty('box-shadow', 'none', 'important');
-      btn.querySelectorAll('svg *').forEach(function(p) {{
+    // Attach "+" — transparent bg, green icon
+    doc.querySelectorAll(
+      'button[data-testid="stChatInputActionButton"], [data-testid="stChatInputActionButton"] button, [data-testid="stChatInputActionButton"]'
+    ).forEach(function(el) {{
+      el.style.setProperty('background-color', 'transparent', 'important');
+      el.style.setProperty('background', 'transparent', 'important');
+      el.style.setProperty('border', 'none', 'important');
+      el.style.setProperty('box-shadow', 'none', 'important');
+      el.querySelectorAll('svg *').forEach(function(p) {{
         p.style.setProperty('fill', '#407E3C', 'important');
         p.style.setProperty('stroke', '#407E3C', 'important');
+      }});
+    }});
+    // Fallback: last button in chat container = submit
+    doc.querySelectorAll('[data-testid="stChatInputContainer"]').forEach(function(c) {{
+      var btns = c.querySelectorAll('button');
+      if (!btns.length) return;
+      var last = btns[btns.length - 1];
+      last.style.setProperty('background-color', '#407E3C', 'important');
+      last.style.setProperty('background', '#407E3C', 'important');
+      last.querySelectorAll('svg *').forEach(function(p) {{
+        p.style.setProperty('fill', '#ffffff', 'important');
+        p.style.setProperty('stroke', '#ffffff', 'important');
       }});
     }});
   }}
