@@ -1088,10 +1088,7 @@ li[role="option"] {{
     color: {t['TEXT']} !important;
 }}
 
-/* ── Sidebar nav — clean list, no radio dots ── */
-section[data-testid="stSidebar"] [role="radio"] > div:first-child {{
-    display: none !important;
-}}
+/* ── Sidebar nav — brand-colored radio dots ── */
 section[data-testid="stSidebar"] [role="radio"] {{
     border: none !important;
     background: transparent !important;
@@ -1108,6 +1105,34 @@ section[data-testid="stSidebar"] [role="radio"][aria-checked="true"] {{
     background-color: {PRIMARY}15 !important;
     border-left: 3px solid {PRIMARY} !important;
     border-radius: 0 6px 6px 0 !important;
+}}
+/* Active dot: green */
+section[data-testid="stSidebar"] [role="radio"][aria-checked="true"] > div:first-child div {{
+    border-color: {PRIMARY} !important;
+    background: {PRIMARY} !important;
+    background-color: {PRIMARY} !important;
+}}
+section[data-testid="stSidebar"] [role="radio"][aria-checked="true"] > div:first-child div div {{
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+}}
+/* SVG active: green */
+section[data-testid="stSidebar"] [role="radio"][aria-checked="true"] svg circle,
+section[data-testid="stSidebar"] [role="radio"][aria-checked="true"] svg path {{
+    fill: {PRIMARY} !important;
+    stroke: {PRIMARY} !important;
+}}
+/* Inactive dot: white border, transparent fill */
+section[data-testid="stSidebar"] [role="radio"][aria-checked="false"] > div:first-child div {{
+    border-color: rgba(255,255,255,0.55) !important;
+    background: transparent !important;
+    background-color: transparent !important;
+}}
+/* SVG inactive: white */
+section[data-testid="stSidebar"] [role="radio"][aria-checked="false"] svg circle,
+section[data-testid="stSidebar"] [role="radio"][aria-checked="false"] svg path {{
+    fill: transparent !important;
+    stroke: rgba(255,255,255,0.55) !important;
 }}
 section[data-testid="stSidebar"] [role="radio"][aria-checked="true"] p,
 section[data-testid="stSidebar"] [role="radio"][aria-checked="true"] span {{
