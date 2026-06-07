@@ -1007,6 +1007,79 @@ div[data-baseweb="input"] > div {{
     border-color: {t['BORDER']} !important;
     font-family: 'Poppins', sans-serif !important;
 }}
+.stTextInput input:focus,
+.stTextArea textarea:focus,
+div[data-baseweb="input"]:focus-within > div {{
+    border-color: {PRIMARY} !important;
+    box-shadow: 0 0 0 2px {PRIMARY}22 !important;
+    outline: none !important;
+}}
+
+/* ── Chat input container ── */
+[data-testid="stChatInputContainer"],
+[data-testid="stChatInputContainer"] > div,
+[data-testid="stChatInputContainer"] > div > div {{
+    background-color: {t['INPUT_BG']} !important;
+    border: 1.5px solid {t['BORDER']} !important;
+    border-radius: 10px !important;
+    box-shadow: none !important;
+}}
+[data-testid="stChatInputContainer"] textarea {{
+    background-color: {t['INPUT_BG']} !important;
+    color: {t['INPUT_TEXT']} !important;
+    border: none !important;
+    font-family: 'Poppins', sans-serif !important;
+}}
+[data-testid="stChatInputContainer"]:focus-within,
+[data-testid="stChatInputContainer"] > div:focus-within {{
+    border-color: {PRIMARY} !important;
+    box-shadow: 0 0 0 2px {PRIMARY}22 !important;
+}}
+[data-testid="stChatInputSubmitButton"] button {{
+    background-color: {PRIMARY} !important;
+    border: none !important;
+    border-radius: 6px !important;
+}}
+[data-testid="stChatInputSubmitButton"] button:hover {{
+    background-color: {t['BTN_HOVER_BG']} !important;
+}}
+[data-testid="stChatInputSubmitButton"] button svg * {{
+    fill: #ffffff !important;
+}}
+
+/* ── File uploader — neutral, not green ── */
+[data-testid="stFileUploaderDropzone"],
+[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"] {{
+    background-color: {t['SURFACE']} !important;
+    border: 1.5px dashed {t['BORDER']} !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+}}
+[data-testid="stFileUploaderDropzone"]:hover {{
+    border-color: {PRIMARY} !important;
+    background-color: {t['SURFACE2']} !important;
+}}
+[data-testid="stFileUploaderDropzone"] p,
+[data-testid="stFileUploaderDropzone"] span,
+[data-testid="stFileUploaderDropzone"] small {{
+    color: {t['TEXT_MUTED']} !important;
+    -webkit-text-fill-color: {t['TEXT_MUTED']} !important;
+}}
+[data-testid="stFileUploaderDropzone"] button,
+[data-testid="stFileUploader"] button {{
+    background-color: transparent !important;
+    background: transparent !important;
+    border: 1px solid {t['BORDER']} !important;
+    color: {t['TEXT']} !important;
+    -webkit-text-fill-color: {t['TEXT']} !important;
+    box-shadow: none !important;
+}}
+[data-testid="stFileUploaderDropzone"] button:hover,
+[data-testid="stFileUploader"] button:hover {{
+    border-color: {PRIMARY} !important;
+    color: {PRIMARY} !important;
+    -webkit-text-fill-color: {PRIMARY} !important;
+}}
 
 /* ── Selectbox dropdown options ── */
 ul[data-testid="stSelectboxVirtualDropdown"] li,
@@ -1015,34 +1088,26 @@ li[role="option"] {{
     color: {t['TEXT']} !important;
 }}
 
-/* ── Radio dots (ClaudeOS theme) ── */
-[data-baseweb="radio-group"] [role="radio"] div,
-[data-baseweb="radio"] [role="radio"] div,
-[data-testid="stRadio"] [role="radio"] div {{
-    border-color: {PRIMARY} !important;
+/* ── Sidebar nav — clean list, no radio dots ── */
+section[data-testid="stSidebar"] [role="radio"] > div:first-child {{
+    display: none !important;
 }}
-[data-baseweb="radio-group"] [role="radio"][aria-checked="true"] div,
-[data-baseweb="radio-group"] [role="radio"][aria-checked="true"] div div,
-[data-baseweb="radio-group"] [role="radio"][aria-checked="true"] div * ,
-[data-baseweb="radio"] [role="radio"][aria-checked="true"] div,
-[data-baseweb="radio"] [role="radio"][aria-checked="true"] div div,
-[data-baseweb="radio"] [role="radio"][aria-checked="true"] div *,
-[data-testid="stRadio"] [role="radio"][aria-checked="true"] div,
-[data-testid="stRadio"] [role="radio"][aria-checked="true"] div div,
-[data-testid="stRadio"] [role="radio"][aria-checked="true"] div * {{
-    background: {PRIMARY} !important;
-    background-color: {PRIMARY} !important;
-    border-color: {PRIMARY} !important;
-    fill: {PRIMARY} !important;
+section[data-testid="stSidebar"] [role="radio"] {{
+    border: none !important;
+    background: transparent !important;
+    border-radius: 6px !important;
+    padding: 3px 8px !important;
+    margin: 1px 0 !important;
+    transition: background 0.12s ease !important;
+    border-left: 3px solid transparent !important;
 }}
-[data-baseweb="radio"] svg circle,
-[data-baseweb="radio"] svg path,
-[data-testid="stRadio"] svg circle,
-[data-testid="stRadio"] svg path {{ fill: {PRIMARY} !important; }}
-/* Active sidebar nav item highlight */
+section[data-testid="stSidebar"] [role="radio"]:hover {{
+    background-color: {t['SURFACE']} !important;
+}}
 section[data-testid="stSidebar"] [role="radio"][aria-checked="true"] {{
-    background-color: {PRIMARY}22 !important;
-    border-radius: 8px !important;
+    background-color: {PRIMARY}15 !important;
+    border-left: 3px solid {PRIMARY} !important;
+    border-radius: 0 6px 6px 0 !important;
 }}
 section[data-testid="stSidebar"] [role="radio"][aria-checked="true"] p,
 section[data-testid="stSidebar"] [role="radio"][aria-checked="true"] span {{
@@ -1053,7 +1118,27 @@ section[data-testid="stSidebar"] [role="radio"][aria-checked="true"] span {{
 section[data-testid="stSidebar"] [role="radio"][aria-checked="false"] p,
 section[data-testid="stSidebar"] [role="radio"][aria-checked="false"] span {{
     font-weight: 400 !important;
+    color: {t['TEXT']} !important;
+    -webkit-text-fill-color: {t['TEXT']} !important;
 }}
+/* ── Inline radio (non-sidebar forms) — clean dots ── */
+[data-baseweb="radio-group"] [role="radio"] div,
+[data-baseweb="radio"] [role="radio"] div,
+[data-testid="stRadio"] [role="radio"] div {{
+    border-color: {PRIMARY} !important;
+}}
+[data-baseweb="radio"] [role="radio"][aria-checked="true"] div,
+[data-baseweb="radio"] [role="radio"][aria-checked="true"] div div,
+[data-testid="stRadio"] [role="radio"][aria-checked="true"] div,
+[data-testid="stRadio"] [role="radio"][aria-checked="true"] div div {{
+    background: {PRIMARY} !important;
+    background-color: {PRIMARY} !important;
+    border-color: {PRIMARY} !important;
+}}
+[data-baseweb="radio"] svg circle,
+[data-baseweb="radio"] svg path,
+[data-testid="stRadio"] svg circle,
+[data-testid="stRadio"] svg path {{ fill: {PRIMARY} !important; }}
 
 /* ── Tabs ── */
 button[data-baseweb="tab"] {{
