@@ -1018,7 +1018,8 @@ div[data-baseweb="input"]:focus-within > div {{
 /* ── Chat input container ── */
 [data-testid="stChatInputContainer"],
 [data-testid="stChatInputContainer"] > div,
-[data-testid="stChatInputContainer"] > div > div {{
+[data-testid="stChatInputContainer"] > div > div,
+[data-testid="stChatInputContainer"] > div > div > div {{
     background-color: {t['INPUT_BG']} !important;
     border: 1.5px solid {t['BORDER']} !important;
     border-radius: 10px !important;
@@ -1035,16 +1036,39 @@ div[data-baseweb="input"]:focus-within > div {{
     border-color: {PRIMARY} !important;
     box-shadow: 0 0 0 2px {PRIMARY}22 !important;
 }}
-[data-testid="stChatInputSubmitButton"] button {{
+/* Submit button — green */
+[data-testid="stChatInputSubmitButton"] button,
+[data-testid="stChatInputContainer"] [data-testid="stChatInputSubmitButton"] button {{
     background-color: {PRIMARY} !important;
+    background: {PRIMARY} !important;
     border: none !important;
     border-radius: 6px !important;
 }}
-[data-testid="stChatInputSubmitButton"] button:hover {{
+[data-testid="stChatInputSubmitButton"] button:hover,
+[data-testid="stChatInputContainer"] [data-testid="stChatInputSubmitButton"] button:hover {{
     background-color: {t['BTN_HOVER_BG']} !important;
+    background: {t['BTN_HOVER_BG']} !important;
 }}
-[data-testid="stChatInputSubmitButton"] button svg * {{
+[data-testid="stChatInputSubmitButton"] button svg *,
+[data-testid="stChatInputSubmitButton"] button svg path {{
     fill: #ffffff !important;
+    stroke: #ffffff !important;
+}}
+/* Attach "+" action button — green icon, transparent bg */
+[data-testid="stChatInputActionButton"],
+[data-testid="stChatInputActionButton"] button,
+[data-testid="stChatInputContainer"] button:not([data-testid="stChatInputSubmitButton"] button) {{
+    background-color: transparent !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}}
+[data-testid="stChatInputActionButton"] svg *,
+[data-testid="stChatInputActionButton"] svg path,
+[data-testid="stChatInputContainer"] button:not([data-testid="stChatInputSubmitButton"] button) svg *,
+[data-testid="stChatInputContainer"] button:not([data-testid="stChatInputSubmitButton"] button) svg path {{
+    fill: {PRIMARY} !important;
+    stroke: {PRIMARY} !important;
 }}
 
 /* ── File uploader — neutral, not green ── */
