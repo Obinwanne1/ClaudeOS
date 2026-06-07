@@ -1840,22 +1840,22 @@ def _inject_header_fix_js(header_bg: str, text_color: str) -> None:
     }});
   }}
 
-  // ── Chat submit button — testid is ON the button itself ────────────────
+  // ── Chat submit button — inject white arrow SVG directly ───────────────
+  // Arrow SVG from Streamlit 1.56 ArrowUpward icon (fill:currentColor bypassed)
+  var ARROW_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" style="display:block;pointer-events:none"><path fill="#ffffff" d="M13 19V7.83l4.88 4.88c.39.39 1.03.39 1.42 0a.996.996 0 000-1.41l-6.59-6.59a.996.996 0 00-1.41 0l-6.6 6.58a.996.996 0 101.41 1.41L11 7.83V19c0 .55.45 1 1 1s1-.45 1-1z"/></svg>';
   function fixChatSubmit() {{
     function applySubmit(btn) {{
       btn.style.setProperty('background-color', '#407E3C', 'important');
       btn.style.setProperty('border', 'none', 'important');
       btn.style.setProperty('border-radius', '6px', 'important');
-      // color drives fill:currentColor on the SVG arrow
-      btn.style.setProperty('color', '#ffffff', 'important');
-      btn.querySelectorAll('svg path, svg line, svg polyline, svg circle, svg ellipse').forEach(function(p) {{
-        p.style.setProperty('fill', '#ffffff', 'important');
-        p.style.setProperty('stroke', '#ffffff', 'important');
-      }});
-      // Also target any child span/div that renders the icon as text/currentColor
-      btn.querySelectorAll('span, div').forEach(function(el) {{
-        el.style.setProperty('color', '#ffffff', 'important');
-      }});
+      btn.style.setProperty('display', 'flex', 'important');
+      btn.style.setProperty('align-items', 'center', 'important');
+      btn.style.setProperty('justify-content', 'center', 'important');
+      // Replace inner content with explicit white arrow — bypasses fill:currentColor
+      if (!btn.getAttribute('data-cos-styled')) {{
+        btn.setAttribute('data-cos-styled', '1');
+        btn.innerHTML = ARROW_SVG;
+      }}
     }}
     doc.querySelectorAll('button[data-testid="stChatInputSubmitButton"]').forEach(applySubmit);
     // Fallback: last button in container
