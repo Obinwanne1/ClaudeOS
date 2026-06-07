@@ -1809,13 +1809,60 @@ def _inject_header_fix_js(header_bg: str, text_color: str) -> None:
     }});
   }}
 
-  fixHeader();
-  setTimeout(fixHeader, 200);
-  setTimeout(fixHeader, 800);
+  // ── Chat submit button — force brand green ──────────────────────────────
+  function fixChatSubmit() {{
+    doc.querySelectorAll('[data-testid="stChatInputSubmitButton"] button').forEach(function(btn) {{
+      btn.style.setProperty('background-color', '#407E3C', 'important');
+      btn.style.setProperty('background', '#407E3C', 'important');
+      btn.style.setProperty('border', 'none', 'important');
+      btn.style.setProperty('border-radius', '6px', 'important');
+      btn.querySelectorAll('svg *').forEach(function(p) {{
+        p.style.setProperty('fill', '#ffffff', 'important');
+        p.style.setProperty('stroke', '#ffffff', 'important');
+      }});
+    }});
+    // Attach "+" button — transparent bg, green icon
+    doc.querySelectorAll('[data-testid="stChatInputActionButton"]').forEach(function(btn) {{
+      btn.style.setProperty('background-color', 'transparent', 'important');
+      btn.style.setProperty('background', 'transparent', 'important');
+      btn.style.setProperty('border', 'none', 'important');
+      btn.style.setProperty('box-shadow', 'none', 'important');
+      btn.querySelectorAll('svg *').forEach(function(p) {{
+        p.style.setProperty('fill', '#407E3C', 'important');
+        p.style.setProperty('stroke', '#407E3C', 'important');
+      }});
+    }});
+  }}
+
+  // ── Voice input — kill grey bar ──────────────────────────────────────────
+  function fixAudioInput() {{
+    doc.querySelectorAll('[data-testid="stAudioInput"]').forEach(function(container) {{
+      container.querySelectorAll('*').forEach(function(el) {{
+        if (el.tagName === 'BUTTON' || el.closest('button')) return;
+        var svgTags = ['svg','path','circle','rect','g','polyline','polygon','ellipse','line'];
+        if (svgTags.indexOf(el.tagName.toLowerCase()) !== -1) return;
+        var bg = window.getComputedStyle(el).backgroundColor;
+        if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent' && bg !== 'rgba(0,0,0,0)') {{
+          el.style.setProperty('background-color', 'transparent', 'important');
+          el.style.setProperty('background', 'transparent', 'important');
+        }}
+      }});
+    }});
+  }}
+
+  function runAllFixes() {{
+    fixHeader();
+    fixChatSubmit();
+    fixAudioInput();
+  }}
+
+  runAllFixes();
+  setTimeout(runAllFixes, 200);
+  setTimeout(runAllFixes, 800);
 
   var obs = new MutationObserver(function() {{
     clearTimeout(obs._ht);
-    obs._ht = setTimeout(fixHeader, 80);
+    obs._ht = setTimeout(runAllFixes, 80);
   }});
   if (doc.body) obs.observe(doc.body, {{ childList: true, subtree: true }});
 }})();
