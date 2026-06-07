@@ -707,8 +707,7 @@ def _build_css(theme_key: str) -> str:
     blend   = "difference" if theme_key == "dark" else "overlay"
     return f"""
 <style>
-/* ── Fonts ── */
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap');
+/* Poppins loaded via <link> in inject() — not @import (avoids render-block) */
 
 html, body, .stApp, [class*="css"] {{
     font-family: 'Poppins', sans-serif;
@@ -1538,6 +1537,15 @@ def inject():
     TEXT_MUTED = t["TEXT_MUTED"]
     _CURRENT_THEME = t
     SURFACE = t["SURFACE"]
+    # Inject Google Fonts via <link> (non-blocking) — only once per session
+    if not st.session_state.get("_fonts_injected"):
+        st.markdown(
+            '<link rel="preconnect" href="https://fonts.googleapis.com">'
+            '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+            '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap">',
+            unsafe_allow_html=True,
+        )
+        st.session_state["_fonts_injected"] = True
     st.markdown(_build_css(theme_key), unsafe_allow_html=True)
     # Namespace brand color override (client/viewer workspaces)
     brand = get_ns_brand()
@@ -1752,14 +1760,25 @@ def theme_toggle():
     return w > 10 ? w : 260;
   }}
 
+  // ── right-align button on same row as bottom status text ────────────
+  function positionBtn() {{
+    var sb = doc.querySelector('section[data-testid="stSidebar"]');
+    var sbW = sb ? sb.getBoundingClientRect().width : 260;
+    // 12px padding from right edge of sidebar
+    var leftPx = Math.max(8, Math.round(sbW - 44 - 12));
+    btn.style.left   = leftPx + 'px';
+    // 20px from bottom — same row as "API online" text
+    btn.style.bottom = '20px';
+  }}
+
   var btn = doc.createElement('button');
   btn.id = 'cos-theme-btn';
   btn.title = 'Toggle dark / light mode';
   btn.type = 'button';
   btn.style.cssText = [
     'position:fixed',
-    'bottom:16px',
-    'left:16px',
+    'bottom:20px',
+    'left:204px',
     'z-index:2147483647',
     'width:44px', 'height:44px', 'border-radius:50%',
     'display:flex', 'align-items:center', 'justify-content:center',
@@ -1808,6 +1827,18 @@ def theme_toggle():
   // keep observer alive for lifetime of page — Streamlit re-renders repeatedly
   // restore the trigger button visibility; we must always re-hide it
   doc.body.appendChild(btn);
+
+  // Apply exact centered position after append (sidebar width now measurable)
+  positionBtn();
+  setTimeout(positionBtn, 300);
+  // Re-center if sidebar is toggled open/closed
+  try {{
+    var sbEl = doc.querySelector('section[data-testid="stSidebar"]');
+    if (sbEl) {{
+      var ro = new ResizeObserver(positionBtn);
+      ro.observe(sbEl);
+    }}
+  }} catch(e) {{}}
 }})();
 </script>
 """, height=0)
