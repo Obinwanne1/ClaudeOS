@@ -126,7 +126,9 @@
       "Bash(Start-Process -FilePath \"powershell\" -ArgumentList \"-Command\", \"cd C:\\\\Users\\\\rigwe\\\\Desktop\\\\ClaudeOS; streamlit run dashboard/app.py\" -WindowStyle Hidden)",
       "Bash(Start-Process -FilePath \"powershell\" -ArgumentList \"-Command\", \"cd 'C:\\\\Users\\\\rigwe\\\\Desktop\\\\ClaudeOS'; streamlit run dashboard/app.py\" -WindowStyle Hidden)",
       "Bash(ls C:\\\\Users\\\\rigwe\\\\Desktop\\\\ClaudeOS\\\\scripts\\\\*pdf* C:\\\\Users\\\\rigwe\\\\Desktop\\\\ClaudeOS\\\\scripts\\\\*handbook* C:\\\\Users\\\\rigwe\\\\Desktop\\\\ClaudeOS\\\\scripts\\\\*qa*)",
-      "Bash(ls C:\\\\Users\\\\rigwe\\\\Desktop\\\\ClaudeOS\\\\scripts\\\\gen_*.py)"
+      "Bash(ls C:\\\\Users\\\\rigwe\\\\Desktop\\\\ClaudeOS\\\\scripts\\\\gen_*.py)",
+      "Bash(ffmpeg -version)",
+      "Bash(pip uninstall:*)"
     ]
   }
 }
