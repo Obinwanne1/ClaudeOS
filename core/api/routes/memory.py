@@ -41,6 +41,20 @@ def list_memory():
     offset = int(request.args.get("offset", 0))
 
     entries = engine.list_entries(namespace, category, min_confidence, limit=limit, offset=offset)
+
+    # M1: Audit read access — trace for exfiltration detection
+    try:
+        from core.auth import audit_log
+        audit_log(
+            "memory_read",
+            user_id=g.get("user_id"),
+            username=g.get("username"),
+            namespace=namespace,
+            detail={"count": len(entries), "category": category},
+        )
+    except Exception:
+        pass
+
     return jsonify({
         "entries": [_entry_dict(e) for e in entries],
         "count": len(entries),

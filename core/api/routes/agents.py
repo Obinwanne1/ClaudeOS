@@ -192,6 +192,10 @@ def stream_agent(agent_name: str):
     if not agent.enabled:
         return jsonify({"error": "Agent is disabled"}), 400
 
+    # H3: Enforce namespace lock — same guard as run_agent via dispatcher
+    if agent.namespace_lock and namespace != agent.namespace_lock:
+        return jsonify({"error": f"Agent locked to namespace '{agent.namespace_lock}'"}), 403
+
     # Create run record so streaming runs appear in history + observability
     # status='running' directly — skips a separate UPDATE round-trip
     import time as _time
@@ -260,12 +264,14 @@ def stream_agent(agent_name: str):
                     yield f"data: {payload}\n\n".encode("utf-8")
         except Exception as e:
             duration_ms = int((_time.monotonic() - start) * 1000)
+            from agents.executor import _sanitize_error
+            _safe_err = _sanitize_error(e)
             with get_db() as conn:
                 conn.execute(
                     "UPDATE agent_runs SET status='failed', error=?, duration_ms=?, completed_at=? WHERE id=?",
-                    (str(e), duration_ms, utcnow_str(), run_id),
+                    (_safe_err, duration_ms, utcnow_str(), run_id),
                 )
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n".encode("utf-8")
+            yield f"data: {json.dumps({'type': 'error', 'message': _safe_err})}\n\n".encode("utf-8")
 
     return Response(
         stream_with_context(_generate()),

@@ -300,30 +300,93 @@ _ticket_stats = _cached_api_get(
 _open_ticket_count = (len(_ticket_stats) if isinstance(_ticket_stats, list) else 0)
 
 _page_list = list(pages.keys())
-# Restore nav page if theme toggle rerun pruned the un-rendered widget state key
-if "_nav_page_bak" in st.session_state and "nav_page" not in st.session_state:
-    st.session_state["nav_page"] = st.session_state["_nav_page_bak"]
-    del st.session_state["_nav_page_bak"]
-_saved_page = st.session_state.get("nav_page")
-_page_index = _page_list.index(_saved_page) if _saved_page in _page_list else 0
-page = st.sidebar.radio(
-    "Navigation",
-    _page_list,
-    index=_page_index,
-    key="nav_page",
-    format_func=lambda p: (
-        f"{pages[p]}  {p} ({_open_ticket_count})" if p == "Tickets" and _open_ticket_count
-        else f"{pages[p]}  {p}"
-    ),
-    label_visibility="collapsed",
-)
 
-# Persist current page in URL — survives browser refresh
+# Restore nav page from backup if theme-toggle rerun pruned it
+if "_nav_page_bak" in st.session_state and "nav_page" not in st.session_state:
+    st.session_state["nav_page"] = st.session_state.pop("_nav_page_bak")
+
+page = st.session_state.get("nav_page", _page_list[0])
+if page not in _page_list:
+    page = _page_list[0]
+    st.session_state["nav_page"] = page
+
+# Persist to URL
 try:
     if st.query_params.get("page") != page:
         st.query_params["page"] = page
 except Exception:
     pass
+
+# ── Hidden proxy buttons — clicked by the HTML nav JS ────────────────────────
+import streamlit.components.v1 as _cv1
+for _p in _page_list:
+    if st.sidebar.button(_p, key=f"nav_btn_{_p}"):
+        st.session_state["nav_page"] = _p
+        try:
+            st.query_params["page"] = _p
+        except Exception:
+            pass
+        st.rerun()
+
+# ── HTML grouped nav ──────────────────────────────────────────────────────────
+_NAV_GROUPS = [
+    ("CORE",       ["Overview", "Agents", "Memory"]),
+    ("OPERATIONS", ["Workflows", "Projects", "Outputs", "Tickets", "Usage"]),
+    ("SYSTEM",     ["Observability", "Settings", "Admin"]),
+]
+_visible_groups = [
+    (g, [p for p in ps if p in _page_list])
+    for g, ps in _NAV_GROUPS
+    if any(p in _page_list for p in ps)
+]
+
+from dashboard.components.brand import get_theme as _get_theme
+_is_dark     = _get_theme() == "dark"
+_nav_bg      = "#0F2D10" if _is_dark else "#F3F4F6"
+_grp_clr     = "rgba(255,255,255,0.35)" if _is_dark else "rgba(0,0,0,0.35)"
+_div_clr     = "rgba(255,255,255,0.08)" if _is_dark else "rgba(0,0,0,0.08)"
+_item_clr    = "rgba(255,255,255,0.60)" if _is_dark else "rgba(0,0,0,0.50)"
+_item_hover  = "rgba(255,255,255,0.05)" if _is_dark else "rgba(0,0,0,0.04)"
+_active_bg   = "rgba(255,255,255,0.07)" if _is_dark else "rgba(64,126,60,0.08)"
+_active_text = "#ffffff" if _is_dark else "#1A1A1A"
+
+_items_html = ""
+for _gi, (_gname, _gpages) in enumerate(_visible_groups):
+    if _gi > 0:
+        _items_html += '<div class="divider"></div>'
+    _items_html += f'<div class="grp">{_gname}</div>'
+    for _p in _gpages:
+        _cls = " active" if _p == page else ""
+        _bdg = (f'<span class="badge">{_open_ticket_count}</span>'
+                if _p == "Tickets" and _open_ticket_count else "")
+        _items_html += f'<div class="item{_cls}" onclick="navTo(\'{_p}\')">{_p}{_bdg}</div>'
+
+_nav_h = 4 + sum(30 + len(ps) * 38 for _, ps in _visible_groups) + (len(_visible_groups) - 1) * 24 + 4
+
+_nav_html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+*{{box-sizing:border-box;margin:0;padding:0;}}
+body{{background:{_nav_bg};font-family:'Poppins','Inter',system-ui,sans-serif;overflow:hidden;padding:4px 0;}}
+.grp{{padding:10px 16px 4px;font-size:10px;font-weight:600;letter-spacing:2px;color:{_grp_clr};text-transform:uppercase;}}
+.divider{{margin:8px 16px;height:1px;background:linear-gradient(to right,transparent,{_div_clr} 20%,{_div_clr} 80%,transparent);}}
+.item{{display:flex;align-items:center;padding:0 20px 0 17px;height:38px;cursor:pointer;font-size:13.5px;
+       color:{_item_clr};border-left:3px solid transparent;transition:background .12s,color .12s;user-select:none;}}
+.item:hover{{background:{_item_hover};color:{_active_text};}}
+.item.active{{border-left-color:#5a9e56;background:{_active_bg};color:{_active_text};font-weight:500;}}
+.badge{{margin-left:7px;background:#5a9e56;color:#fff;font-size:10px;border-radius:10px;
+        padding:1px 6px;font-weight:600;line-height:16px;}}
+</style></head><body>
+<div>{_items_html}</div>
+<script>
+function navTo(p){{
+  var doc=window.parent.document;
+  var btn=doc.querySelector('[class*="st-key-nav_btn_'+p+'"] button');
+  if(btn)btn.click();
+}}
+</script>
+</body></html>"""
+
+with st.sidebar:
+    _cv1.html(_nav_html, height=_nav_h, scrolling=False)
 
 st.sidebar.markdown("---")
 

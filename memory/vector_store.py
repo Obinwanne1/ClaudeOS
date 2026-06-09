@@ -19,6 +19,7 @@ _client = None
 _ef = None   # embedding function
 _collections: dict = {}
 _init_lock = __import__("threading").Lock()
+_init_failed = False  # M3: set True when ChromaDB init fails — used by health checks
 
 
 def _init():
@@ -39,6 +40,8 @@ def _init():
             )
             return True
         except Exception as e:
+            global _init_failed
+            _init_failed = True
             logger.warning("ChromaDB unavailable — semantic search disabled: %s", e)
             return False
 

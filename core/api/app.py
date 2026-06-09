@@ -13,6 +13,13 @@ from core.api.routes.system import system_bp
 
 def create_app() -> Flask:
     settings = get_settings()
+
+    # C3: Fail fast on missing critical config — don't start with broken credentials
+    if not settings.ANTHROPIC_API_KEY:
+        raise RuntimeError("ANTHROPIC_API_KEY missing from .env — server cannot start")
+    if not settings.CLAUDEOS_SECRET_KEY:
+        raise RuntimeError("CLAUDEOS_SECRET_KEY missing from .env — server cannot start")
+
     app = Flask(__name__)
     app.config["SECRET_KEY"] = settings.CLAUDEOS_SECRET_KEY
 
@@ -68,6 +75,9 @@ def create_app() -> Flask:
     # Pre-load ChromaDB + sentence-transformers in background.
     # Without this, the first memory request blocks a Flask worker for 30-60s on Windows.
     _warmup_vector_store()
+
+    # H1: Pre-load Whisper model in background so first /transcribe call doesn't block.
+    _warmup_whisper()
 
     return app
 
@@ -151,6 +161,28 @@ def _register_optional_blueprints(app: Flask):
     except ImportError:
         pass
 
+    try:
+        from core.api.routes.transcribe import transcribe_bp
+        app.register_blueprint(transcribe_bp)
+    except ImportError:
+        pass
+
+
+def _warmup_whisper():
+    """Pre-load Whisper model in background — prevents 10-30s block on first /transcribe call."""
+    import threading
+    log = logging.getLogger("claudeos.api")
+    def _warm():
+        try:
+            from core.api.routes.transcribe import _get_model
+            _get_model()
+            log.info("Whisper model pre-loaded.")
+        except ImportError:
+            pass  # whisper not installed — voice input disabled
+        except Exception as e:
+            log.warning("Whisper pre-load failed (voice input may be slow on first use): %s", e)
+    threading.Thread(target=_warm, daemon=True, name="whisper-warmup").start()
+
 
 def _warmup_vector_store():
     """Pre-load ChromaDB + sentence-transformers in a background thread.
@@ -166,6 +198,12 @@ def _warmup_vector_store():
             log.info("ChromaDB warmup complete.")
         except Exception as e:
             log.warning("ChromaDB warmup failed (semantic search disabled): %s", e)
+            try:
+                from memory.vector_store import _init_failed
+                if _init_failed:
+                    log.warning("Semantic search disabled — agents will fall back to FTS context")
+            except Exception:
+                pass
     threading.Thread(target=_warm, daemon=True, name="vs-warmup").start()
 
 
@@ -181,6 +219,36 @@ def _start_scheduler(app: Flask):
     except Exception as e:
         import logging
         logging.getLogger("claudeos.api").warning("Scheduler init failed: %s", e)
+
+    # H4: Graceful shutdown of all ThreadPoolExecutors on process exit.
+    import atexit
+    atexit.register(_shutdown_thread_pools)
+
+
+def _shutdown_thread_pools() -> None:
+    """H4: Graceful shutdown of all ThreadPoolExecutors — called via atexit.
+    No logging here — log streams may already be closed during Python teardown."""
+    pools = []
+    try:
+        from agents.executor import _bg_pool, _ctx_pool
+        pools += [_bg_pool, _ctx_pool]
+    except Exception:
+        pass
+    try:
+        from agents.evaluator import _eval_pool
+        pools.append(_eval_pool)
+    except Exception:
+        pass
+    try:
+        from memory.retriever import _RETRIEVER_POOL
+        pools.append(_RETRIEVER_POOL)
+    except Exception:
+        pass
+    for pool in pools:
+        try:
+            pool.shutdown(wait=True, cancel_futures=False)
+        except Exception:
+            pass
 
 
 def _setup_logging(settings):

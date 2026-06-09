@@ -28,10 +28,22 @@ from memory import engine as memory_engine
 logger = logging.getLogger("claudeos.agents.executor")
 
 _client = None  # anthropic.Anthropic — lazy, avoids 4s import at startup
+
+
+def _sanitize_error(msg: str) -> str:
+    """Redact potential API keys / secrets from error strings before logging or returning."""
+    import re
+    msg = str(msg)[:500]  # hard cap
+    # Redact Anthropic key pattern sk-ant-...
+    msg = re.sub(r"sk-ant-[A-Za-z0-9\-_]{10,}", "sk-ant-***REDACTED***", msg)
+    # Redact any bearer token pattern
+    msg = re.sub(r"Bearer\s+[A-Za-z0-9\-_.]{20,}", "Bearer ***REDACTED***", msg)
+    return msg
 _client_lock = threading.Lock()
 
-# Background pool for fire-and-forget event log inserts + eval jobs.
-_bg_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="exec-bg")
+# Background pool for fire-and-forget IO: activity log, event log, failure log, eval trigger.
+# 4 workers prevents starvation under concurrent streaming (C1 fix).
+_bg_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="exec-bg")
 
 # Dedicated pool for context building — isolated from eval so a busy eval
 # queue never causes _build_memory_context to time out and fall back.
@@ -174,6 +186,14 @@ def execute(
         # Async LLM-as-Judge evaluation
         _bg_pool.submit(_trigger_eval, run_id, prompt, output_text, mem_context)
 
+        # Auto-activity memory — builds a searchable trail for all agents
+        if tokens_out > 100:  # skip trivial/empty runs
+            _bg_pool.submit(
+                _write_activity_log,
+                namespace, agent_name, prompt, output_text,
+                tokens_in, tokens_out, duration_ms,
+            )
+
         _log_event("agent_run_complete", namespace, {
             "agent": agent_name,
             "tokens_in": tokens_in,
@@ -196,7 +216,7 @@ def execute(
 
     except Exception as e:
         duration_ms = int((time.monotonic() - start) * 1000)
-        error_msg = str(e)
+        error_msg = _sanitize_error(e)
         logger.error("Agent %s failed: %s", agent_name, error_msg)
         with get_db() as conn:
             conn.execute(
@@ -461,6 +481,40 @@ def _build_system_blocks(base_prompt: str, mem_context: str, namespace: str, ext
 
     blocks.append({"type": "text", "text": "\n\n".join(dynamic_parts)})
     return blocks
+
+
+def _write_activity_log(
+    namespace: str, agent_name: str, prompt: str,
+    output_text: str, tokens_in: int, tokens_out: int, duration_ms: int,
+) -> None:
+    """Write one activity-log memory entry per completed run.
+
+    Gives all agents a searchable trail of what ran, when, and what was asked.
+    Key-based upsert ensures duplicates never accumulate for the same run.
+    """
+    try:
+        from datetime import datetime, timezone
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        prompt_snippet = (prompt or "").strip()[:200]
+        output_snippet = (output_text or "").strip()[:300]
+        value = (
+            f"[ACTIVITY] {agent_name} completed at {ts}\n"
+            f"User asked: \"{prompt_snippet}{'...' if len(prompt or '') > 200 else ''}\"\n"
+            f"Output summary: {output_snippet}{'...' if len(output_text or '') > 300 else ''}\n"
+            f"Tokens: {tokens_in}in + {tokens_out}out | Duration: {duration_ms}ms"
+        )
+        # Key = agent + minute-level timestamp — prevents duplicates, allows one entry per run
+        key = f"activity_log:{agent_name}:{datetime.now(timezone.utc).strftime('%Y%m%d%H%M')}"
+        memory_engine.write(
+            namespace=namespace,
+            category="activity_log",
+            key=key,
+            value=value,
+            source="system",
+            tags=["activity_log", agent_name, "auto"],
+        )
+    except Exception as e:
+        logger.warning("Activity log write failed: %s", e)
 
 
 def _trigger_eval(run_id: str, prompt: str, output_text: str, context: str) -> None:

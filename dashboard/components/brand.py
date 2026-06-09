@@ -1048,66 +1048,107 @@ div[data-baseweb="input"]:focus-within > div {{
     outline: none !important;
 }}
 
-/* ── Chat input container ── */
-[data-testid="stChatInputContainer"],
-[data-testid="stChatInputContainer"] > div {{
-    background-color: {t['INPUT_BG']} !important;
-    border: 1.5px solid {t['BORDER']} !important;
-    border-radius: 10px !important;
+/* ── Chat input — floating card ── */
+
+/* stBottom wrapper: transparent, no chrome */
+html body div[data-testid="stBottom"],
+html body div[data-testid="stBottom"] > div,
+html body div[data-testid="stBottom"] > div > div {{
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
     box-shadow: none !important;
+    padding-bottom: 12px !important;
 }}
-[data-testid="stChatInputContainer"] textarea {{
-    background-color: {t['INPUT_BG']} !important;
-    color: {t['INPUT_TEXT']} !important;
+
+/* Floating card */
+html body [data-testid="stChatInputContainer"],
+html body [data-testid="stChatInputContainer"] > div {{
+    background: {'#0f1f10' if t['BG'] < '#888' else '#ffffff'} !important;
+    background-color: {'#0f1f10' if t['BG'] < '#888' else '#ffffff'} !important;
+    border: 1px solid {'rgba(90,158,86,0.22)' if t['BG'] < '#888' else 'rgba(64,126,60,0.18)'} !important;
+    border-radius: 20px !important;
+    box-shadow: {'0 0 0 1px rgba(64,126,60,0.12), 0 8px 40px rgba(0,0,0,0.45)' if t['BG'] < '#888' else '0 0 0 1px rgba(64,126,60,0.10), 0 4px 24px rgba(0,0,0,0.10)'} !important;
+    max-width: 700px !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+    transition: border-color .2s, box-shadow .2s !important;
+    padding: 4px 6px !important;
+}}
+html body [data-testid="stChatInputContainer"]:focus-within,
+html body [data-testid="stChatInputContainer"] > div:focus-within {{
+    border-color: rgba(90,158,86,0.60) !important;
+    box-shadow: {'0 0 0 3px rgba(64,126,60,0.22), 0 8px 40px rgba(0,0,0,0.50)' if t['BG'] < '#888' else '0 0 0 3px rgba(64,126,60,0.18), 0 4px 24px rgba(0,0,0,0.12)'} !important;
+}}
+
+/* Textarea */
+html body [data-testid="stChatInputContainer"] textarea {{
+    background: transparent !important;
+    background-color: transparent !important;
+    color: {'#d4edda' if t['BG'] < '#888' else '#1a1a1a'} !important;
     border: none !important;
     font-family: 'Poppins', sans-serif !important;
+    font-size: 14.5px !important;
+    line-height: 1.6 !important;
+    caret-color: {PRIMARY} !important;
+    padding: 14px 56px 14px 16px !important;
+    min-height: 52px !important;
+    resize: none !important;
 }}
-[data-testid="stChatInputContainer"]:focus-within,
-[data-testid="stChatInputContainer"] > div:focus-within {{
-    border-color: {PRIMARY} !important;
-    box-shadow: 0 0 0 2px {PRIMARY}22 !important;
+html body [data-testid="stChatInputContainer"] textarea::placeholder {{
+    color: {'rgba(255,255,255,0.30)' if t['BG'] < '#888' else 'rgba(0,0,0,0.35)'} !important;
+    opacity: 1 !important;
 }}
-/* Submit button icon — white SVG paths (DO NOT touch background-image) */
-button[data-testid="stChatInputSubmitButton"] svg path,
-button[data-testid="stChatInputSubmitButton"] svg line,
-button[data-testid="stChatInputSubmitButton"] svg polyline,
-button[data-testid="stChatInputSubmitButton"] svg circle,
-button[data-testid="stChatInputSubmitButton"] svg rect {{
-    fill: #ffffff !important;
-    stroke: #ffffff !important;
-}}
-/* Submit button — testid is on the button itself, not a wrapper */
-button[data-testid="stChatInputSubmitButton"],
-[data-testid="stChatInputSubmitButton"],
-[data-testid="stChatInputSubmitButton"] button {{
+
+/* Submit button — green circle */
+html body button[data-testid="stChatInputSubmitButton"],
+html body [data-testid="stChatInputSubmitButton"],
+html body [data-testid="stChatInputSubmitButton"] button {{
     background-color: {PRIMARY} !important;
     background: {PRIMARY} !important;
     border: none !important;
-    border-radius: 6px !important;
+    border-radius: 50% !important;
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
     color: #ffffff !important;
     -webkit-text-fill-color: #ffffff !important;
+    box-shadow: 0 2px 10px rgba(64,126,60,0.50) !important;
+    transition: background .15s, transform .12s, box-shadow .15s !important;
 }}
-button[data-testid="stChatInputSubmitButton"]:hover,
-[data-testid="stChatInputSubmitButton"]:hover {{
-    background-color: {t['BTN_HOVER_BG']} !important;
-    background: {t['BTN_HOVER_BG']} !important;
+html body button[data-testid="stChatInputSubmitButton"]:hover,
+html body [data-testid="stChatInputSubmitButton"]:hover {{
+    background-color: #5a9e56 !important;
+    background: #5a9e56 !important;
+    transform: scale(1.07) !important;
+    box-shadow: 0 4px 16px rgba(64,126,60,0.65) !important;
 }}
-button[data-testid="stChatInputSubmitButton"] svg *,
-[data-testid="stChatInputSubmitButton"] svg *,
-[data-testid="stChatInputSubmitButton"] svg path {{
+html body button[data-testid="stChatInputSubmitButton"] svg path:not([fill="none"]),
+html body button[data-testid="stChatInputSubmitButton"] svg line,
+html body button[data-testid="stChatInputSubmitButton"] svg polyline,
+html body button[data-testid="stChatInputSubmitButton"] svg circle,
+html body button[data-testid="stChatInputSubmitButton"] svg rect,
+html body button[data-testid="stChatInputSubmitButton"] svg *,
+html body [data-testid="stChatInputSubmitButton"] svg * {{
     fill: #ffffff !important;
     stroke: #ffffff !important;
 }}
+
 /* Attach "+" action button */
-button[data-testid="stChatInputActionButton"],
-[data-testid="stChatInputActionButton"] {{
+html body button[data-testid="stChatInputActionButton"],
+html body [data-testid="stChatInputActionButton"] {{
     background-color: transparent !important;
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
+    border-radius: 50% !important;
+    transition: background .15s !important;
 }}
-button[data-testid="stChatInputActionButton"] svg *,
-[data-testid="stChatInputActionButton"] svg * {{
+html body button[data-testid="stChatInputActionButton"]:hover {{
+    background-color: {'rgba(64,126,60,0.15)' if t['BG'] < '#888' else 'rgba(64,126,60,0.08)'} !important;
+}}
+html body button[data-testid="stChatInputActionButton"] svg *,
+html body [data-testid="stChatInputActionButton"] svg * {{
     fill: {PRIMARY} !important;
     stroke: {PRIMARY} !important;
 }}
@@ -1174,6 +1215,18 @@ ul[data-testid="stSelectboxVirtualDropdown"] li,
 li[role="option"] {{
     background-color: {t['SURFACE']} !important;
     color: {t['TEXT']} !important;
+}}
+
+/* ── Sidebar HTML nav — hide proxy buttons ── */
+section[data-testid="stSidebar"] [class*="st-key-nav_btn_"] {{
+    height: 0 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    visibility: hidden !important;
+    position: absolute !important;
+    pointer-events: none !important;
 }}
 
 /* ── Sidebar nav — brand-colored radio dots ── */
@@ -1551,6 +1604,116 @@ div[data-testid="stToggle"] input:checked + span[data-testid="stToggleSlider"] {
 """
 
 
+def _inject_chat_input_js(theme_key: str) -> None:
+    """Always-on JS: injects a <style> tag into parent <head> for the chat input.
+    CSS in st.markdown is scoped by Streamlit/Emotion and loses to React inline styles.
+    This bypasses both by writing directly to parent document head + setProperty.
+    """
+    _dark = theme_key == "dark"
+    _bg   = "#0f1f10" if _dark else "#ffffff"
+    _text = "#d4edda" if _dark else "#1a1a1a"
+    _ph   = "rgba(255,255,255,0.32)" if _dark else "rgba(0,0,0,0.35)"
+    _border = "rgba(90,158,86,0.25)" if _dark else "rgba(64,126,60,0.20)"
+    _shadow = "0 0 0 1px rgba(64,126,60,0.12),0 8px 40px rgba(0,0,0,0.45)" if _dark else "0 0 0 1px rgba(64,126,60,0.10),0 4px 24px rgba(0,0,0,0.10)"
+    _components.html(f"""<script>
+(function(){{
+  var doc = window.parent.document;
+  var STYLE_ID = 'cos-chat-input-style';
+
+  function injectStyle() {{
+    var old = doc.getElementById(STYLE_ID);
+    if (old) old.remove();
+    var s = doc.createElement('style');
+    s.id = STYLE_ID;
+    s.textContent = `
+      div[data-testid="stBottom"],
+      div[data-testid="stBottom"] > div,
+      div[data-testid="stBottom"] > div > div {{
+        background: transparent !important;
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding-bottom: 10px !important;
+      }}
+      [data-testid="stChatInputContainer"] {{
+        background: {_bg} !important;
+        background-color: {_bg} !important;
+        border: 1px solid {_border} !important;
+        border-radius: 20px !important;
+        box-shadow: {_shadow} !important;
+        max-width: 700px !important;
+        width: 100% !important;
+        margin: 0 auto !important;
+        transition: border-color .2s, box-shadow .2s !important;
+        padding: 4px 6px !important;
+      }}
+      [data-testid="stChatInputContainer"]:focus-within {{
+        border-color: rgba(90,158,86,0.60) !important;
+        box-shadow: 0 0 0 3px rgba(64,126,60,0.22),0 8px 40px rgba(0,0,0,0.50) !important;
+      }}
+      [data-testid="stChatInputContainer"] textarea {{
+        background: transparent !important;
+        background-color: transparent !important;
+        color: {_text} !important;
+        caret-color: #407E3C !important;
+        border: none !important;
+        min-height: 52px !important;
+        padding: 14px 56px 14px 16px !important;
+        font-size: 14.5px !important;
+        line-height: 1.6 !important;
+        resize: none !important;
+      }}
+      [data-testid="stChatInputContainer"] textarea::placeholder {{
+        color: {_ph} !important;
+        opacity: 1 !important;
+      }}
+      button[data-testid="stChatInputSubmitButton"] {{
+        background: #407E3C !important;
+        background-color: #407E3C !important;
+        border: none !important;
+        border-radius: 50% !important;
+        width: 36px !important;
+        height: 36px !important;
+        min-width: 36px !important;
+        box-shadow: 0 2px 10px rgba(64,126,60,0.50) !important;
+      }}
+      button[data-testid="stChatInputSubmitButton"]:hover {{
+        background: #5a9e56 !important;
+        background-color: #5a9e56 !important;
+        transform: scale(1.07) !important;
+      }}
+      button[data-testid="stChatInputSubmitButton"] svg path:not([fill="none"]),
+      button[data-testid="stChatInputSubmitButton"] svg line,
+      button[data-testid="stChatInputSubmitButton"] svg polyline,
+      button[data-testid="stChatInputSubmitButton"] svg circle {{
+        fill: #ffffff !important;
+        stroke: #ffffff !important;
+      }}
+      button[data-testid="stChatInputActionButton"] {{
+        background: transparent !important;
+        border: none !important;
+        border-radius: 50% !important;
+      }}
+      button[data-testid="stChatInputActionButton"] svg * {{
+        fill: #407E3C !important;
+        stroke: #407E3C !important;
+      }}
+    `;
+    doc.head.appendChild(s);
+  }}
+
+  injectStyle();
+  setTimeout(injectStyle, 300);
+  setTimeout(injectStyle, 800);
+
+  var obs = new MutationObserver(function() {{
+    if (!doc.getElementById(STYLE_ID)) injectStyle();
+  }});
+  if (doc.body) obs.observe(doc.body, {{childList: true, subtree: false}});
+}})();
+</script>""", height=0)
+
+
 def _inject_brand_colors_js(color: str, accent: str) -> None:
     """JS brand injection — bypasses CSS cascade entirely via setProperty(...,'important').
     Fixes: radio nav dots, chat input border, audio recorder timer.
@@ -1653,17 +1816,37 @@ def _inject_brand_colors_js(color: str, accent: str) -> None:
     }});
   }}
 
-  // ── 2. Chat input border / glow ──────────────────────────────────────────
+  // ── 2. Chat input — floating card enforcement via JS ────────────────────
   function fixChatInput() {{
-    var containers = doc.querySelectorAll('[data-testid="stChatInputContainer"]');
-    containers.forEach(function(c) {{
-      c.style.setProperty('border-color', COLOR + '66', 'important');
-      c.style.setProperty('box-shadow', 'none', 'important');
+    // Container: floating card shape + border tint from ns color
+    doc.querySelectorAll('[data-testid="stChatInputContainer"]').forEach(function(c) {{
+      c.style.setProperty('border-radius', '20px', 'important');
+      c.style.setProperty('border-color', COLOR + '55', 'important');
+      c.style.setProperty('max-width', '700px', 'important');
+      c.style.setProperty('margin', '0 auto', 'important');
     }});
-    // Submit button
-    doc.querySelectorAll('[data-testid="stChatInputSubmitButton"] button').forEach(function(btn) {{
+    // Submit button: green circle
+    doc.querySelectorAll('button[data-testid="stChatInputSubmitButton"]').forEach(function(btn) {{
       btn.style.setProperty('background-color', COLOR, 'important');
-      btn.style.setProperty('border-color', COLOR, 'important');
+      btn.style.setProperty('background', COLOR, 'important');
+      btn.style.setProperty('border-radius', '50%', 'important');
+      btn.style.setProperty('width', '36px', 'important');
+      btn.style.setProperty('height', '36px', 'important');
+      btn.style.setProperty('min-width', '36px', 'important');
+      btn.style.setProperty('box-shadow', '0 2px 10px ' + COLOR + '80', 'important');
+      btn.querySelectorAll('svg path, svg line, svg polyline, svg circle, svg rect').forEach(function(p) {{
+        if (p.getAttribute('fill') === 'none') return;
+        p.style.setProperty('fill', '#ffffff', 'important');
+        p.style.setProperty('stroke', '#ffffff', 'important');
+      }});
+    }});
+    // Attach button: brand tint
+    doc.querySelectorAll('button[data-testid="stChatInputActionButton"]').forEach(function(btn) {{
+      btn.style.setProperty('border-radius', '50%', 'important');
+      btn.querySelectorAll('svg *').forEach(function(p) {{
+        p.style.setProperty('fill', COLOR, 'important');
+        p.style.setProperty('stroke', COLOR, 'important');
+      }});
     }});
   }}
 
@@ -1745,6 +1928,7 @@ def inject():
         )
         st.session_state["_fonts_injected"] = True
     st.markdown(_build_css(theme_key), unsafe_allow_html=True)
+    _inject_chat_input_js(theme_key)
     # Namespace brand color override (client/viewer workspaces)
     brand = get_ns_brand()
     if brand:

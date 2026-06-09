@@ -121,3 +121,14 @@ def _do_evaluate(run_id: str, prompt: str, output_text: str, context: str) -> No
                     run_id[:8], score, tc, fg, cc, sf)
     except Exception as e:
         logger.warning("Eval failed for run %s: %s", run_id[:8], e)
+        # H6: Still stamp eval_at so UI knows evaluation was attempted (not just null/pending)
+        try:
+            from core.database import get_db
+            from core.utils import utcnow_str
+            with get_db() as conn:
+                conn.execute(
+                    "UPDATE agent_runs SET eval_at=? WHERE id=? AND eval_at IS NULL",
+                    (utcnow_str(), run_id),
+                )
+        except Exception:
+            pass

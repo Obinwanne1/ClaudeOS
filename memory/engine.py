@@ -89,6 +89,11 @@ def write(
     except Exception:
         pass
 
+    # M4: Backpressure warning — log if embed queue is building up
+    _qsize = _bg_pool._work_queue.qsize()
+    if _qsize > 100:
+        logger.warning("Memory write queue backlog: %d items — embeddings lagging behind writes", _qsize)
+
     # Fire-and-forget: ChromaDB upsert + vector metadata + event log.
     # Semantic search has eventual consistency (~100-300ms lag after write).
     # FTS5 / exact-key lookups are immediately consistent (SQLite already committed above).

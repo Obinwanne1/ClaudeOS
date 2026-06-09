@@ -87,11 +87,11 @@ def _render_kpi_grid(kpis: list) -> None:
                 _cv1.html(f"""<!DOCTYPE html><html><head>
 <style>
 *{{margin:0;padding:0;box-sizing:border-box;font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}}
-body{{background:{_card_bg};padding:0 0 8px 0;}}
-.card{{background:{_card_bg};border:1px solid {_card_border};border-radius:10px;
+body{{background:transparent;padding:0 0 8px 0;}}
+.card{{background:transparent;border:1px solid {_card_border};border-radius:16px;
        padding:14px 16px;cursor:{cursor};
-       transition:background 0.15s,border-color 0.15s,box-shadow 0.15s;user-select:none;}}
-.card:hover{{border-color:{_accent};box-shadow:0 0 0 2px {_accent}44;background:{_card_hover};}}
+       transition:border-color 0.15s,box-shadow 0.15s;user-select:none;}}
+.card:hover{{border-color:{_accent};box-shadow:0 0 0 2px {_accent}44;}}
 .card:active{{background:{_accent}28;}}
 .label{{font-size:0.78rem;color:{_card_muted};font-weight:500;margin-bottom:4px;
         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}}
@@ -309,6 +309,10 @@ def _render_live_feed(runs_data, is_scoped: bool, username: str, api_post=None) 
         )
 
     if runs:
+        st.markdown("""<style>
+[data-testid="stVerticalBlock"] [data-testid="stMarkdownContainer"] > div { border-bottom: none !important; }
+[data-testid="stHorizontalBlock"] { border-bottom: none !important; }
+</style>""", unsafe_allow_html=True)
         feed_placeholder = st.empty()
         with feed_placeholder.container():
             for run in runs[:10]:
@@ -338,7 +342,7 @@ def _render_live_feed(runs_data, is_scoped: bool, username: str, api_post=None) 
                     _col_main, _col_btn = st.columns([10, 1])
                     with _col_main:
                         st.markdown(
-                            f'<div style="padding:7px 0;font-size:0.82rem;border-bottom:1px solid {_brd};">'
+                            f'<div style="padding:7px 0;font-size:0.82rem;">'
                             f'<span style="color:{_color};font-weight:600;">{_icon} {_status}</span>'
                             f'&nbsp;&nbsp;·&nbsp;&nbsp;<span style="{_pill}">{_agent}</span>{_ns_part}'
                             f'&nbsp;&nbsp;{score_pill}'
@@ -362,7 +366,7 @@ def _render_live_feed(runs_data, is_scoped: bool, username: str, api_post=None) 
                                 st.rerun()
                 else:
                     st.markdown(
-                        f'<div style="padding:7px 0;font-size:0.82rem;border-bottom:1px solid {_brd};">'
+                        f'<div style="padding:7px 0;font-size:0.82rem;">'
                         f'<span style="color:{_color};font-weight:600;">{_icon} {_status}</span>'
                         f'&nbsp;&nbsp;·&nbsp;&nbsp;<span style="{_pill}">{_agent}</span>{_ns_part}'
                         f'&nbsp;&nbsp;{score_pill}'

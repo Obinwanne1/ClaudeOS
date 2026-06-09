@@ -28,5 +28,16 @@ except ImportError:
     )
     limiter = Limiter(key_func=get_remote_address, default_limits=["500/day", "100/hour"])
 except Exception as _e:
-    _logger.warning("Rate limiter: SQLite storage failed (%s) — falling back to in-memory", _e)
+    import os as _os
+    _is_prod = _os.environ.get("FLASK_ENV", "").lower() == "production" or \
+               _os.environ.get("CLAUDEOS_ENV", "").lower() == "production"
+    if _is_prod:
+        # M5: Fail-fast in production — in-memory counters reset on restart = burst attack window
+        _logger.critical(
+            "Rate limiter: SQLite storage failed in PRODUCTION (%s). "
+            "Fix: pip install 'limits[SQLAlchemy]' and ensure data/ is writable. "
+            "Server not starting.", _e
+        )
+        raise
+    _logger.warning("Rate limiter: SQLite storage failed (%s) — falling back to in-memory (dev only)", _e)
     limiter = Limiter(key_func=get_remote_address, default_limits=["500/day", "100/hour"])

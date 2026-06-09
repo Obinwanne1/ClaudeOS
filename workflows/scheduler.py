@@ -51,6 +51,7 @@ def init_scheduler() -> BackgroundScheduler:
         _register_sync_job(_scheduler)
         _register_consolidation_job(_scheduler)
         _register_backup_job(_scheduler)
+        _register_cleanup_job(_scheduler)
         return _scheduler
 
 
@@ -276,6 +277,44 @@ def _run_backup_job() -> None:
             logger.error("DB backup failed: %s", result.get("error"))
     except Exception as e:
         logger.error("Backup job error: %s", e)
+
+
+def _register_cleanup_job(sched: BackgroundScheduler) -> None:
+    """M2: Weekly DB cleanup — removes old runs/audit rows, reclaims disk space."""
+    sched.add_job(
+        _run_cleanup_job,
+        trigger=CronTrigger(day_of_week="sun", hour=3, minute=0, timezone=_get_tz()),
+        id="claudeos_db_cleanup",
+        name="Weekly DB Cleanup",
+        replace_existing=True,
+    )
+    logger.info("Weekly DB cleanup job registered (Sun 03:00 %s)", _get_tz())
+
+
+def _run_cleanup_job() -> None:
+    """Delete records older than 90 days, then VACUUM to reclaim disk."""
+    try:
+        from core.database import get_db
+        with get_db() as conn:
+            r1 = conn.execute(
+                "DELETE FROM agent_runs WHERE created_at < datetime('now', '-90 days') AND deleted_at IS NOT NULL"
+            )
+            r2 = conn.execute(
+                "DELETE FROM auth_events WHERE created_at < datetime('now', '-90 days')"
+            )
+            r3 = conn.execute(
+                "DELETE FROM workflow_runs WHERE created_at < datetime('now', '-90 days')"
+            )
+            logger.info(
+                "DB cleanup: agent_runs=%d auth_events=%d workflow_runs=%d deleted",
+                r1.rowcount, r2.rowcount, r3.rowcount,
+            )
+        # VACUUM outside transaction — reclaims disk space
+        from core.database import get_db as _gdb
+        raw = _gdb()
+        raw.execute("VACUUM")
+    except Exception as e:
+        logger.error("DB cleanup job error: %s", e)
 
 
 def _run_workflow_job(workflow_name: str, context: dict = None) -> Optional[str]:
