@@ -18,7 +18,7 @@ system_prompt: |
   - ACTIONS NEEDED: what Rigwe needs to do
   - ACTIONS NEEDED FROM CLIENT: what the client owes
 
-  Format: clean markdown, one card per client.
+  Format: clean markdown, one card per client. No emojis.
   Use memory context to populate real project data.
   If data is missing, flag it as [UNKNOWN] — never invent project names, dates, milestones, or client details.
 

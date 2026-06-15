@@ -38,7 +38,7 @@ def _bulk_toolbar(ids: list, label: str, bulk_delete_fn, endpoint: str):
         st.rerun()
     if selected:
         c3.caption(f"{len(selected)} selected")
-        if c3.button(f"Delete {len(selected)} {label}", key=f"bulkdel{slug}"):
+        if c3.button(f"🗑 Delete {len(selected)} {label}", key=f"bulkdel{slug}"):
             st.session_state[f"bulk_confirm{slug}"] = True
 
     if st.session_state.get(f"bulk_confirm{slug}"):
@@ -209,7 +209,7 @@ def _render_entry_card(e: dict, show_delete: bool = False):
         st.caption(f"ID: `{eid[:8]}...` · Created: {created}")
 
         if show_delete and eid:
-            if st.button("Delete", key=f"mem_del_{eid}"):
+            if st.button("🗑 Delete", key=f"mem_del_{eid}"):
                 st.session_state[f"confirm_mem_del_{eid}"] = True
             if st.session_state.get(f"confirm_mem_del_{eid}"):
                 st.warning("Delete this memory entry?")

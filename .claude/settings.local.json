@@ -130,7 +130,11 @@
       "Bash(ffmpeg -version)",
       "Bash(pip uninstall:*)",
       "Bash(claude update:*)",
-      "PowerShell(Start-Process \"http://localhost:8501\")"
+      "PowerShell(Start-Process \"http://localhost:8501\")",
+      "Bash(Out-File -FilePath \"C:\\\\Users\\\\rigwe\\\\Desktop\\\\emoji_audit.txt\" -Encoding utf8)",
+      "Bash(Get-Content \"C:\\\\Users\\\\rigwe\\\\Desktop\\\\emoji_audit.txt\" -Raw)",
+      "Bash(Get-ChildItem logs/ -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object Name,LastWriteTime)"
     ]
   }
 }

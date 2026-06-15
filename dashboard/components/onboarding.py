@@ -30,7 +30,7 @@ from dashboard.components.brand import get_theme_vars, get_ns_brand, PRIMARY, AC
 
 _SLIDES = [
     {
-        "icon": "🖥️",
+        "icon": "",
         "step_label": "Welcome",
         "title": "Welcome to your AI Workspace",
         "body": (
@@ -43,7 +43,7 @@ _SLIDES = [
         "tip": None,
     },
     {
-        "icon": "🤖",
+        "icon": "◈",
         "step_label": "Agents",
         "title": "Step 1 — Chat with AI Agents",
         "body": (
@@ -59,7 +59,7 @@ _SLIDES = [
         "tip": "Agents remember context from your Memory page — the more context you store, the smarter they respond.",
     },
     {
-        "icon": "🧠",
+        "icon": "◉",
         "step_label": "Memory",
         "title": "Step 2 — Your AI Memory Bank",
         "body": (
@@ -75,7 +75,7 @@ _SLIDES = [
         "tip": "Well-structured memory reduces AI costs by up to 40% by cutting down on repeated context.",
     },
     {
-        "icon": "🎫",
+        "icon": "",
         "step_label": "Tickets",
         "title": "Step 3 — Support Tickets",
         "body": (
@@ -91,7 +91,7 @@ _SLIDES = [
         "tip": None,
     },
     {
-        "icon": "📊",
+        "icon": "",
         "step_label": "Usage",
         "title": "Step 4 — Your Usage Dashboard",
         "body": (
@@ -205,7 +205,7 @@ def _render_slide() -> None:
                 f'<div style="background:{_p}18;border-left:4px solid {_p};'
                 f'border-radius:0 8px 8px 0;padding:12px 16px;margin:20px 0 0;'
                 f'font-size:0.88rem;color:{t["TEXT"]};">'
-                f'<strong style="color:{_p};">👉 What to do next:</strong><br>'
+                f'<strong style="color:{_p};">What to do next:</strong><br>'
                 f'{slide["action"]}'
                 f'</div>',
                 unsafe_allow_html=True,
@@ -217,7 +217,7 @@ def _render_slide() -> None:
                 f'<div style="background:{t["SURFACE2"]};border:1px solid {t["BORDER"]};'
                 f'border-radius:8px;padding:10px 14px;margin-top:16px;'
                 f'font-size:0.8rem;color:{t["TEXT_MUTED"]};font-style:italic;">'
-                f'💡 {slide["tip"]}'
+                f'{slide["tip"]}'
                 f'</div>',
                 unsafe_allow_html=True,
             )

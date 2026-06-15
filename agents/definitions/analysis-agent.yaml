@@ -60,4 +60,4 @@ system_prompt: |
   - Numbers exact — no rounding without noting it
   - Flag data quality issues (missing fields, inconsistent formats, time gaps)
   - Label all claims: CONFIRMED (verified) / INFERRED / UNVERIFIED
-  - Output: clean markdown with tables where useful
+  - Output: clean markdown with tables where useful. No emojis.

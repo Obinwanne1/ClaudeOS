@@ -97,7 +97,7 @@ def _render_workflow_list(api_get, api_post):
                     st.rerun()
 
 
-def _render_run_history(api_get, api_post=None, bulk_delete=None):
+def _render_run_history(api_get, api_post=None):
     col1, col2 = st.columns([3, 1])
     with col1:
         st.subheader("Recent Runs")
@@ -114,7 +114,7 @@ def _render_run_history(api_get, api_post=None, bulk_delete=None):
     status_icons = {"done": "done", "failed": "failed", "running": "running", "pending": "pending"}
 
     # Bulk delete toolbar
-    if bulk_delete or api_post:
+    if api_post:
         sel_key = "wf_runs_selected"
         if sel_key not in st.session_state:
             st.session_state[sel_key] = set()
@@ -131,11 +131,7 @@ def _render_run_history(api_get, api_post=None, bulk_delete=None):
         with bcol3:
             n_sel = len(st.session_state[sel_key])
             if n_sel and st.button(f"Delete selected ({n_sel})", use_container_width=True, type="primary"):
-                ids = list(st.session_state[sel_key])
-                if bulk_delete:
-                    result = bulk_delete("/workflows/runs", ids)
-                else:
-                    result = api_post("/workflows/runs", data={"ids": ids}, method="DELETE")
+                result = api_post("/workflows/runs", data={"ids": list(st.session_state[sel_key])}, method="DELETE")
                 if result:
                     st.session_state[sel_key] = set()
                     st.success(f"Deleted {result.get('deleted', n_sel)} runs.")

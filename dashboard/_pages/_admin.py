@@ -67,7 +67,7 @@ def _delete_user_dialog(uid: str, username: str):
             headers=_auth_headers(), timeout=5,
         )
         if resp.ok:
-            st.toast(f"User '{username}' permanently deleted.", icon="🗑")
+            st.toast(f"User '{username}' permanently deleted.")
             st.rerun()
         else:
             err = (resp.json().get("error", f"HTTP {resp.status_code}") if resp.content else f"HTTP {resp.status_code}")
@@ -105,7 +105,7 @@ def _edit_user_dialog(uid: str, user: dict, ns_data: list):
             json=payload, headers=_auth_headers(), timeout=5,
         )
         if resp.ok:
-            st.toast(f"User '{user['username']}' updated.", icon="✅")
+            st.toast(f"User '{user['username']}' updated.")
             st.rerun()
         else:
             err = (resp.json().get("error", f"HTTP {resp.status_code}") if resp.content else f"HTTP {resp.status_code}")
@@ -126,9 +126,9 @@ def _render_users(api_get, api_post, ns_data=None):
                 "Username":   u.get("username", ""),
                 "Role":       u.get("role", ""),
                 "Namespace":  u.get("namespace") or "—",
-                "Active":     "✅" if u.get("is_active") else "❌",
-                "Pwd Change": "⚠️ Required" if u.get("must_change_password") else "✅ Set",
-                "Locked":     "🔒" if u.get("locked_until") else "—",
+                "Active":     "Yes" if u.get("is_active") else "No",
+                "Pwd Change": "Required" if u.get("must_change_password") else "Set",
+                "Locked":     "Yes" if u.get("locked_until") else "—",
                 "Last Login": (u.get("last_login_at") or "Never")[:16],
                 "Created":    (u.get("created_at") or "")[:10],
             })
@@ -177,7 +177,7 @@ def _render_users(api_get, api_post, ns_data=None):
                 col1, col2, col3, col4, col5 = st.columns(5)
                 with col1:
                     if is_locked:
-                        st.warning(f"🔒 Locked until {str(sel_user['locked_until'])[:16]}")
+                        st.warning(f"Locked until {str(sel_user['locked_until'])[:16]}")
                         if st.button("Unlock account", key=f"unlock_{uid}", use_container_width=True, type="primary"):
                             r = api_post(f"/admin/users/{uid}/unlock", {})
                             st.success("Account unlocked." if r else "Failed to unlock.")
@@ -212,15 +212,15 @@ def _render_users(api_get, api_post, ns_data=None):
                             r = api_post(f"/admin/users/{uid}/reset-password", {"new_password": new_pw})
                             st.success("Password reset." if r else "Failed (check strength).")
                 with col4:
-                    if st.button("✏️ Edit", key=f"edit_{uid}", use_container_width=True):
+                    if st.button("Edit", key=f"edit_{uid}", use_container_width=True):
                         _edit_user_dialog(uid, sel_user, ns_data or [])
                 with col5:
-                    if st.button("🗑 Delete", key=f"del_{uid}", use_container_width=True, type="secondary"):
+                    if st.button("Delete", key=f"del_{uid}", use_container_width=True, type="secondary"):
                         _delete_user_dialog(uid, sel_user["username"])
 
     st.markdown("---")
 
-    with st.expander("➕ Create User"):
+    with st.expander("+ Create User"):
         _create_user_form(api_get, api_post, ns_data=ns_data)
 
 
@@ -338,7 +338,7 @@ def _render_api_keys(api_get, api_post, ns_data=None):
         st.info("No API keys.")
 
     st.markdown("---")
-    with st.expander("➕ Create API Key"):
+    with st.expander("+ Create API Key"):
         _create_key_form(api_get, api_post, ns_data=ns_data)
 
 
@@ -526,7 +526,7 @@ def _render_branding(api_get, api_post, ns_data=None):
         st.markdown("**Brand Settings**")
         company_name  = st.text_input("Company name", value=current_meta.get("company_name", ""),
                                        key="brand_company", placeholder="e.g. Reci Transport")
-        icon_emoji    = st.text_input("Icon (emoji)", value=ns_obj.get("icon") or "🏢",
+        icon_emoji    = st.text_input("Icon (text, optional)", value=ns_obj.get("icon") or "",
                                        key="brand_icon", max_chars=4)
         brand_color   = st.color_picker("Primary brand color", value=current_color,
                                          key="brand_color")
@@ -561,7 +561,7 @@ def _render_branding(api_get, api_post, ns_data=None):
         st.markdown("**Live Preview**")
         _c = brand_color if "brand_color" in st.session_state else current_color
         _a = st.session_state.get("brand_accent", current_meta.get("accent_color", _c))
-        _icon = st.session_state.get("brand_icon", ns_obj.get("icon") or "🏢")
+        _icon = st.session_state.get("brand_icon", ns_obj.get("icon") or "")
         _name = st.session_state.get("brand_company", current_meta.get("company_name", sel_slug))
         # Preview background: custom bg if set, else theme surface
         _use_bg_now = st.session_state.get("brand_use_bg", bool(current_meta.get("bg_color")))

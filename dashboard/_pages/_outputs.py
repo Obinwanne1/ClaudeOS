@@ -29,12 +29,12 @@ def _auth_headers() -> dict:
 
 
 TYPE_ICONS = {
-    "report": "📄",
-    "draft": "✏️",
-    "analysis": "🔍",
-    "code": "💻",
-    "note": "📝",
-    "archive": "📦",
+    "report":   "R",
+    "draft":    "D",
+    "analysis": "A",
+    "code":     "C",
+    "note":     "N",
+    "archive":  "X",
 }
 
 
@@ -55,7 +55,7 @@ def _bulk_toolbar(ids: list, label: str, bulk_delete_fn, endpoint: str):
         st.rerun()
     if selected:
         c3.caption(f"{len(selected)} selected")
-        if c3.button(f"🗑 Delete {len(selected)} {label}", key=f"bulkdel{slug}"):
+        if c3.button(f"Delete {len(selected)} {label}", key=f"bulkdel{slug}"):
             st.session_state[f"bulk_confirm{slug}"] = True
 
     if st.session_state.get(f"bulk_confirm{slug}"):
@@ -161,7 +161,7 @@ def _render_browse(api_get, api_post, ns_data: list, bulk_delete=None):
                 with col_actions:
                     if st.button("View", key=f"view_{oid}", width='stretch'):
                         st.session_state[f"show_content_{oid}"] = True
-                    if st.button("⬇ Download MD", key=f"dl_btn_{oid}", width='stretch'):
+                    if st.button("Download MD", key=f"dl_btn_{oid}", width='stretch'):
                         _r = requests.get(
                             f"{_API_BASE}/outputs/{oid}/export?format=markdown",
                             headers=_auth_headers(), timeout=5,
@@ -170,7 +170,7 @@ def _render_browse(api_get, api_post, ns_data: list, bulk_delete=None):
                             fname = f"{title[:40].replace(' ','_')}.md"
                             st.download_button("Save", data=_r.text, file_name=fname,
                                                mime="text/markdown", key=f"dl_{oid}")
-                    if st.button("🗑 Delete", key=f"del_{oid}", width='stretch'):
+                    if st.button("Delete", key=f"del_{oid}", width='stretch'):
                         st.session_state[f"confirm_delete_{oid}"] = True
 
                 if st.session_state.get(f"confirm_delete_{oid}"):

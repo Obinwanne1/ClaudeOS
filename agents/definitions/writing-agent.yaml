@@ -45,4 +45,4 @@ system_prompt: |
   3. The core message or purpose
   4. Specific facts, figures, names, dates required
   Do NOT ask for data already available in workspace outputs.
-  Output format: clean markdown unless specified otherwise.
+  Output format: clean markdown unless specified otherwise. No emojis.

@@ -131,7 +131,7 @@ def render(api_get, api_post, bulk_delete=None):
             f'<div style="display:inline-flex;align-items:center;gap:8px;'
             f'background:{_wp}1F;border:1px solid {_wp};'
             f'border-radius:8px;padding:6px 14px;margin-bottom:12px;font-size:0.85rem;">'
-            f'<span style="color:{_wp};font-weight:700;">🏢 Workspace</span>'
+            f'<span style="color:{_wp};font-weight:700;">Workspace</span>'
             f'<span style="color:inherit;">{_esc(user_ns)}</span></div>',
             unsafe_allow_html=True,
         )
@@ -172,7 +172,7 @@ def render(api_get, api_post, bulk_delete=None):
             ("Runs",        counts.get("agent_runs", 0),     None),
             ("Outputs",     counts.get("outputs", 0),        None),
             ("Projects",    counts.get("projects", 0),       None),
-            ("Open Tickets",open_tickets, f"🔴 {open_tickets} active" if open_tickets else None),
+            ("Open Tickets",open_tickets, f"{open_tickets} active" if open_tickets else None),
         ]
     else:
         kpis = [
@@ -181,7 +181,7 @@ def render(api_get, api_post, bulk_delete=None):
             ("Runs",        counts.get("agent_runs", 0),     None),
             ("Workflows",   counts.get("workflows", 0),      None),
             ("Outputs",     counts.get("outputs", 0),        None),
-            ("Open Tickets",open_tickets, f"🔴 {open_tickets} active" if open_tickets else None),
+            ("Open Tickets",open_tickets, f"{open_tickets} active" if open_tickets else None),
         ]
     _render_kpi_grid(kpis)
 
@@ -195,7 +195,7 @@ def render(api_get, api_post, bulk_delete=None):
             if status:
                 services = status.get("services", {})
                 for svc, info in services.items():
-                    icon = "🟢" if info.get("status") == "ok" else "🔴"
+                    icon = "[ok]" if info.get("status") == "ok" else "[!]"
                     detail = ""
                     if svc == "database":
                         detail = f"  `{info.get('path','?')}` · {info.get('size_kb',0)} KB"
@@ -279,7 +279,7 @@ def _render_live_feed(runs_data, is_scoped: bool, username: str, api_post=None) 
 
     col_title, col_toggle = st.columns([3, 1])
     with col_title:
-        st.subheader("🔴 Live Activity")
+        st.subheader("Live Activity")
     with col_toggle:
         live_on = st.toggle("Auto-refresh", value=st.session_state.get("live_mode", False),
                             key="live_toggle")
@@ -293,7 +293,7 @@ def _render_live_feed(runs_data, is_scoped: bool, username: str, api_post=None) 
         st.markdown(
             f'<div style="background:#ef444422;border:1px solid #ef4444;border-radius:8px;'
             f'padding:8px 14px;margin-bottom:8px;font-size:0.82rem;color:#ef4444;">'
-            f'⚠️ {len(recent_errors)} recent failure{"s" if len(recent_errors)>1 else ""} — '
+            f'{len(recent_errors)} recent failure{"s" if len(recent_errors)>1 else ""} — '
             f'check run history</div>',
             unsafe_allow_html=True,
         )
@@ -304,7 +304,7 @@ def _render_live_feed(runs_data, is_scoped: bool, username: str, api_post=None) 
         st.markdown(
             f'<div style="background:#f59e0b22;border:1px solid #f59e0b;border-radius:8px;'
             f'padding:6px 14px;margin-bottom:8px;font-size:0.82rem;color:#f59e0b;">'
-            f'⏳ {len(running_now)} agent{"s" if len(running_now)>1 else ""} running now</div>',
+            f'{len(running_now)} agent{"s" if len(running_now)>1 else ""} running now</div>',
             unsafe_allow_html=True,
         )
 
@@ -318,7 +318,7 @@ def _render_live_feed(runs_data, is_scoped: bool, username: str, api_post=None) 
             for run in runs[:10]:
                 _status = run.get("status", "?")
                 _run_id = run.get("id", "")
-                _icon = {"done": "✅", "failed": "❌", "running": "⏳", "pending": "⏸️"}.get(_status, "•")
+                _icon = {"done": "done", "failed": "failed", "running": "running", "pending": "pending"}.get(_status, "•")
                 _agent = _esc(run.get("agent_name") or run.get("agent_display_name") or (run.get("agent_id") or "")[:12])
                 _ns    = _esc(run.get("namespace", "global"))
                 _raw   = run.get("created_at", "")
@@ -326,7 +326,7 @@ def _render_live_feed(runs_data, is_scoped: bool, username: str, api_post=None) 
                 score_pill = ""
                 if eval_score is not None:
                     sc_color = "#5a9e56" if eval_score >= 4 else ("#f59e0b" if eval_score >= 2.5 else "#ef4444")
-                    score_pill = f'<span style="background:{sc_color}22;color:{sc_color};border:1px solid {sc_color}44;padding:1px 6px;border-radius:8px;font-size:0.7rem;">⭐{eval_score:.1f}</span>'
+                    score_pill = f'<span style="background:{sc_color}22;color:{sc_color};border:1px solid {sc_color}44;padding:1px 6px;border-radius:8px;font-size:0.7rem;">{eval_score:.1f}</span>'
                 try:
                     _parsed = datetime.fromisoformat(_raw.replace("Z", "+00:00"))
                     if _parsed.tzinfo is None:
@@ -353,7 +353,7 @@ def _render_live_feed(runs_data, is_scoped: bool, username: str, api_post=None) 
                     with _col_btn:
                         _confirm_key = f"confirm_del_{_run_id}"
                         if st.session_state.get(_confirm_key):
-                            if st.button("✓", key=f"del_confirm_{_run_id}", help="Confirm delete"):
+                            if st.button("OK", key=f"del_confirm_{_run_id}", help="Confirm delete"):
                                 resp = api_post(f"/agents/runs/{_run_id}", method="DELETE")
                                 st.session_state.pop(_confirm_key, None)
                                 if resp is not None:
@@ -361,7 +361,7 @@ def _render_live_feed(runs_data, is_scoped: bool, username: str, api_post=None) 
                                 else:
                                     st.error("Delete failed")
                         else:
-                            if st.button("🗑️", key=f"del_run_{_run_id}", help="Delete this failed run"):
+                            if st.button("Del", key=f"del_run_{_run_id}", help="Delete this failed run"):
                                 st.session_state[_confirm_key] = True
                                 st.rerun()
                 else:
@@ -377,7 +377,7 @@ def _render_live_feed(runs_data, is_scoped: bool, username: str, api_post=None) 
     else:
         from dashboard.components.brand import empty_state
         empty_state(
-            icon="🤖",
+            icon="◈",
             title=f"Welcome, {username}!",
             body="No agent runs yet. Use Quick Dispatch on the right or go to Agents → Chat.",
         )

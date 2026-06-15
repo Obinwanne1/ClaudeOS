@@ -46,7 +46,7 @@ def _score_badge(score) -> str:
         return ""
     for (lo, hi), color in _SCORE_COLOR.items():
         if lo <= float(score) < hi:
-            return f'<span style="background:{color}22;color:{color};border:1px solid {color}55;padding:1px 7px;border-radius:10px;font-size:0.72rem;font-weight:700;">{score:.1f}</span>'
+            return f'<span style="background:{color}22;color:{color};border:1px solid {color}55;padding:1px 7px;border-radius:10px;font-size:0.72rem;font-weight:700;">⭐ {score:.1f}</span>'
     return ""
 
 
@@ -105,7 +105,7 @@ def render(api_get, api_post, bulk_delete=None):
 }})();
 </script>""", height=0)
 
-    tab_chat, tab_catalog, tab_runs = st.tabs(["Chat", "Catalog", "Run History"])
+    tab_chat, tab_catalog, tab_runs = st.tabs(["💬 Chat", "📋 Catalog", "📊 Run History"])
 
     with tab_chat:
         _render_chat_tab(agents, api_get, api_post)
@@ -275,7 +275,7 @@ def _render_chat_tab(agents: list, api_get, api_post):
                     score_html = _score_badge(meta.get("eval_score"))
                     st.markdown(
                         f'<span style="color:{tv["TEXT_MUTED"]};font-size:0.73rem;">'
-                        f'{meta.get("duration_ms",0)}ms · '
+                        f'⏱ {meta.get("duration_ms",0)}ms · '
                         f'{meta.get("tokens_in",0)}+{meta.get("tokens_out",0)} tokens'
                         f'</span> {score_html}',
                         unsafe_allow_html=True,
@@ -288,7 +288,7 @@ def _render_chat_tab(agents: list, api_get, api_post):
 
         # ── Compose card ──────────────────────────────────────────────────────
         if st.session_state.get("_voice_prefilled"):
-            st.caption("Voice captured — edit or send")
+            st.caption("🎤 Voice captured — edit or send")
             st.session_state.pop("_voice_prefilled", None)
         _jwt   = st.session_state.get("jwt_token", "")
         _fport = __import__("os").environ.get("FLASK_PORT", "5000")
@@ -379,7 +379,7 @@ def _render_chat_tab(agents: list, api_get, api_post):
             images.append({"data": _b64, "media_type": _mime_type(_imf.name)})
 
     with col_main:
-        with st.chat_message("assistant", avatar="◈"):
+        with st.chat_message("assistant", avatar="🤖"):
             response_text, meta = _stream_response(
                 sel_agent, prompt, sel_ns, api_messages, images, api_get,
                 api_post=api_post, save_out=save_out,
@@ -390,7 +390,7 @@ def _render_chat_tab(agents: list, api_get, api_post):
                 st.session_state[conv_key] = history
                 st.rerun()
             elif err:
-                history.append({"role": "assistant", "content": f"**Error:** {err}"})
+                history.append({"role": "assistant", "content": f"❌ **Error:** {err}"})
                 st.session_state[conv_key] = history
                 st.rerun()
 
@@ -498,7 +498,7 @@ def _blocking_response(
 
     run_id = result.get("run_id")
     placeholder = st.empty()
-    placeholder.info("Agent running…")
+    placeholder.info("⏳ Agent running…")
 
     for _ in range(60):  # max 5 minutes
         time.sleep(5)
@@ -884,7 +884,7 @@ def _render_catalog_tab(agents: list, api_get, api_post):
                 _btn_key = f"card_chat_{_safe}"
                 enabled_dot = "●" if a["enabled"] else "○"
                 enabled_color = _enabled_dot_color if a["enabled"] else "#6b7280"
-                ns_lock = f"· locked: {a['namespace_lock']}" if a.get('namespace_lock') else ""
+                ns_lock = f"· 🔒 {a['namespace_lock']}" if a.get('namespace_lock') else ""
                 _cv1.html(f"""<!DOCTYPE html><html><head><style>
 *{{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}}
 body{{background:transparent;padding:0 0 8px 0;}}
@@ -999,4 +999,4 @@ def _render_runs_tab(api_get):
                 dc1.metric("Task Completion", f"{dims.get('task_completion', 0):.1f}/5")
                 dc2.metric("Factual Grounding", f"{dims.get('factual_grounding', 0):.1f}/5")
                 dc3.metric("Conciseness", f"{dims.get('conciseness', 0):.1f}/5")
-                dc4.metric("Safety", "Pass" if dims.get("safety", 1) >= 1 else "Fail")
+                dc4.metric("Safety", "✅" if dims.get("safety", 1) >= 1 else "❌")

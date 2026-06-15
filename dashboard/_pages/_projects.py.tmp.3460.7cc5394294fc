@@ -7,8 +7,8 @@ import streamlit as st
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
-PRIORITY_LABELS = {1: "High", 2: "Medium", 3: "Low"}
-STATUS_ICONS = {"active": "●", "paused": "○", "archived": "×"}
+PRIORITY_LABELS = {1: "🔴 High", 2: "🟡 Medium", 3: "🟢 Low"}
+STATUS_ICONS = {"active": "🟢", "paused": "⏸️", "archived": "📦"}
 
 
 def render(api_get, api_post, bulk_delete=None):
@@ -69,7 +69,7 @@ def _render_namespaces(api_get, api_post, namespaces: list):
         for ns in namespaces:
             color = ns.get("color", "#407E3C")
             enabled = ns.get("enabled", True)
-            badge = "●" if enabled else "○"
+            badge = "🟢" if enabled else "⚫"
 
             with st.expander(f"{badge} **{ns['display_name']}** `{ns['slug']}`"):
                 col_info, col_stats, col_actions = st.columns([2, 2, 1])
@@ -93,7 +93,7 @@ def _render_namespaces(api_get, api_post, namespaces: list):
 
     st.markdown("---")
     if role in ("admin", "operator"):
-        with st.expander("+ New Namespace"):
+        with st.expander("➕ New Namespace"):
             _new_namespace_form(api_post)
 
 
@@ -161,10 +161,10 @@ def _render_projects(api_get, api_post, namespaces: list):
                         st.rerun()
 
     st.markdown("---")
-    with st.expander("+ New Project"):
+    with st.expander("➕ New Project"):
         _new_project_form(api_post, namespaces)
 
-    with st.expander("Attach Existing Project"):
+    with st.expander("📂 Attach Existing Project"):
         _attach_project_form(api_post, namespaces)
 
 
@@ -401,7 +401,7 @@ def _attach_project_form(api_post, namespaces: list):
         placeholder=r"C:\Users\you\Desktop\MyProject",
     )
 
-    scan_clicked = st.button("Scan Directory", key="attach_scan_btn")
+    scan_clicked = st.button("🔍 Scan Directory", key="attach_scan_btn")
     if scan_clicked:
         if path_input.strip():
             result = _scan_directory(path_input.strip())
@@ -452,7 +452,7 @@ def _attach_project_form(api_post, namespaces: list):
         key="attach_proj_priority",
     )
 
-    if st.button("Attach Project", key="attach_proj_btn", width='stretch'):
+    if st.button("📂 Attach Project", key="attach_proj_btn", width='stretch'):
         if name.strip() and slug.strip():
             tech_stack = [s.strip() for s in stack_raw.split(",") if s.strip()]
             result = api_post("/projects", {

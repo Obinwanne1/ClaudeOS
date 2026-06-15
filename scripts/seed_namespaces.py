@@ -15,7 +15,7 @@ NAMESPACES = [
         description="System-wide default namespace",
         type="system",
         color="#407E3C",
-        icon="🌐",
+        icon="",
     ),
     NamespaceCreate(
         slug="reci-transport",
@@ -23,7 +23,7 @@ NAMESPACES = [
         description="Transport & logistics operations — Nigeria",
         type="client",
         color="#1a56db",
-        icon="🚛",
+        icon="",
     ),
     NamespaceCreate(
         slug="ivycandy-hair",
@@ -31,7 +31,7 @@ NAMESPACES = [
         description="Hair brand — products, content, client comms",
         type="client",
         color="#7e3af2",
-        icon="💜",
+        icon="",
     ),
     NamespaceCreate(
         slug="faiyke-ai",
@@ -39,7 +39,7 @@ NAMESPACES = [
         description="AI product & SaaS development",
         type="client",
         color="#ff5a1f",
-        icon="🤖",
+        icon="",
     ),
     NamespaceCreate(
         slug="personal",
@@ -47,7 +47,7 @@ NAMESPACES = [
         description="Personal tasks, notes, and projects",
         type="personal",
         color="#0e9f6e",
-        icon="👤",
+        icon="",
     ),
 ]
 

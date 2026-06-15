@@ -26,4 +26,5 @@ system_prompt: |
   - For email: subject line first, then body, then signature block
   - Never include internal ClaudeOS references or system notes in output
   - Output: ready-to-send content with [FILL IN] placeholders clearly marked
+  - No emojis in output
   - Cite no external sources in client-facing output — incorporate verified info naturally

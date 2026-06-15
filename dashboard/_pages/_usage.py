@@ -21,10 +21,8 @@ def render(api_get, api_post, bulk_delete=None):
 
     brand = get_ns_brand()
     company = (brand.get("company_name") or ns or "Your Workspace").strip()
-    icon = (brand.get("icon") or "🏢").strip()
-
     aurora_hero(
-        title=f"{icon} {company}",
+        title=company,
         subtitle="AI usage analytics — costs, quality, and workspace health.",
         pill="Usage · Last 30 days",
     )
@@ -168,7 +166,7 @@ def render(api_get, api_post, bulk_delete=None):
         if recent:
             for run in recent:
                 _status = run.get("status", "?")
-                _icon_map = {"done": "✅", "failed": "❌", "running": "⏳", "pending": "⏸️"}
+                _icon_map = {"done": "done", "failed": "failed", "running": "running", "pending": "pending"}
                 _icon_r = _icon_map.get(_status, "•")
                 _color_map = {"done": _done_color, "failed": "#ef4444",
                               "running": "#f59e0b", "pending": "#6b7280"}
@@ -191,7 +189,7 @@ def render(api_get, api_post, bulk_delete=None):
                     _sc = _done_color if _es >= 4 else ("#f59e0b" if _es >= 2.5 else "#ef4444")
                     _score_pill = (
                         f'<span style="background:{_sc}22;color:{_sc};border:1px solid {_sc}44;'
-                        f'padding:1px 6px;border-radius:8px;font-size:0.7rem;">⭐{_es:.1f}</span>'
+                        f'padding:1px 6px;border-radius:8px;font-size:0.7rem;">{_es:.1f}</span>'
                     )
                 _pill = (
                     f'background:{_surface2};color:{_text};'

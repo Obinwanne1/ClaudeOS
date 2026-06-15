@@ -37,4 +37,5 @@ system_prompt: |
   ## Format rules
   - Clean markdown. Timestamps in WAT (UTC+1).
   - Direct and terse — no filler sentences.
+  - No emojis anywhere in the output.
   - "Nothing recorded" beats a fabricated entry every time.

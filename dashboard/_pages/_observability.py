@@ -11,16 +11,16 @@ from dashboard.components.brand import PRIMARY, get_theme_vars
 
 
 def render(api_get, api_post, bulk_delete=None):
-    st.title("🔭 Observability")
+    st.title("Observability")
     tv = get_theme_vars()
 
     role = st.session_state.get("user_role", "viewer")
     user_ns = st.session_state.get("user_namespace")
     is_scoped = role in ("client", "viewer") and bool(user_ns)
 
-    tabs = ["⭐ Quality Scores", "⏱ Latency", "💰 Token Cost", "🧠 Memory Health"]
+    tabs = ["Quality Scores", "Latency", "Token Cost", "Memory Health"]
     if not is_scoped:
-        tabs.append("🌐 Namespace Usage")
+        tabs.append("Namespace Usage")
 
     tab_objs = st.tabs(tabs)
     tab_quality  = tab_objs[0]
@@ -95,7 +95,7 @@ def _render_quality(runs: list, tv: dict) -> None:
     low_quality = [(a, sum(s)/len(s)) for a, s in agent_scores.items() if sum(s)/len(s) < 2.5]
     if low_quality:
         for agent, avg in low_quality:
-            st.warning(f"⚠️ Agent **{agent}** avg quality {avg:.1f}/5 — below threshold")
+            st.warning(f"Agent **{agent}** avg quality {avg:.1f}/5 — below threshold")
 
     st.markdown("---")
     st.markdown("**Score distribution (0.5-step buckets)**")

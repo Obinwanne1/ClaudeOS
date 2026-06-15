@@ -15,7 +15,7 @@ import streamlit as st
 
 st.set_page_config(
     page_title="ClaudeOS",
-    page_icon="🖥️",
+    page_icon="C",
     layout="wide",
     initial_sidebar_state="auto",
 )
@@ -262,25 +262,25 @@ username = st.session_state.get("username", "")
 
 # Role-based page visibility
 pages = {
-    "Overview":       "🖥️",
-    "Agents":         "🤖",
-    "Memory":         "🧠",
-    "Workflows":      "⚙️",
-    "Projects":       "📁",
-    "Outputs":        "📄",
-    "Tickets":        "🎫",
-    "Observability":  "🔭",
-    "Settings":       "🔧",
+    "Overview":       "",
+    "Agents":         "◈",
+    "Memory":         "◉",
+    "Workflows":      "",
+    "Projects":       "",
+    "Outputs":        "",
+    "Tickets":        "",
+    "Observability":  "",
+    "Settings":       "",
 }
 
 if role == "admin":
-    pages["Admin"] = "🛡️"
+    pages["Admin"] = ""
 
 if role in ("client", "viewer"):
     pages.pop("Settings", None)
     pages.pop("Workflows", None)
     pages.pop("Observability", None)
-    pages["Usage"] = "📊"  # client-facing usage + pulse dashboard
+    pages["Usage"] = ""  # client-facing usage + pulse dashboard
 
 if role == "staff":
     pages.pop("Memory", None)
@@ -399,7 +399,7 @@ _user_ns = st.session_state.get("user_namespace")
 st.sidebar.markdown(f"**{username}** ({role})")
 if _user_ns and role in ("client", "viewer"):
     st.sidebar.markdown(
-        f'<div style="font-size:0.78rem;color:{_brand_primary};margin:-6px 0 4px;">🏢 {_user_ns}</div>',
+        f'<div style="font-size:0.78rem;color:{_brand_primary};margin:-6px 0 4px;">{_user_ns}</div>',
         unsafe_allow_html=True,
     )
 
@@ -430,7 +430,7 @@ if st.sidebar.button("Logout", use_container_width=True):
 st.sidebar.markdown("---")
 
 # Background color picker — all logged-in users
-with st.sidebar.expander("🎨 Background color", expanded=False):
+with st.sidebar.expander("Background color", expanded=False):
     _has_bg = bool(st.session_state.get("custom_bg"))
     _use_bg = st.checkbox("Use custom background", value=_has_bg, key="sidebar_use_bg")
     if _use_bg:

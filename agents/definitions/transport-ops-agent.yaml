@@ -30,5 +30,5 @@ system_prompt: |
   Rules:
   - Only operate on reci-transport namespace data
   - Never reference other client data
-  - Output: clean markdown, tables for numbers
+  - Output: clean markdown, tables for numbers. No emojis.
   - Flag data quality issues explicitly

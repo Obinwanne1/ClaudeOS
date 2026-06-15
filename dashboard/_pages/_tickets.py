@@ -7,15 +7,15 @@ from datetime import datetime
 
 import streamlit as st
 
-PRIORITY_ICONS  = {1: "🔴", 2: "🟠", 3: "🟡", 4: "🟢"}
+PRIORITY_ICONS  = {1: "P1", 2: "P2", 3: "P3", 4: "P4"}
 PRIORITY_LABELS = {1: "Critical", 2: "High", 3: "Medium", 4: "Low"}
 
 STATUS_ICONS = {
-    "open":             "🔵",
-    "assigned":         "🟣",
-    "work_in_progress": "🟠",
-    "completed":        "🟢",
-    "closed":           "⚫",
+    "open":             "○",
+    "assigned":         "◎",
+    "work_in_progress": "◉",
+    "completed":        "✓",
+    "closed":           "×",
 }
 STATUS_LABELS = {
     "open":             "Open",
@@ -33,9 +33,9 @@ NEXT_STATUS = {
     "closed":           None,
 }
 NEXT_STATUS_LABEL = {
-    "assigned":         "▶ Start Work",
-    "work_in_progress": "✅ Mark Completed",
-    "completed":        "🔒 Close Ticket",
+    "assigned":         "Start Work",
+    "work_in_progress": "Mark Completed",
+    "completed":        "Close Ticket",
 }
 
 CATEGORIES = ["bug", "billing", "access", "feature", "other"]
@@ -81,7 +81,7 @@ def _bulk_toolbar(ids: list, label: str, bulk_delete_fn, endpoint: str):
         st.rerun()
     if selected:
         c3.caption(f"{len(selected)} selected")
-        if c3.button(f"🗑 Delete {len(selected)} {label}", key=f"bulkdel{slug}"):
+        if c3.button(f"Delete {len(selected)} {label}", key=f"bulkdel{slug}"):
             st.session_state[f"bulk_confirm{slug}"] = True
 
     if st.session_state.get(f"bulk_confirm{slug}"):
@@ -221,7 +221,7 @@ def _render_admin_ticket_list(api_get, api_post, bulk_delete=None):
 
     overdue = [t for t in tickets if _sla_overdue(t)]
     if overdue:
-        st.warning(f"⚠️ {len(overdue)} ticket(s) past SLA deadline")
+        st.warning(f"{len(overdue)} ticket(s) past SLA deadline")
 
     all_ids = [t["id"] for t in tickets]
     st.caption(f"{len(tickets)} tickets")
@@ -254,7 +254,7 @@ def _render_ticket_card(
     sla_tier   = t.get("sla_tier") or ""
     sla_due    = (t.get("sla_due_at") or "")[:16]
     overdue    = _sla_overdue(t)
-    overdue_tag = " ⚠️ OVERDUE" if overdue else ""
+    overdue_tag = " [OVERDUE]" if overdue else ""
     assignees  = t.get("assignees") or []
     assignee_str = ", ".join(assignees) if assignees else "—"
 
@@ -274,7 +274,7 @@ def _render_ticket_card(
 
         meta_cols = st.columns(4)
         meta_cols[0].markdown(f"**Category:** `{t.get('category','?')}`")
-        meta_cols[1].markdown(f"**Priority:** {PRIORITY_ICONS.get(prio,'')} {PRIORITY_LABELS.get(prio,'?')}")
+        meta_cols[1].markdown(f"**Priority:** {PRIORITY_LABELS.get(prio,'?')}")
         meta_cols[2].markdown(f"**SLA:** `{sla_tier or '—'}`")
         meta_cols[3].markdown(f"**Due:** `{sla_due or '—'}`")
 
@@ -287,7 +287,7 @@ def _render_ticket_card(
 
         # ── Self-assign button (staff on open/unassigned tickets) ──
         if show_assign_me:
-            if st.button("📌 Assign to Me", key=f"assignme_{tid}", use_container_width=True):
+            if st.button("Assign to Me", key=f"assignme_{tid}", use_container_width=True):
                 r = _req.post(
                     f"{_api_base()}/tickets/{tid}/assign-me",
                     headers=_headers(), timeout=5,
@@ -320,7 +320,7 @@ def _render_ticket_card(
                         st.rerun()
 
         # ── Comment thread — lazy load to avoid N+1 HTTP calls per card ──
-        if st.button("💬 Comments", key=f"comments_toggle_{tid}"):
+        if st.button("Comments", key=f"comments_toggle_{tid}"):
             key = f"_show_comments_{tid}"
             st.session_state[key] = not st.session_state.get(key, False)
         if st.session_state.get(f"_show_comments_{tid}", False):
@@ -336,7 +336,7 @@ def _render_staff_controls(ticket_id: str, t: dict, api_post):
 
     # Self-assign if not yet assigned to this user
     if username not in assignees and status != "closed":
-        if st.button("📌 Assign to Me", key=f"sf_assignme_{ticket_id}"):
+        if st.button("Assign to Me", key=f"sf_assignme_{ticket_id}"):
             r = _req.post(
                 f"{_api_base()}/tickets/{ticket_id}/assign-me",
                 headers=_headers(), timeout=5,
@@ -373,7 +373,7 @@ def _render_staff_controls(ticket_id: str, t: dict, api_post):
                 else:
                     st.error("Update failed.")
     elif status == "closed":
-        st.caption("⚫ Ticket closed.")
+        st.caption("Ticket closed.")
 
 
 # ── Admin controls ─────────────────────────────────────────────────────────────
@@ -404,7 +404,7 @@ def _render_admin_controls(ticket_id: str, t: dict, api_post, staff_names: list)
     add_options = [u for u in staff_names if u not in assignees]
     if add_options:
         sel = st.multiselect("Add assignees", add_options, key=f"adm_add_assign_{ticket_id}")
-        if sel and st.button("➕ Add Selected", key=f"adm_do_add_{ticket_id}"):
+        if sel and st.button("Add Selected", key=f"adm_do_add_{ticket_id}"):
             r = _req.post(
                 f"{_api_base()}/tickets/{ticket_id}/assignees",
                 json={"usernames": sel},
@@ -448,7 +448,7 @@ def _render_admin_controls(ticket_id: str, t: dict, api_post, staff_names: list)
             st.caption(f"Due in {SLA_HOURS[new_sla]}h from now")
 
         prio_options = [1, 2, 3, 4]
-        prio_labels  = [f"{PRIORITY_ICONS[p]} {PRIORITY_LABELS[p]}" for p in prio_options]
+        prio_labels  = [PRIORITY_LABELS[p] for p in prio_options]
         current_prio_idx = prio_options.index(t.get("priority", 3))
         new_prio_label   = st.selectbox("Priority", prio_labels, index=current_prio_idx, key=f"adm_prio_{ticket_id}")
         new_prio         = prio_options[prio_labels.index(new_prio_label)]
@@ -476,7 +476,7 @@ def _render_admin_controls(ticket_id: str, t: dict, api_post, staff_names: list)
 
     role = st.session_state.get("user_role")
     if role == "admin":
-        if st.button("🗑 Delete Ticket", key=f"adm_del_{ticket_id}"):
+        if st.button("Delete Ticket", key=f"adm_del_{ticket_id}"):
             st.session_state[f"confirm_del_tk_{ticket_id}"] = True
         if st.session_state.get(f"confirm_del_tk_{ticket_id}"):
             st.warning("Permanently delete this ticket and all comments?")
