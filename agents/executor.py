@@ -635,7 +635,21 @@ def _run_with_tools(
             # Unknown stop reason — return what we have
             return response, loop_messages
 
-    # Max loops reached — return last response
+    # Max loops reached — if last response was tool_use (no text), force a final
+    # text-only call so output_text is never empty and the run can be saved.
+    if getattr(response, "stop_reason", None) == "tool_use":
+        try:
+            final_response = client.messages.create(
+                model=model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                system=system,
+                messages=loop_messages,
+                timeout=90.0,
+            )
+            return final_response, loop_messages
+        except Exception:
+            pass
     return response, loop_messages
 
 
