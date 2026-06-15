@@ -110,7 +110,7 @@ def execute(
                 if tool_defs:
                     response, api_messages = _run_with_tools(
                         client, model, max_tokens, temperature, system, api_messages, tool_defs,
-                        namespace=namespace, max_loops=10,
+                        namespace=namespace, max_loops=5,
                     )
                 else:
                     response = client.messages.create(
@@ -271,7 +271,7 @@ def execute_stream(
                 r, msgs = _run_with_tools(
                     c, model, max_tokens, temperature, system,
                     list(api_messages), tool_defs,
-                    namespace=namespace, max_loops=10,
+                    namespace=namespace, max_loops=5,
                 )
                 _done_q.put(("ok", r, msgs))
             except Exception as exc:
@@ -599,7 +599,7 @@ def _run_with_tools(
             system=system,
             messages=loop_messages,
             tools=tool_defs,
-            timeout=60.0,
+            timeout=90.0,
         )
 
         if response.stop_reason == "end_turn":
