@@ -129,7 +129,8 @@
       "Bash(ls C:\\\\Users\\\\rigwe\\\\Desktop\\\\ClaudeOS\\\\scripts\\\\gen_*.py)",
       "Bash(ffmpeg -version)",
       "Bash(pip uninstall:*)",
-      "Bash(claude update:*)"
+      "Bash(claude update:*)",
+      "PowerShell(Start-Process \"http://localhost:8501\")"
     ]
   }
 }

@@ -2566,7 +2566,7 @@ def system_health_bar(api_base: str, token: str) -> None:
   }}
 
   fetchStats();
-  var _iv = setInterval(fetchStats, 10000);
+  var _iv = setInterval(fetchStats, 30000);
 
   // clean up interval when iframe is destroyed
   window.addEventListener('beforeunload', function() {{ clearInterval(_iv); }});

@@ -7,6 +7,7 @@ from core.config import get_settings
 from core.database import get_db
 from core.utils import utcnow_str
 from core.auth import require_auth, effective_namespace
+from core.api.limiter import limiter
 
 system_bp = Blueprint("system", __name__, url_prefix="/api/v1")
 
@@ -251,6 +252,7 @@ def namespace_stats():
 
 @system_bp.get("/system/hardware")
 @require_auth
+@limiter.limit("1000/hour")
 def hardware():
     """Real-time host metrics for the admin system health bar.
     Admin/operator only — returns CPU%, RAM, disk, and uptime.
