@@ -47,8 +47,8 @@ TOOL_DEFINITIONS = [
                 },
                 "num_results": {
                     "type": "integer",
-                    "description": "Results to return (1–10). Default 6.",
-                    "default": 6,
+                    "description": "Results to return (1–10). Default 3.",
+                    "default": 3,
                 },
             },
             "required": ["query"],
@@ -70,8 +70,8 @@ TOOL_DEFINITIONS = [
                 },
                 "max_articles": {
                     "type": "integer",
-                    "description": "Max articles to return (1–10). Default 6.",
-                    "default": 6,
+                    "description": "Max articles to return (1–10). Default 3.",
+                    "default": 3,
                 },
             },
             "required": ["topic"],
@@ -346,7 +346,7 @@ def _ddg_search(query: str, num_results: int = 6) -> list[dict]:
     try:
         from ddgs import DDGS
         results = []
-        with DDGS() as ddgs:
+        with DDGS(timeout=5) as ddgs:
             for r in ddgs.text(query, max_results=num_results):
                 results.append({
                     "title": r.get("title", ""),
@@ -366,7 +366,7 @@ def _ddg_news(topic: str, max_articles: int = 6) -> list[dict]:
     try:
         from ddgs import DDGS
         results = []
-        with DDGS() as ddgs:
+        with DDGS(timeout=5) as ddgs:
             for r in ddgs.news(topic, max_results=max_articles):
                 results.append({
                     "title": r.get("title", ""),
