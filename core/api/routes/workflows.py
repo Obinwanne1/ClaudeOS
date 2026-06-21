@@ -115,6 +115,7 @@ def get_run(run_id: str):
 def delete_run(run_id: str):
     from core.database import get_db
     with get_db() as conn:
+        conn.execute("UPDATE outputs SET workflow_run_id=NULL WHERE workflow_run_id=?", (run_id,))
         result = conn.execute("DELETE FROM workflow_runs WHERE id=?", (run_id,))
     if result.rowcount == 0:
         return jsonify({"error": "Run not found"}), 404
@@ -134,6 +135,7 @@ def bulk_delete_runs():
     from core.database import get_db
     placeholders = ",".join("?" * len(ids))
     with get_db() as conn:
+        conn.execute(f"UPDATE outputs SET workflow_run_id=NULL WHERE workflow_run_id IN ({placeholders})", ids)
         conn.execute(f"DELETE FROM workflow_runs WHERE id IN ({placeholders})", ids)
     return jsonify({"deleted": len(ids)})
 

@@ -42,12 +42,11 @@ def _sanitize_error(msg: str) -> str:
 _client_lock = threading.Lock()
 
 # Background pool for fire-and-forget IO: activity log, event log, failure log, eval trigger.
-# 4 workers prevents starvation under concurrent streaming (C1 fix).
 _bg_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="exec-bg")
 
-# Dedicated pool for context building — isolated from eval so a busy eval
-# queue never causes _build_memory_context to time out and fall back.
-_ctx_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="exec-ctx")
+# Dedicated pool for context building — 4 workers so concurrent agent calls
+# never queue behind each other and hit the timeout before work even starts.
+_ctx_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="exec-ctx")
 
 
 def _get_client():
@@ -279,14 +278,14 @@ def execute_stream(
 
         _threading.Thread(target=_run_tools_bg, daemon=True).start()
 
-        # Yield a keep-alive ping every 8 s so the HTTP connection never starves
+        # Yield a keep-alive ping every 2 s so the HTTP connection never starves
         elapsed = 0
         while True:
             try:
-                outcome = _done_q.get(timeout=8)
+                outcome = _done_q.get(timeout=2)
                 break
             except _queue.Empty:
-                elapsed += 8
+                elapsed += 2
                 yield f"*...still working ({elapsed}s)...*\n"
 
         if outcome[0] == "err":
@@ -412,15 +411,11 @@ def get_conversation_turns(conversation_id: str) -> list[dict]:
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 def _build_memory_context(namespace: str, query: str) -> str:
-    """Build tiered context with 4s timeout — falls back to flat FTS context if slow/unavailable.
-
-    Uses _ctx_pool (dedicated, isolated from eval jobs) so eval queue saturation
-    never causes a false timeout here.
-    """
+    """Build tiered context with 8s timeout — falls back to flat FTS context if slow/unavailable."""
     try:
         from memory.context_builder import build_context
         fut = _ctx_pool.submit(build_context, namespace, query, 1500)
-        return fut.result(timeout=4.0)
+        return fut.result(timeout=8.0)
     except Exception:
         return memory_engine.get_agent_context(namespace, min_confidence=0.8)
 

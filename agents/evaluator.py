@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import random
 from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger("claudeos.agents.evaluator")
@@ -64,8 +65,11 @@ def evaluate_async(
     prompt: str,
     output_text: str,
     context: str = "",
+    sample_rate: float = 0.5,
 ) -> None:
-    """Fire-and-forget evaluation. Results written to agent_runs when complete."""
+    """Fire-and-forget evaluation. Samples at sample_rate to reduce API load."""
+    if random.random() > sample_rate:
+        return
     _eval_pool.submit(_do_evaluate, run_id, prompt, output_text, context)
 
 

@@ -67,7 +67,8 @@ def build_context(
             char_budget -= len(recent)
 
     # Tier 3: query-relevant memories (hybrid retrieval) — skip keys already in Tier 1
-    if char_budget > 300 and query.strip():
+    # Skip if query too short to yield meaningful semantic results (greetings, "yes", etc.)
+    if char_budget > 300 and len(query.strip()) >= 8:
         relevant = _get_relevant_memories(namespace, query, budget_chars=char_budget, exclude_keys=seen_keys)
         if relevant:
             parts.append(relevant)

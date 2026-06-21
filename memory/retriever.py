@@ -27,9 +27,9 @@ _RRF_K = 60  # standard RRF constant — balances precision vs. recall
 # Rebuilt on first query per namespace, then reused until TTL expires.
 _bm25_cache: dict[str, tuple] = {}
 _bm25_cache_lock = threading.Lock()
-_BM25_CACHE_TTL = 120  # seconds — refresh corpus if memory was written recently
+_BM25_CACHE_TTL = 300  # seconds — 5 min, matches namespace summary cache TTL
 
-_RETRIEVER_POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="retriever")
+_RETRIEVER_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="retriever")
 
 
 def invalidate_bm25_cache(namespace: str) -> None:
@@ -54,13 +54,13 @@ def hybrid_search(
     vec_fut  = _RETRIEVER_POOL.submit(_vector_search, query, namespace, top_k * 2, min_confidence)
 
     try:
-        bm25_results = bm25_fut.result(timeout=2.5)
+        bm25_results = bm25_fut.result(timeout=4.0)
     except (FutureTimeout, Exception) as e:
         logger.warning("BM25 timed out or failed: %s", e)
         bm25_results = []
 
     try:
-        vec_results = vec_fut.result(timeout=2.5)
+        vec_results = vec_fut.result(timeout=4.0)
     except (FutureTimeout, Exception) as e:
         logger.warning("Vector search timed out or failed: %s", e)
         vec_results = []
