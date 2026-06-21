@@ -205,11 +205,13 @@ def reset_password(user_id: str):
 
     new_hash = hash_password(new_pw)
     with get_db() as conn:
-        conn.execute("UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                     (new_hash, user_id))
+        conn.execute(
+            "UPDATE users SET password_hash = ?, must_change_password = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (new_hash, user_id),
+        )
 
     audit_log("password_reset", user_id=g.user_id, username=g.username, detail={"target": user_id})
-    return jsonify({"message": "Password reset"})
+    return jsonify({"message": "Password reset", "must_change_password": True})
 
 
 # ── Audit log ─────────────────────────────────────────────────────────────────
