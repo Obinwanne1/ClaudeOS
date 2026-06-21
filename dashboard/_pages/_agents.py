@@ -268,7 +268,7 @@ def _render_chat_tab(agents: list, api_get, api_post):
         # ── Conversation history ──────────────────────────────────────────────
         for turn in history:
             role = turn["role"]
-            with st.chat_message(role, avatar="🧑" if role == "user" else "◈"):
+            with st.chat_message(role, avatar="🧑" if role == "user" else "assistant"):
                 st.markdown(turn["content"])
                 if role == "assistant" and turn.get("meta"):
                     meta = turn["meta"]
@@ -379,7 +379,7 @@ def _render_chat_tab(agents: list, api_get, api_post):
             images.append({"data": _b64, "media_type": _mime_type(_imf.name)})
 
     with col_main:
-        with st.chat_message("assistant", avatar="◈"):
+        with st.chat_message("assistant", avatar="assistant"):
             response_text, meta = _stream_response(
                 sel_agent, prompt, sel_ns, api_messages, images, api_get,
                 api_post=api_post, save_out=save_out,
