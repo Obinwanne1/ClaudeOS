@@ -204,7 +204,11 @@ def list_runs(
 
 def _resolve_template(template: str, context: dict, step_outputs: dict) -> str:
     """Replace {key} placeholders from context and prior step outputs."""
-    merged = {**context}
+    from datetime import datetime
+    merged = {
+        "date": datetime.now().strftime("%A, %d %B %Y"),
+        **context,
+    }
     for step_id, text in step_outputs.items():
         merged[f"output_{step_id}"] = text
         merged["previous_output"] = text   # convenience: always the latest

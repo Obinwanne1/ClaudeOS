@@ -1,10 +1,37 @@
 """Workflows page — manage, trigger, and monitor workflow runs."""
+import time
 import streamlit as st
+import streamlit.components.v1 as _cv1
 from datetime import datetime
 
 
 def render(api_get, api_post, bulk_delete=None):
     st.title("Workflow Engine")
+
+    # Tab persistence across reruns and page refreshes (sessionStorage)
+    _cv1.html(f"""<script>
+(function(){{
+    var nonce={int(time.time()*1000)};
+    var KEY='claudeos_workflows_tab';
+    setTimeout(function(){{
+        var tabs=window.parent.document.querySelectorAll('[data-testid="stTab"]');
+        if(!tabs.length) return;
+        var stored=window.parent.sessionStorage.getItem(KEY);
+        var desired=stored!==null?parseInt(stored):0;
+        if(desired<tabs.length&&tabs[desired].getAttribute('aria-selected')!=='true'){{
+            tabs[desired].click();
+        }}
+        tabs.forEach(function(tab,idx){{
+            if(!tab._wfBound){{
+                tab._wfBound=true;
+                tab.addEventListener('click',function(){{
+                    window.parent.sessionStorage.setItem(KEY,idx);
+                }});
+            }}
+        }});
+    }},120);
+}})();
+</script>""", height=0)
 
     tab_list, tab_runs, tab_scheduler, tab_webhooks = st.tabs(["Workflows", "Run History", "Scheduler", "Webhooks"])
 
@@ -119,14 +146,24 @@ def _render_run_history(api_get, api_post=None, bulk_delete=None):
         if sel_key not in st.session_state:
             st.session_state[sel_key] = set()
 
+        all_ids = [r["id"] for r in runs_data if r.get("id")]
+
+        def _sync_checkboxes(selected_ids: set):
+            """Sync individual chk_* keys so st.checkbox value= param takes effect."""
+            for rid in all_ids:
+                st.session_state[f"chk_{rid}"] = rid in selected_ids
+
         bcol1, bcol2, bcol3 = st.columns([2, 2, 4])
         with bcol1:
             if st.button("Select failed", use_container_width=True):
-                st.session_state[sel_key] = {r["id"] for r in runs_data if r.get("status") == "failed" and r.get("id")}
+                new_sel = {r["id"] for r in runs_data if r.get("status") == "failed" and r.get("id")}
+                st.session_state[sel_key] = new_sel
+                _sync_checkboxes(new_sel)
                 st.rerun()
         with bcol2:
             if st.button("Clear selection", use_container_width=True):
                 st.session_state[sel_key] = set()
+                _sync_checkboxes(set())
                 st.rerun()
         with bcol3:
             n_sel = len(st.session_state[sel_key])
@@ -138,6 +175,7 @@ def _render_run_history(api_get, api_post=None, bulk_delete=None):
                     result = api_post("/workflows/runs", data={"ids": ids}, method="DELETE")
                 if result:
                     st.session_state[sel_key] = set()
+                    _sync_checkboxes(set())
                     st.success(f"Deleted {result.get('deleted', n_sel)} runs.")
                     st.rerun()
                 else:
@@ -157,11 +195,23 @@ def _render_run_history(api_get, api_post=None, bulk_delete=None):
         row_col, chk_col = st.columns([11, 1])
         with chk_col:
             if api_post and full_run_id:
-                checked = full_run_id in st.session_state.get("wf_runs_selected", set())
-                if st.checkbox("", value=checked, key=f"chk_{full_run_id}", label_visibility="collapsed"):
-                    st.session_state.setdefault("wf_runs_selected", set()).add(full_run_id)
-                else:
-                    st.session_state.setdefault("wf_runs_selected", set()).discard(full_run_id)
+                _rid = full_run_id  # capture for closure
+                _sk = sel_key
+
+                def _on_chk_change(rid=_rid, sk=_sk):
+                    if st.session_state.get(f"chk_{rid}"):
+                        st.session_state.setdefault(sk, set()).add(rid)
+                    else:
+                        st.session_state.setdefault(sk, set()).discard(rid)
+
+                checked = full_run_id in st.session_state.get(sel_key, set())
+                st.checkbox(
+                    "",
+                    value=checked,
+                    key=f"chk_{full_run_id}",
+                    label_visibility="collapsed",
+                    on_change=_on_chk_change,
+                )
 
         with row_col:
             with st.expander(f"{sicon} `{run_id_short}…` · workflow `{wf_id}…` · `{ns}` · {started} · {dur_str}"):

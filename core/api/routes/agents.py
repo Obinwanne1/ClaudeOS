@@ -235,7 +235,14 @@ def stream_agent(agent_name: str):
                     tokens_out = chunk["tokens_out"]
                     duration_ms = int((_time.monotonic() - start) * 1000)
                     text = "".join(full_text)
-                    output = {"text": text, "model": agent.model, "stop_reason": "end_turn"}
+                    import re as _re
+                    _clean_text = _re.sub(
+                        r'\*\.\.\.still working \(\d+s\)\.\.\.\*\n?'
+                        r'|\n*\*Gathering data[^\n*]*\*\n*'
+                        r'|\n*\*Synthesising\.\.\.\*\n*',
+                        '', text
+                    ).strip()
+                    output = {"text": _clean_text, "model": agent.model, "stop_reason": "end_turn"}
                     with get_db() as conn:
                         conn.execute(
                             """UPDATE agent_runs SET output=?, status='done', tokens_in=?,
@@ -243,8 +250,8 @@ def stream_agent(agent_name: str):
                             (json.dumps(output), tokens_in, tokens_out,
                              duration_ms, utcnow_str(), run_id),
                         )
-                    _bg_pool.submit(_trigger_eval, run_id, prompt, text, "")
-                    if save_output and text.strip():
+                    _bg_pool.submit(_trigger_eval, run_id, prompt, _clean_text, "")
+                    if save_output and _clean_text.strip():
                         from agents.executor import _save_output as _do_save
                         from datetime import datetime, timezone
                         import threading as _threading
@@ -253,7 +260,7 @@ def stream_agent(agent_name: str):
                             args=(
                                 namespace, run_id, None,
                                 f"{agent.name} — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}",
-                                text, agent.name,
+                                _clean_text, agent.name,
                             ),
                             daemon=True,
                         ).start()
