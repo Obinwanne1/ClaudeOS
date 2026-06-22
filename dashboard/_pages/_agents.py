@@ -232,6 +232,10 @@ def _render_chat_tab(agents: list, api_get, api_post):
 </style>""", unsafe_allow_html=True)
 
     agent_names = [a["name"] for a in agents if a.get("enabled")]
+    _agent_descs = {
+        a["name"]: f"[{a.get('category','').upper()}] {a.get('description','')[:60]}"
+        for a in agents if a.get("enabled")
+    }
 
     # Resolve agent from pending catalog click or session state
     _pending = st.session_state.pop("_pending_agent", None)
@@ -257,7 +261,13 @@ def _render_chat_tab(agents: list, api_get, api_post):
 
     conv_key = f"conv_{sel_agent}_{sel_ns}"
     if conv_key not in st.session_state:
-        st.session_state[conv_key] = []
+        # Seed from DB — restores history after page refresh
+        _hist = api_get(f"/agents/{sel_agent}/conversations/turns?namespace={sel_ns}&limit=40") or {}
+        _db_turns = _hist.get("turns", [])
+        _seeded: list[dict] = []
+        for _t in _db_turns:
+            _seeded.append({"role": _t["role"], "content": _t["content"], "meta": {}})
+        st.session_state[conv_key] = _seeded
     history: list[dict] = st.session_state[conv_key]
 
     # ── Centered layout ───────────────────────────────────────────────────────
@@ -330,7 +340,10 @@ def _render_chat_tab(agents: list, api_get, api_post):
 
         c1, c2, c3 = st.columns([3, 3, 1])
         with c1:
-            st.selectbox("Agent", agent_names, key="chat_agent")
+            st.selectbox(
+                "Agent", agent_names, key="chat_agent",
+                format_func=lambda n: _agent_descs.get(n, n),
+            )
         with c2:
             st.selectbox("Namespace", _ns_opts, key="chat_ns")
         with c3:
@@ -457,6 +470,8 @@ def _stream_response(
                     meta["tokens_in"] = payload.get("tokens_in", 0)
                     meta["tokens_out"] = payload.get("tokens_out", 0)
                     break
+                elif payload.get("type") == "context_degraded":
+                    meta["ctx_degraded"] = True
                 elif payload.get("type") == "error":
                     err = payload.get("message", "Stream error")
                     st.session_state["_stream_error"] = err

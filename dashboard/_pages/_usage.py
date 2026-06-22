@@ -143,21 +143,72 @@ def render(api_get, api_post, bulk_delete=None):
         wf_ok    = data.get("workflow_ok", 0)
 
         _dims = [
-            ("Quality Score",  f"{eval_avg:.1f}/5",           "40%"),
-            ("Ticket Resolve", f"{t_closed}/{t_total}",        "30%"),
-            ("Memory Fresh",   f"{m_fresh}/{m_total} entries", "20%"),
-            ("Workflow OK",    f"{wf_ok}/{wf_total} runs",     "10%"),
+            ("Quality Score",  f"{eval_avg:.1f}/5",           "40%",
+             "Average eval rating of agent responses (scored 0–5 by AI judge)"),
+            ("Ticket Resolve", f"{t_closed}/{t_total}",        "30%",
+             "Closed tickets ÷ total tickets. Raise by resolving open tickets."),
+            ("Memory Fresh",   f"{m_fresh}/{m_total} entries", "20%",
+             "Memory entries updated in the last 7 days. Add facts to raise this."),
+            ("Workflow OK",    f"{wf_ok}/{wf_total} runs",     "10%",
+             "Successful workflow runs this week. Fix failing workflows to improve."),
         ]
-        for dim, val, weight in _dims:
+        for dim, val, weight, tip in _dims:
             st.markdown(
                 f'<div style="display:flex;justify-content:space-between;'
-                f'align-items:center;padding:3px 0;font-size:0.78rem;">'
-                f'<span style="color:{_text_muted};">{dim}</span>'
+                f'align-items:center;padding:3px 0;font-size:0.78rem;" title="{tip}">'
+                f'<span style="color:{_text_muted};">{dim} ℹ</span>'
                 f'<span style="color:{_text};font-weight:600;">{val}</span>'
                 f'<span style="color:{_text_muted};font-size:0.68rem;">{weight}</span>'
                 f'</div>',
                 unsafe_allow_html=True,
             )
+
+        with st.expander("How is Pulse Score calculated?", expanded=False):
+            st.markdown(
+                f"""**Pulse Score** is a composite 0–100 health number for your workspace:
+
+| Dimension | Weight | How to improve |
+|-----------|--------|----------------|
+| Quality Score | 40% | Use agents for complex tasks; provide clear, detailed prompts |
+| Ticket Resolution | 30% | Resolve or close open tickets |
+| Memory Freshness | 20% | Add or update facts in **Memory** page |
+| Workflow Health | 10% | Check **Workflows** for failing pipelines |
+
+A score ≥ 75 is **Excellent**. Below 50 means attention needed in one or more areas."""
+            )
+
+        # ── Actionable alerts when score is low ──────────────────────────────
+        if not _no_data and pulse < 60:
+            # Each entry: (label, description, nav_page_key)
+            _actions = []
+            if eval_avg < 3.5:
+                _actions.append(("Low agent quality", "Provide more context in your prompts.", "Agents"))
+            if t_total > 0 and t_closed < t_total:
+                _unresolved = t_total - t_closed
+                _actions.append((f"{_unresolved} open ticket{'s' if _unresolved != 1 else ''}", "Resolve or close open tickets.", "Tickets"))
+            if m_total == 0 or (m_total > 0 and m_fresh == 0):
+                _actions.append(("Stale memory", "Add business facts so agents have context.", "Memory"))
+            if wf_total > 0 and wf_ok < wf_total:
+                _actions.append(("Workflow failures", "Check pipeline errors and fix failing steps.", "Workflows"))
+
+            if _actions:
+                st.markdown(
+                    f'<div style="background:#ef444418;border:1px solid #ef444444;'
+                    f'border-radius:8px;padding:10px 14px;margin-top:10px;">'
+                    f'<div style="font-size:0.78rem;font-weight:700;color:#ef4444;margin-bottom:6px;">'
+                    f'Action needed to raise Pulse Score</div></div>',
+                    unsafe_allow_html=True,
+                )
+                for _lbl, _desc, _page in _actions:
+                    _ac1, _ac2 = st.columns([4, 1])
+                    _ac1.markdown(
+                        f'<div style="font-size:0.75rem;color:{_text};padding:2px 0;">'
+                        f'· <b>{_lbl}</b>: {_desc}</div>',
+                        unsafe_allow_html=True,
+                    )
+                    if _ac2.button(f"Go →", key=f"_action_{_page}", use_container_width=True):
+                        st.session_state["nav_page"] = _page
+                        st.rerun()
 
     # ── Recent Activity Feed ──────────────────────────────────────────────────
     with col_feed:
