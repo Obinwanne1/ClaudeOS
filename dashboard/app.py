@@ -169,6 +169,10 @@ def api_get(path: str, timeout: int = 3) -> dict | None:
         r = requests.get(f"{API_BASE}{path}", headers=_get_headers(), timeout=timeout)
         if r.status_code == 401:
             _handle_401()
+        if r.status_code == 429:
+            logger.warning("api_get %s rate limited (429)", path)
+            st.toast("Too many requests — please wait a moment.", icon="⚠️")
+            return None
         if r.ok:
             return r.json()
     except Exception as e:
@@ -187,6 +191,8 @@ _READ_ONLY_PREFIXES = (
     "/outputs/stats",
     "/namespaces",
     "/tickets",
+    "/sync/status",
+    "/sync/log",
 )
 # NOTE: /agents/runs intentionally excluded — user-scoped, must never be cached cross-user
 
@@ -428,6 +434,12 @@ if st.sidebar.button("Logout", use_container_width=True):
     st.rerun()
 
 st.sidebar.markdown("---")
+
+# Onboarding replay — client/viewer only
+if role in ("client", "viewer"):
+    if st.sidebar.button("Show Setup Tour", use_container_width=True, key="sidebar_show_tour"):
+        st.session_state["show_onboarding"] = True
+        st.rerun()
 
 # Background color picker — all logged-in users
 with st.sidebar.expander("Background color", expanded=False):

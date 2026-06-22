@@ -19,7 +19,7 @@ def render(api_get, api_post, bulk_delete=None):
 
     status = api_get("/sync/status", timeout=5)
     if status is None:
-        st.error("API offline — cannot fetch sync status.")
+        st.error("Could not fetch sync status — API may be rate-limited or temporarily unavailable. Refresh to retry.")
         return
 
     configured = status.get("configured", False)
@@ -167,6 +167,13 @@ def _render_sync_log(log: list, api_post):
     display_df = df.drop(columns=["id"]).copy()
     display_df.insert(0, "Select", False)
 
+    # Select All flag must be applied BEFORE data_editor instantiates — cannot set
+    # st.session_state["sync_log_editor"] after the widget renders (Streamlit raises).
+    if st.session_state.pop("_synclog_select_all_pending", False):
+        display_df["Select"] = True
+        st.session_state["_synclog_sel_ids"] = df["id"].tolist()
+        st.session_state.pop("sync_log_editor", None)  # clear stale widget state
+
     def _on_editor_change():
         """Fires when user checks/unchecks a box — stores selected IDs in stable state key.
         Guard: empty edited_rows = Streamlit widget state reset (not a user action).
@@ -217,13 +224,7 @@ def _render_sync_log(log: list, api_post):
 
     with a1:
         if st.button("Select All", key="synclog_sel_all", use_container_width=True):
-            all_ids = df["id"].tolist()
-            st.session_state["_synclog_sel_ids"] = all_ids
-            st.session_state["sync_log_editor"] = {
-                "edited_rows": {i: {"Select": True} for i in range(len(df))},
-                "added_rows": [],
-                "deleted_rows": [],
-            }
+            st.session_state["_synclog_select_all_pending"] = True
             st.rerun()
 
     with a2:
