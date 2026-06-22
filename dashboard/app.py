@@ -192,7 +192,6 @@ _READ_ONLY_PREFIXES = (
     "/namespaces",
     "/tickets",
     "/sync/status",
-    "/sync/log",
 )
 # NOTE: /agents/runs intentionally excluded — user-scoped, must never be cached cross-user
 

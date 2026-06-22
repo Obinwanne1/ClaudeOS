@@ -218,6 +218,11 @@ def _render_sync_log(log: list, api_post):
         selected_ids = df.loc[_curr_idx, "id"].tolist()
     n = len(selected_ids)
 
+    # ── Persistent feedback (survives rerun) ──────────────────
+    _del_msg = st.session_state.pop("_synclog_del_msg", None)
+    if _del_msg:
+        st.success(_del_msg)
+
     # ── Action bar ────────────────────────────────────────────
     st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
     a1, a2, _ = st.columns([2, 3, 5])
@@ -244,9 +249,10 @@ def _render_sync_log(log: list, api_post):
                     )
                     data = resp.json()
                     if resp.ok:
+                        deleted = data.get("deleted", n)
                         st.session_state.pop("sync_log_editor", None)
                         st.session_state.pop("_synclog_sel_ids", None)
-                        st.success(f"Deleted {data.get('deleted', n)} log entries.")
+                        st.session_state["_synclog_del_msg"] = f"Deleted {deleted} log {'entry' if deleted == 1 else 'entries'}."
                         st.rerun()
                     else:
                         st.error(data.get("error", "Delete failed"))
