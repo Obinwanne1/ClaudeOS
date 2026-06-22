@@ -110,8 +110,11 @@ def run(
                 log.status = "failed"
                 log.error = error
                 log.duration_ms = step_duration
-                # Flush buffered logs on failure
                 _sync_log(step_logs, log)
+                if getattr(step, "on_failure", "stop") == "continue":
+                    logger.warning("Workflow %s step %s failed (on_failure=continue): %s", workflow.name, step.step_id, error)
+                    step_outputs[step.step_id] = ""
+                    continue
                 _update_run(run_id, "failed", steps_log=step_logs, error=f"Step {step.step_id} failed: {error}")
                 logger.error("Workflow %s failed at step %s: %s", workflow.name, step.step_id, error)
                 return _result(run_id, "failed", step_logs, started)
@@ -121,8 +124,11 @@ def run(
             log.status = "failed"
             log.error = str(e)
             log.duration_ms = step_duration
-            # Flush buffered logs on exception
             _sync_log(step_logs, log)
+            if getattr(step, "on_failure", "stop") == "continue":
+                logger.warning("Workflow %s step %s exception (on_failure=continue): %s", workflow.name, step.step_id, e)
+                step_outputs[step.step_id] = ""
+                continue
             _update_run(run_id, "failed", steps_log=step_logs, error=str(e))
             logger.exception("Workflow %s step %s exception", workflow.name, step.step_id)
             return _result(run_id, "failed", step_logs, started)

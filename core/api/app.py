@@ -79,6 +79,16 @@ def create_app() -> Flask:
     # H1: Pre-load Whisper model in background so first /transcribe call doesn't block.
     _warmup_whisper()
 
+    # Warn on startup if email notifications are not configured
+    try:
+        from core.notifications import _is_configured as _smtp_ok
+        if not _smtp_ok():
+            logging.getLogger("claudeos.api").warning(
+                "Email notifications DISABLED — set SMTP_HOST/SMTP_USER/SMTP_PASSWORD in .env"
+            )
+    except Exception:
+        pass
+
     return app
 
 

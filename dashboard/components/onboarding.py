@@ -116,7 +116,12 @@ def maybe_show_onboarding(role: str) -> None:
     """Call after auth gate. If active, renders full-page slide and calls st.stop()."""
     if role not in ("client", "viewer"):
         return
-    if st.session_state.get("_onboarding_done"):
+    # Allow explicit replay via sidebar "Show Setup Tour" button
+    _force = st.session_state.pop("show_onboarding", False)
+    if _force:
+        # Reset slide counter so tour restarts from slide 0
+        st.session_state["_onboarding_slide"] = 0
+    elif st.session_state.get("_onboarding_done"):
         return
     _render_slide()
     st.stop()  # nothing else on the page renders until tour is done

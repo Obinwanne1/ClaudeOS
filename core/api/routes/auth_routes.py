@@ -10,10 +10,10 @@ from flask import Blueprint, jsonify, request
 
 from core.api.limiter import limiter
 from core.auth import (
-    audit_log, check_lockout, clear_failed_attempts, create_access_token,
-    create_refresh_token, create_user, effective_namespace, get_user_by_id,
-    get_user_by_username, hash_password, record_failed_attempt, require_auth,
-    require_role, revoke_sessions_by_token_hash, store_refresh_token,
+    audit_log, check_lockout, clear_failed_attempts, constant_time_dummy_check,
+    create_access_token, create_refresh_token, create_user, effective_namespace,
+    get_user_by_id, get_user_by_username, hash_password, record_failed_attempt,
+    require_auth, require_role, revoke_sessions_by_token_hash, store_refresh_token,
     validate_password_strength, validate_refresh_token, verify_password,
 )
 from core.database import get_db
@@ -44,8 +44,8 @@ def login():
 
     user = get_user_by_username(username)
     if not user:
-        # Constant-time response — prevent username enumeration
-        time.sleep(0.2)
+        # Constant-time response — run dummy bcrypt to match real-user timing
+        constant_time_dummy_check(password)
         audit_log("login_failure", username=username, ip=_ip(), ua=_ua(), detail={"reason": "not_found"})
         return jsonify({"error": "Invalid username or password"}), 401
 
@@ -119,7 +119,7 @@ def register():
             "SELECT id FROM users WHERE namespace = ? AND role = 'client'", (namespace,)
         ).fetchone()
     if existing:
-        return jsonify({"error": f"A client account already exists for namespace '{namespace}'"}), 409
+        return jsonify({"error": "Registration not available for this namespace"}), 409
 
     # Username uniqueness
     if get_user_by_username(username):

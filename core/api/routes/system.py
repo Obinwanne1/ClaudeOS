@@ -305,6 +305,47 @@ def hardware():
         return jsonify({"error": str(e)}), 500
 
 
+@system_bp.get("/system/queues")
+@require_auth
+def queue_depths():
+    """Return current thread pool queue depths and worker counts for operational visibility."""
+    from core.auth import require_role as _rr
+    from flask import g as _g
+    if getattr(_g, "user_role", "client") not in ("admin", "operator"):
+        return jsonify({"error": "Insufficient permissions"}), 403
+
+    def _pool_info(pool):
+        try:
+            return {"queued": pool._work_queue.qsize(), "max_workers": pool._max_workers}
+        except AttributeError:
+            return {"queued": -1, "max_workers": -1}
+
+    result = {}
+    try:
+        from agents.executor import _bg_pool, _ctx_pool
+        result["executor_bg"] = _pool_info(_bg_pool)
+        result["executor_ctx"] = _pool_info(_ctx_pool)
+    except Exception:
+        pass
+    try:
+        from agents.evaluator import _eval_pool
+        result["evaluator"] = _pool_info(_eval_pool)
+    except Exception:
+        pass
+    try:
+        from memory.retriever import _RETRIEVER_POOL
+        result["retriever"] = _pool_info(_RETRIEVER_POOL)
+    except Exception:
+        pass
+    try:
+        from workflows.scheduler import _pool as _wf_pool
+        result["workflow"] = _pool_info(_wf_pool)
+    except Exception:
+        pass
+
+    return jsonify(result)
+
+
 @system_bp.get("/system/events")
 @require_auth
 def events():

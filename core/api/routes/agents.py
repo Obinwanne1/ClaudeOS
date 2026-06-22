@@ -165,6 +165,11 @@ def _parse_stream_inputs():
             messages = None
         images = None
         save_output = request.args.get("save_output", "false").lower() == "true"
+    if not isinstance(context, dict):
+        context = {}
+    if len(json.dumps(context)) > 10_240:
+        from flask import abort
+        abort(422, description="context exceeds 10KB limit")
     return prompt, namespace, context, messages, images, save_output
 
 
@@ -215,6 +220,7 @@ def stream_agent(agent_name: str):
     def _generate():
         full_text = []
         start = _time.monotonic()
+        _run_completed = False
         try:
             from agents.executor import execute_stream
             for chunk in execute_stream(
@@ -250,6 +256,7 @@ def stream_agent(agent_name: str):
                             (json.dumps(output), tokens_in, tokens_out,
                              duration_ms, utcnow_str(), run_id),
                         )
+                    _run_completed = True
                     _bg_pool.submit(_trigger_eval, run_id, prompt, _clean_text, "")
                     if save_output and _clean_text.strip():
                         from agents.executor import _save_output as _do_save
@@ -265,6 +272,8 @@ def stream_agent(agent_name: str):
                             daemon=True,
                         ).start()
                     yield f"data: {json.dumps({'type': 'done', 'run_id': run_id, 'tokens_in': tokens_in, 'tokens_out': tokens_out})}\n\n".encode("utf-8")
+                elif isinstance(chunk, dict) and chunk.get("_context_degraded"):
+                    yield f"data: {json.dumps({'type': 'context_degraded'})}\n\n".encode("utf-8")
                 else:
                     full_text.append(chunk)
                     payload = json.dumps({"type": "token", "text": chunk})
@@ -278,7 +287,19 @@ def stream_agent(agent_name: str):
                     "UPDATE agent_runs SET status='failed', error=?, duration_ms=?, completed_at=? WHERE id=?",
                     (_safe_err, duration_ms, utcnow_str(), run_id),
                 )
+            _run_completed = True
             yield f"data: {json.dumps({'type': 'error', 'message': _safe_err})}\n\n".encode("utf-8")
+        finally:
+            # Guard: if generator exits without completing (client disconnect, unhandled raise),
+            # ensure the run is never left stuck in 'running' state.
+            if not _run_completed:
+                duration_ms = int((_time.monotonic() - start) * 1000)
+                with get_db() as conn:
+                    conn.execute(
+                        "UPDATE agent_runs SET status='failed', error='Stream ended unexpectedly', "
+                        "duration_ms=?, completed_at=? WHERE id=? AND status='running'",
+                        (duration_ms, utcnow_str(), run_id),
+                    )
 
     return Response(
         stream_with_context(_generate()),
@@ -373,3 +394,28 @@ def list_conversations(agent_name: str):
             (agent_name, namespace or "global", limit),
         ).fetchall()
     return jsonify({"conversations": [dict(r) for r in rows], "count": len(rows)})
+
+
+@agents_bp.get("/<agent_name>/conversations/turns")
+@require_auth
+def get_latest_conversation_turns(agent_name: str):
+    """Return turns from the most recent conversation for (agent, namespace).
+
+    Used by the dashboard to restore chat history after page refresh.
+    """
+    namespace = effective_namespace(request.args.get("namespace"))
+    limit = min(int(request.args.get("limit", 40)), 200)
+    from core.database import get_db
+    from agents.executor import get_conversation_turns
+    with get_db() as conn:
+        row = conn.execute(
+            """SELECT id FROM agent_conversations
+               WHERE agent_name=? AND namespace=?
+               ORDER BY updated_at DESC LIMIT 1""",
+            (agent_name, namespace or "global"),
+        ).fetchone()
+    if not row:
+        return jsonify({"turns": [], "conversation_id": None, "count": 0})
+    turns = get_conversation_turns(row["id"])
+    turns = turns[-limit:]
+    return jsonify({"turns": turns, "conversation_id": row["id"], "count": len(turns)})

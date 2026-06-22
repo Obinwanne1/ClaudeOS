@@ -292,7 +292,7 @@ def _register_cleanup_job(sched: BackgroundScheduler) -> None:
 
 
 def _run_cleanup_job() -> None:
-    """Delete records older than 90 days, then VACUUM to reclaim disk."""
+    """Delete records older than 90 days, then incrementally reclaim disk space."""
     try:
         from core.database import get_db
         with get_db() as conn:
@@ -309,10 +309,8 @@ def _run_cleanup_job() -> None:
                 "DB cleanup: agent_runs=%d auth_events=%d workflow_runs=%d deleted",
                 r1.rowcount, r2.rowcount, r3.rowcount,
             )
-        # VACUUM outside transaction — reclaims disk space
-        from core.database import get_db as _gdb
-        raw = _gdb()
-        raw.execute("VACUUM")
+            # Incremental vacuum — releases up to 200 pages without exclusive lock
+            conn.execute("PRAGMA incremental_vacuum(200)")
     except Exception as e:
         logger.error("DB cleanup job error: %s", e)
 
@@ -331,13 +329,19 @@ def _run_workflow_job(workflow_name: str, context: dict = None) -> Optional[str]
         return None
 
     run_id = pipeline.create_run_record(wf.id, "scheduler", context)
-    logger.info("Dispatching scheduled workflow %s (run=%s) to thread pool", workflow_name, run_id[:8])
+    from core.utils import new_id as _new_id
+    correlation_id = _new_id()
+    logger.info("Dispatching scheduled workflow %s (run=%s, cid=%s) to thread pool",
+                workflow_name, run_id[:8], correlation_id[:8])
 
     def _execute():
+        logger.info("Workflow thread start: run=%s wf=%s cid=%s", run_id[:8], workflow_name, correlation_id[:8])
         try:
             pipeline.run(wf, run_id, context, triggered_by="scheduler")
+            logger.info("Workflow thread done: run=%s wf=%s cid=%s", run_id[:8], workflow_name, correlation_id[:8])
         except Exception as e:
-            logger.exception("Scheduled workflow %s failed: %s", workflow_name, e)
+            logger.exception("Scheduled workflow %s run=%s cid=%s failed: %s",
+                             workflow_name, run_id[:8], correlation_id[:8], e)
 
     _pool.submit(_execute)
     return run_id

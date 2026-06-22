@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import json
+import logging
 from flask import Blueprint, jsonify, request, g
+
+logger = logging.getLogger("claudeos.admin")
 
 from core.auth import (
     audit_log, clear_failed_attempts, create_access_token, create_user,
@@ -67,7 +70,8 @@ def create_user_admin():
             return jsonify({"error": "Email already registered"}), 409
         if "UNIQUE constraint failed: users.username" in msg:
             return jsonify({"error": "Username already taken"}), 409
-        return jsonify({"error": msg}), 409
+        logger.exception("User creation failed unexpectedly")
+        return jsonify({"error": "Failed to create user"}), 500
 
     audit_log("user_created", user_id=g.user_id, username=g.username, detail={"created_user": username, "role": role})
     return jsonify(_user_dict_full(user)), 201

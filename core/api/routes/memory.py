@@ -128,7 +128,7 @@ def bulk_delete_memory():
             continue
         ns = fetched[eid]
         allowed_ns = effective_namespace(ns)
-        if allowed_ns and ns != allowed_ns:
+        if allowed_ns is None or ns != allowed_ns:
             failed.append(eid)
             continue
         valid_ids.append(eid)

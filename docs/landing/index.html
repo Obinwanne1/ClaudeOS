@@ -223,12 +223,57 @@
     }
     .btn-ghost:hover { background: var(--green); color: var(--white); }
 
+    /* ── WHITE-LABEL DEMO ── */
+    .wl-demo { background: var(--white); padding: 60px 5% 70px; }
+    .wl-demo .section-label { text-align: center; }
+    .wl-demo h2.section-title { text-align: center; margin-bottom: 12px; }
+    .wl-intro { text-align: center; color: var(--muted); max-width: 580px; margin: 0 auto 44px; font-size: 0.95rem; }
+    .wl-pair { display: flex; gap: 32px; justify-content: center; align-items: flex-start; flex-wrap: wrap; }
+    .wl-frame { flex: 1; min-width: 260px; max-width: 360px; }
+    .wl-label { text-align: center; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 12px; }
+    .wl-label span { display: inline-block; background: var(--green-pale); color: var(--green-dark); border-radius: 4px; padding: 2px 10px; }
+    .wl-window {
+      border-radius: 10px; overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.14);
+      border: 1px solid var(--border);
+      font-family: 'Segoe UI', Arial, sans-serif;
+    }
+    .wl-titlebar { height: 28px; display: flex; align-items: center; padding: 0 10px; gap: 6px; }
+    .wl-dot { width: 9px; height: 9px; border-radius: 50%; }
+    .wl-body { display: flex; height: 200px; }
+    .wl-sidebar { width: 36%; padding: 14px 10px; display: flex; flex-direction: column; gap: 8px; }
+    .wl-sidebar-logo { font-size: 0.78rem; font-weight: 800; letter-spacing: 1px; margin-bottom: 6px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.15); }
+    .wl-nav-item { font-size: 0.7rem; padding: 5px 8px; border-radius: 5px; color: rgba(255,255,255,0.7); }
+    .wl-nav-item.active { color: #fff; font-weight: 600; }
+    .wl-main { flex: 1; background: #f8f8f8; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+    .wl-main-title { font-size: 0.78rem; font-weight: 700; color: #1a1a1a; }
+    .wl-bar { height: 7px; border-radius: 4px; margin: 2px 0; }
+    .wl-arrow { display: flex; align-items: center; justify-content: center; font-size: 2rem; color: var(--border); flex: 0; padding: 0 8px; align-self: center; }
+
+    /* ── AGENT TEAM ── */
+    .agent-team { background: var(--surface); }
+    .agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-top: 44px; max-width: 1200px; margin-left: auto; margin-right: auto; }
+    .agent-card {
+      background: var(--white); border: 1px solid var(--border);
+      border-radius: 8px; padding: 18px 18px 14px;
+    }
+    .agent-badge {
+      display: inline-block; font-size: 0.65rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 1px;
+      padding: 2px 8px; border-radius: 10px; margin-bottom: 8px;
+    }
+    .agent-card h4 { font-size: 0.93rem; font-weight: 700; color: var(--green-dark); margin-bottom: 6px; }
+    .agent-card p { font-size: 0.82rem; color: var(--muted); line-height: 1.45; }
+
     /* ── FAQ ── */
-    .faq { background: var(--surface); }
+    .faq { background: var(--white); }
     .faq-grid { max-width: 800px; margin: 50px auto 0; }
     .faq-item { border-bottom: 1px solid var(--border); padding: 22px 0; }
     .faq-item h3 { font-size: 1rem; font-weight: 700; color: var(--green-mid); margin-bottom: 8px; }
     .faq-item p { font-size: 0.9rem; color: var(--muted); line-height: 1.6; }
+    .faq-item ul { list-style: none; margin-top: 6px; }
+    .faq-item ul li { font-size: 0.88rem; color: var(--muted); padding: 3px 0; }
+    .faq-item ul li::before { content: '· '; font-weight: 700; color: var(--green); }
 
     /* ── CTA BAND ── */
     .cta-band {
@@ -378,6 +423,151 @@
       <h3>MCP &amp; API Integration</h3>
       <p>REST API with 40+ endpoints, SSE streaming, webhook triggers, MCP Tool Server for Claude Desktop, and A2A Agent Cards.</p>
     </div>
+    <div class="feature-card">
+      <div class="feature-icon">📈</div>
+      <h3>Namespace Pulse Score</h3>
+      <p>One composite 0–100 health number per client workspace — weighted across quality (40%), ticket resolution (30%), memory freshness (20%), and workflow health (10%).</p>
+    </div>
+  </div>
+</section>
+
+<!-- WHITE-LABEL DEMO -->
+<section class="wl-demo">
+  <div class="center">
+    <p class="section-label">White-Labeling</p>
+    <h2 class="section-title">Your Brand, Not Ours</h2>
+    <p class="wl-intro">Each client namespace gets a fully branded dashboard — custom company name, icon, primary colour, and accent. Clients see their brand on every page.</p>
+  </div>
+  <div class="wl-pair">
+    <!-- Default -->
+    <div class="wl-frame">
+      <div class="wl-label"><span>Default — Your Installation</span></div>
+      <div class="wl-window">
+        <div class="wl-titlebar" style="background:#1a1a2e;">
+          <div class="wl-dot" style="background:#ff5f57;"></div>
+          <div class="wl-dot" style="background:#febc2e;"></div>
+          <div class="wl-dot" style="background:#28c840;"></div>
+        </div>
+        <div class="wl-body">
+          <div class="wl-sidebar" style="background:#1a3a18;">
+            <div class="wl-sidebar-logo" style="color:#fff;">&#9670; ClaudeOS</div>
+            <div class="wl-nav-item active" style="background:rgba(255,255,255,0.12);">Agents</div>
+            <div class="wl-nav-item">Memory</div>
+            <div class="wl-nav-item">Tickets</div>
+            <div class="wl-nav-item">Usage</div>
+          </div>
+          <div class="wl-main">
+            <div class="wl-main-title">Agents</div>
+            <div class="wl-bar" style="background:#407E3C;width:70%;"></div>
+            <div class="wl-bar" style="background:#e0e0e0;width:90%;"></div>
+            <div class="wl-bar" style="background:#e0e0e0;width:55%;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wl-arrow">&#8594;</div>
+
+    <!-- Branded -->
+    <div class="wl-frame">
+      <div class="wl-label"><span>Client View — Their Brand</span></div>
+      <div class="wl-window">
+        <div class="wl-titlebar" style="background:#1a1a2e;">
+          <div class="wl-dot" style="background:#ff5f57;"></div>
+          <div class="wl-dot" style="background:#febc2e;"></div>
+          <div class="wl-dot" style="background:#28c840;"></div>
+        </div>
+        <div class="wl-body">
+          <div class="wl-sidebar" style="background:#7c2d12;">
+            <div class="wl-sidebar-logo" style="color:#fff;">&#10084; IvoryCandy</div>
+            <div class="wl-nav-item active" style="background:rgba(255,255,255,0.15);">Agents</div>
+            <div class="wl-nav-item">Memory</div>
+            <div class="wl-nav-item">Tickets</div>
+            <div class="wl-nav-item">Usage</div>
+          </div>
+          <div class="wl-main">
+            <div class="wl-main-title">Agents</div>
+            <div class="wl-bar" style="background:#c2410c;width:70%;"></div>
+            <div class="wl-bar" style="background:#e0e0e0;width:90%;"></div>
+            <div class="wl-bar" style="background:#e0e0e0;width:55%;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p style="text-align:center;color:var(--muted);font-size:0.82rem;margin-top:28px;">
+    Configured from the Admin panel → Branding tab. No code changes required.
+  </p>
+</section>
+
+<!-- AGENT TEAM -->
+<section class="agent-team" id="agents">
+  <div class="center">
+    <p class="section-label">Your AI Team</p>
+    <h2 class="section-title">12 specialist agents, ready on day one</h2>
+    <p class="section-intro" style="margin:0 auto;">Every agent has a specific purpose, anti-hallucination rules, and is pre-configured with your namespace context.</p>
+  </div>
+  <div class="agent-grid">
+    <div class="agent-card">
+      <span class="agent-badge" style="background:#3b82f622;color:#3b82f6;">Research</span>
+      <h4>Research Agent</h4>
+      <p>Deep research with parallel web search, Wikipedia, and source verification. Labels findings as CONFIRMED / INFERRED / UNVERIFIED.</p>
+    </div>
+    <div class="agent-card">
+      <span class="agent-badge" style="background:#f59e0b22;color:#f59e0b;">Analysis</span>
+      <h4>Analysis Agent</h4>
+      <p>Cross-agent output analysis with external fact-checking and anomaly detection. Assigns confidence scores to every claim.</p>
+    </div>
+    <div class="agent-card">
+      <span class="agent-badge" style="background:#8b5cf622;color:#8b5cf6;">Content</span>
+      <h4>Writing Agent</h4>
+      <p>Drafts reports, proposals, and documents using your stored outputs and memory. Never invents facts — requests context when missing.</p>
+    </div>
+    <div class="agent-card">
+      <span class="agent-badge" style="background:#ec489922;color:#ec4899;">Comms</span>
+      <h4>Comms Agent</h4>
+      <p>Client-facing emails, WhatsApp messages, and proposals. Matches your tone register and uses live memory context before drafting.</p>
+    </div>
+    <div class="agent-card">
+      <span class="agent-badge" style="background:#407E3C22;color:#407E3C;">Ops</span>
+      <h4>Briefing Agent</h4>
+      <p>Daily 07:00 digest of agent runs, priorities, and news. Strict no-fabrication rule — outputs "Nothing recorded" when data is absent.</p>
+    </div>
+    <div class="agent-card">
+      <span class="agent-badge" style="background:#407E3C22;color:#407E3C;">Ops</span>
+      <h4>Client Manager Agent</h4>
+      <p>Per-client status cards: deadlines, blockers, and next actions. Only uses injected memory — never invents client facts.</p>
+    </div>
+    <div class="agent-card">
+      <span class="agent-badge" style="background:#ef444422;color:#ef4444;">Engineering</span>
+      <h4>QA Agent</h4>
+      <p>Code review covering OWASP Top 10, Windows compatibility, security headers, and brand compliance checks.</p>
+    </div>
+    <div class="agent-card">
+      <span class="agent-badge" style="background:#407E3C22;color:#407E3C;">Ops</span>
+      <h4>Scheduling Agent</h4>
+      <p>Converts reminders and deadlines into timestamped memory entries with TTL. Handles timezone conversion (WAT/UTC).</p>
+    </div>
+    <div class="agent-card">
+      <span class="agent-badge" style="background:#6b728022;color:#6b7280;">System</span>
+      <h4>Workflow Builder Agent</h4>
+      <p>Converts plain-English descriptions into runnable YAML workflow pipelines. Validates agent names and cron expressions.</p>
+    </div>
+    <div class="agent-card">
+      <span class="agent-badge" style="background:#6b728022;color:#6b7280;">System</span>
+      <h4>Memory Curator Agent</h4>
+      <p>Deduplicates and consolidates memory entries. Detects stale or contradictory facts and merges them intelligently.</p>
+    </div>
+    <div class="agent-card">
+      <span class="agent-badge" style="background:#6b728022;color:#6b7280;">System</span>
+      <h4>Meta Agent</h4>
+      <p>Decomposes complex tasks into ordered multi-agent chains. Orchestrates up to 5 specialist agents per task.</p>
+    </div>
+    <div class="agent-card">
+      <span class="agent-badge" style="background:#14b8a622;color:#14b8a6;">Domain</span>
+      <h4>Domain Agent (example)</h4>
+      <p>Industry-specific agent pre-loaded with your sector's context — routes, clients, pricing, and seasonal patterns. Fully customisable.</p>
+    </div>
   </div>
 </section>
 
@@ -513,8 +703,9 @@
     </div>
   </div>
   <p style="text-align:center;margin-top:32px;font-size:0.88rem;color:var(--muted);">
-    All prices in USD. No recurring fees for self-install or agency one-time plan.
-    <a href="pricing.html" style="color:var(--green);font-weight:600;">See full feature comparison →</a>
+    All prices in USD. No recurring platform fees.
+    <strong style="color:var(--green-mid);">Requires your own Anthropic API key</strong> — you pay Anthropic directly (~$0.003/1k tokens, no markup).
+    <a href="pricing.html" style="color:var(--green);font-weight:600;display:block;margin-top:8px;">See full feature comparison →</a>
   </p>
 </section>
 
@@ -527,31 +718,60 @@
   <div class="faq-grid">
     <div class="faq-item">
       <h3>Do I need my own Claude / Anthropic API key?</h3>
-      <p>Yes. FaiykeOS uses your Anthropic API key for all agent inference. This means you control costs directly — you pay Anthropic only for what you use. There is no markup or platform fee on top of the Claude API cost.</p>
+      <ul>
+        <li><strong>Yes</strong> — FaiykeOS calls the Anthropic API using your key</li>
+        <li><strong>No markup</strong> — you pay Anthropic directly at their standard rates (~$0.003/1k tokens for Sonnet)</li>
+        <li><strong>Full control</strong> — set your own usage limits in the Anthropic console</li>
+      </ul>
     </div>
     <div class="faq-item">
       <h3>What server do I need?</h3>
-      <p>Any Windows 10/11 or Linux machine with 4GB RAM, 4 CPU cores, and a stable internet connection. A basic VPS or cloud VM works. The system uses Python + SQLite — no Docker, no Kubernetes, no managed cloud services required.</p>
+      <ul>
+        <li><strong>Minimum:</strong> 4 GB RAM, 4 CPU cores, stable internet</li>
+        <li><strong>OS:</strong> Windows 10/11 or Linux (Ubuntu 20+)</li>
+        <li><strong>No Docker, no Kubernetes</strong> — Python + SQLite only</li>
+        <li>A basic $10/mo VPS works fine for most teams</li>
+      </ul>
     </div>
     <div class="faq-item">
       <h3>Can I customise the agents?</h3>
-      <p>Yes, fully. Agent behaviour is controlled by YAML files with plain-text system prompts. No coding required to customise agents. Developers can extend the executor, add tools, or build entirely new agent types.</p>
+      <ul>
+        <li><strong>YAML files</strong> — agent behaviour is plain-text system prompts, no coding needed</li>
+        <li><strong>Developers</strong> can extend the executor, add tools, or build new agent types</li>
+        <li>Temperature, max tokens, tool access — all configurable per agent</li>
+      </ul>
     </div>
     <div class="faq-item">
       <h3>Is this a SaaS or a one-time purchase?</h3>
-      <p>It's a one-time purchase for the code. There are no recurring platform fees. The only ongoing cost is your Anthropic API usage (pay-per-token) and optionally a support plan for the Done-For-You tier.</p>
+      <ul>
+        <li><strong>One-time purchase</strong> — no recurring platform fees</li>
+        <li><strong>Only ongoing cost:</strong> Anthropic API usage (pay-per-token)</li>
+        <li>Optional $147/mo support plan available for Done-For-You buyers after launch</li>
+      </ul>
     </div>
     <div class="faq-item">
       <h3>Can I deploy this for multiple clients?</h3>
-      <p>Yes — the Agency License covers unlimited client deployments under your brand. Each client gets a fully isolated namespace with their own memory, agents, branding, and users. The SKILL.md build playbook automates each deployment from scratch in minutes.</p>
+      <ul>
+        <li><strong>Agency License</strong> covers unlimited client deployments under your brand</li>
+        <li>Each client gets isolated namespace: own memory, branding, users, and agents</li>
+        <li><strong>SKILL.md</strong> build playbook automates each new deployment in minutes</li>
+      </ul>
     </div>
     <div class="faq-item">
       <h3>What happens after I buy?</h3>
-      <p>Self-Install: you receive the full source code and documentation immediately. Done-For-You: we schedule a discovery call within 24 hours to begin setup. Agency: you receive the code, license, and SKILL.md build playbook within 24 hours.</p>
+      <ul>
+        <li><strong>Self-Install:</strong> full source code + docs delivered immediately</li>
+        <li><strong>Done-For-You:</strong> discovery call scheduled within 24 hours</li>
+        <li><strong>Agency:</strong> code + license + SKILL.md playbook within 24 hours</li>
+      </ul>
     </div>
     <div class="faq-item">
       <h3>Is the source code obfuscated or encrypted?</h3>
-      <p>No. You receive the full, readable Python source. You can read, modify, extend, and maintain every line. It's your codebase once you purchase.</p>
+      <ul>
+        <li><strong>No</strong> — full, readable Python source code</li>
+        <li>Read, modify, extend, and maintain every line</li>
+        <li>It's your codebase once you purchase — no licence checks, no call-home</li>
+      </ul>
     </div>
   </div>
 </section>

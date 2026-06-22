@@ -35,7 +35,8 @@ def _cfg(key: str, default: str) -> str:
         with get_db() as conn:
             row = conn.execute("SELECT value FROM system_config WHERE key = ?", (key,)).fetchone()
         val = row["value"] if row else default
-    except Exception:
+    except Exception as e:
+        logger.warning("Config read failed for key %s: %s", key, e)
         val = default
     _cfg_cache[key] = (val, now + _CFG_TTL)
     return val
@@ -49,6 +50,27 @@ def _cfg_int(key: str, default: int) -> int:
 
 
 # ── Password ───────────────────────────────────────────────────────────────────
+
+# Dummy hash for timing-safe login — computed lazily on first use to avoid
+# expensive bcrypt at module import time (which causes issues in test collection).
+_DUMMY_HASH: str = ""
+_DUMMY_HASH_LOCK = threading.Lock()
+
+
+def _get_dummy_hash() -> str:
+    global _DUMMY_HASH
+    if _DUMMY_HASH:
+        return _DUMMY_HASH
+    with _DUMMY_HASH_LOCK:
+        if not _DUMMY_HASH:
+            _DUMMY_HASH = bcrypt.hashpw(b"claudeos_timing_guard_xK9!", bcrypt.gensalt(rounds=12)).decode()
+    return _DUMMY_HASH
+
+
+def constant_time_dummy_check(plain: str) -> None:
+    """Run a bcrypt check against a dummy hash. Matches the latency of a real password check."""
+    bcrypt.checkpw(plain.encode("utf-8"), _get_dummy_hash().encode("utf-8"))
+
 
 def hash_password(plain: str) -> str:
     return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode("utf-8")
@@ -171,6 +193,7 @@ def check_lockout(user: dict) -> Optional[int]:
 def record_failed_attempt(user_id: str) -> None:
     max_attempts = _cfg_int("max_failed_attempts", 5)
     lockout_minutes = _cfg_int("lockout_minutes", 15)
+    locked_username = None
     with get_db() as conn:
         conn.execute(
             """UPDATE users SET
@@ -183,7 +206,40 @@ def record_failed_attempt(user_id: str) -> None:
                 WHERE id = ?""",
             (max_attempts, lockout_minutes, user_id),
         )
+        row = conn.execute(
+            "SELECT username, failed_attempts FROM users WHERE id = ?", (user_id,)
+        ).fetchone()
+        if row and row["failed_attempts"] >= max_attempts:
+            locked_username = row["username"]
     audit_log("login_failure", user_id=user_id, ip=_client_ip(), ua=_client_ua())
+    if locked_username:
+        audit_log("lockout_triggered", user_id=user_id, username=locked_username,
+                  ip=_client_ip(), ua=_client_ua())
+        threading.Thread(target=_notify_lockout, args=(locked_username,), daemon=True).start()
+
+
+def _notify_lockout(username: str) -> None:
+    """Fire-and-forget: email all active admins when an account is locked."""
+    try:
+        from core.notifications import send_email, _is_configured
+        if not _is_configured():
+            return
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT email FROM users WHERE role='admin' AND is_active=1 AND email IS NOT NULL"
+            ).fetchall()
+        admin_emails = [r["email"] for r in rows if r["email"]]
+        if not admin_emails:
+            return
+        body = (
+            f"<p><b>Security Alert:</b> Account <code>{username}</code> has been "
+            f"locked after too many failed login attempts.</p>"
+            f"<p>Check the Admin Panel → Audit Log for details.</p>"
+        )
+        for email in admin_emails:
+            send_email(to=email, subject=f"[ClaudeOS] Account locked: {username}", body_html=body)
+    except Exception as e:
+        logger.warning("Lockout notification failed: %s", e)
 
 
 def clear_failed_attempts(user_id: str) -> None:

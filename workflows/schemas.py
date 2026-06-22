@@ -13,6 +13,7 @@ class WorkflowStep(BaseModel):
     context: dict[str, Any] = Field(default_factory=dict)
     depends_on: list[str] = Field(default_factory=list)
     timeout_seconds: int = 300
+    on_failure: str = "stop"   # "stop" (default) | "continue" — continue skips step and proceeds
 
 
 class WorkflowDefinition(BaseModel):

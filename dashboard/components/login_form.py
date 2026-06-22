@@ -131,13 +131,18 @@ section[data-testid="stVerticalBlock"] > div:last-child {{
 
                 # /namespaces requires auth — use text input instead of dropdown
                 r_namespace = st.text_input(
-                    "Namespace slug (ask your admin)",
+                    "Namespace slug",
                     key="reg_ns",
                     placeholder="e.g. reci-transport",
+                    help="Your admin will give you this slug. It's the unique ID for your workspace.",
                 )
-                st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+                st.caption("Ask your administrator for your exact namespace slug before registering.")
+                st.markdown("<div style='4px'></div>", unsafe_allow_html=True)
                 if st.button("Create Account", use_container_width=True, key="reg_btn"):
-                    _do_register(r_username.strip(), r_email.strip(), r_password, r_password2, r_namespace)
+                    if not r_namespace.strip():
+                        st.error("Namespace slug required — contact your admin to get it.")
+                    else:
+                        _do_register(r_username.strip(), r_email.strip(), r_password, r_password2, r_namespace.strip())
 
             with tab_reset:
                 st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)

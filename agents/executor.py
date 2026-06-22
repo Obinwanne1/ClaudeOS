@@ -104,6 +104,7 @@ def execute(
         last_exc: Exception = RuntimeError("no attempts made")
         response = None
 
+        import random as _random
         for attempt in range(3):
             try:
                 if tool_defs:
@@ -124,13 +125,13 @@ def execute(
             except anthropic.APIStatusError as exc:
                 last_exc = exc
                 if exc.status_code == 529 and attempt < 2:
-                    time.sleep(2 ** attempt)
+                    time.sleep(2 ** attempt + _random.uniform(0, 1))
                     continue
                 raise
-            except anthropic.APITimeoutError as exc:
+            except (anthropic.APITimeoutError, anthropic.APIConnectionError) as exc:
                 last_exc = exc
                 if attempt < 2:
-                    time.sleep(2 ** attempt)
+                    time.sleep(2 ** attempt + _random.uniform(0, 1))
                     continue
                 raise
         else:
@@ -157,11 +158,14 @@ def execute(
         }
 
         # Save to agent_runs — build input JSON directly (no SELECT round-trip needed)
+        import re as _re
+        _ctx_sources = _re.findall(r'^##\s+(.+?)$', mem_context or "", _re.MULTILINE)[:5]
         with get_db() as conn:
             updated_input = json.dumps({
                 "prompt": prompt,
                 "context": context,
                 "mem_context": mem_context[:3000] if mem_context else "",
+                "context_sources": _ctx_sources,
             })
             conn.execute(
                 """UPDATE agent_runs SET
@@ -249,6 +253,10 @@ def execute_stream(
     Does NOT write to agent_runs (caller manages run_id separately via execute()).
     """
     mem_context = _build_memory_context(namespace, prompt)
+    _ctx_degraded = mem_context.startswith(_CTX_DEG_PREFIX)
+    if _ctx_degraded:
+        mem_context = mem_context[len(_CTX_DEG_PREFIX):]
+        yield {"_context_degraded": True}
     system = _build_system_blocks(system_prompt, mem_context, namespace, context)
     api_messages = _build_messages(prompt, messages, images)
 
@@ -410,6 +418,9 @@ def get_conversation_turns(conversation_id: str) -> list[dict]:
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
+_CTX_DEG_PREFIX = "\x00CTX_DEG\x00"
+
+
 def _build_memory_context(namespace: str, query: str) -> str:
     """Build tiered context with 8s timeout — falls back to flat FTS context if slow/unavailable."""
     try:
@@ -417,7 +428,7 @@ def _build_memory_context(namespace: str, query: str) -> str:
         fut = _ctx_pool.submit(build_context, namespace, query, 1500)
         return fut.result(timeout=8.0)
     except Exception:
-        return memory_engine.get_agent_context(namespace, min_confidence=0.8)
+        return _CTX_DEG_PREFIX + memory_engine.get_agent_context(namespace, min_confidence=0.8)
 
 
 def _build_messages(
@@ -643,8 +654,8 @@ def _run_with_tools(
                 timeout=90.0,
             )
             return final_response, loop_messages
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Tool loop fallback final call failed: %s", e)
     return response, loop_messages
 
 

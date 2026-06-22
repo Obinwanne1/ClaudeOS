@@ -56,26 +56,45 @@ def dispatch(
         workflow_run_id=request.workflow_run_id if hasattr(request, "workflow_run_id") else None,
     )
 
-    logger.info("Dispatching %s (run=%s, ns=%s)", agent_name, run_id[:8], request.namespace)
+    # Capture correlation ID from Flask request context before leaving the request thread
+    try:
+        from flask import g as _flask_g
+        correlation_id = getattr(_flask_g, "request_id", None)
+    except RuntimeError:
+        correlation_id = None
+    if not correlation_id:
+        correlation_id = new_id()
+
+    logger.info("Dispatching %s (run=%s, ns=%s, cid=%s)",
+                agent_name, run_id[:8], request.namespace, correlation_id[:8])
 
     def _run():
-        executor.execute(
-            run_id=run_id,
-            agent_name=agent.name,
-            system_prompt=agent.system_prompt,
-            prompt=request.prompt,
-            namespace=request.namespace,
-            model=agent.model,
-            max_tokens=agent.max_tokens,
-            temperature=agent.temperature,
-            context=request.context,
-            session_id=request.session_id,
-            triggered_by=request.triggered_by,
-            workflow_run_id=request.workflow_run_id,
-            save_output=request.save_output,
-            agent_id=agent.id,
-            tools=agent.tools,
-        )
+        logger.info("Agent thread start: run=%s agent=%s cid=%s", run_id[:8], agent_name, correlation_id[:8])
+        try:
+            executor.execute(
+                run_id=run_id,
+                agent_name=agent.name,
+                system_prompt=agent.system_prompt,
+                prompt=request.prompt,
+                namespace=request.namespace,
+                model=agent.model,
+                max_tokens=agent.max_tokens,
+                temperature=agent.temperature,
+                context=request.context,
+                session_id=request.session_id,
+                triggered_by=request.triggered_by,
+                workflow_run_id=request.workflow_run_id,
+                save_output=request.save_output,
+                agent_id=agent.id,
+                tools=agent.tools,
+            )
+        except Exception as exc:
+            logger.exception("Agent thread crashed: run=%s agent=%s cid=%s error=%s",
+                             run_id[:8], agent_name, correlation_id[:8], exc)
+            try:
+                executor._update_run_status(run_id, "failed")
+            except Exception:
+                pass
 
     if block:
         _run()

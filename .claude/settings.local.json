@@ -134,7 +134,11 @@
       "Bash(Out-File -FilePath \"C:\\\\Users\\\\rigwe\\\\Desktop\\\\emoji_audit.txt\" -Encoding utf8)",
       "Bash(Get-Content \"C:\\\\Users\\\\rigwe\\\\Desktop\\\\emoji_audit.txt\" -Raw)",
       "Bash(Get-ChildItem logs/ -ErrorAction SilentlyContinue)",
-      "Bash(Select-Object Name,LastWriteTime)"
+      "Bash(Select-Object Name,LastWriteTime)",
+      "PowerShell(netstat *)",
+      "PowerShell(Start-Process -FilePath \"powershell\" -ArgumentList \"-NoProfile -Command `\"cd 'C:\\\\Users\\\\rigwe\\\\Desktop\\\\ClaudeOS'; python -m waitress --host=0.0.0.0 --port=5000 'core.api.app:create_app' 2>&1 | Tee-Object logs/flask.log`\"\" -WindowStyle Hidden; Start-Sleep -Seconds 5; \\(Invoke-WebRequest -Uri \"http://localhost:5000/api/v1/health\" -UseBasicParsing -ErrorAction SilentlyContinue\\).StatusCode)",
+      "PowerShell(cd C:\\\\Users\\\\rigwe\\\\Desktop\\\\ClaudeOS; powershell -File scripts\\\\start.ps1 2>&1 | Select-Object -First 5)",
+      "Bash(findstr /i \"PORT\")"
     ]
   }
 }

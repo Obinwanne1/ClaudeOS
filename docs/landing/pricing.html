@@ -219,6 +219,9 @@
 <div class="page-header">
   <h1>Pricing</h1>
   <p>One-time purchase. No platform fees. Your infrastructure, your data, your system.</p>
+  <p style="margin-top:12px;font-size:0.85rem;background:rgba(255,255,255,0.12);display:inline-block;padding:6px 18px;border-radius:20px;color:#e0f0dc;">
+    ⚡ Requires your own Anthropic API key &mdash; you pay Anthropic directly, ~$0.003/1k tokens
+  </p>
 </div>
 
 <!-- PRICING CARDS -->
@@ -260,7 +263,7 @@
       <div class="tier-name">Business</div>
       <div class="tier-desc">For business owners who want it running without touching a terminal</div>
       <div class="tier-price"><sup>$</sup>997</div>
-      <div class="tier-price-note">setup fee · optional $147/mo support after launch</div>
+      <div class="tier-price-note">one-time setup · 30-day support included</div>
       <ul class="tier-features">
         <li>Discovery call to understand your business</li>
         <li>Full deployment on your server</li>
@@ -386,8 +389,7 @@
     <div class="booking-form-wrap" id="booking-form">
       <h3>Book Your Discovery Call</h3>
       <p class="form-sub">Fill in your details and we will reach out within 24 hours to schedule.</p>
-      <form action="https://formspree.io/f/YOUR_FORM_ID" method="POST">
-        <input type="hidden" name="_subject" value="FaiykeOS — Discovery Call Request"/>
+      <form id="discovery-form" onsubmit="sendDiscoveryEmail(event)">
         <div class="form-row">
           <div class="form-group">
             <label for="fname">First Name *</label>
@@ -431,6 +433,29 @@
         <button type="submit" class="form-submit">Request Discovery Call →</button>
         <p class="form-note">We respond within 24 hours · No spam · No obligation</p>
       </form>
+      <script>
+      function sendDiscoveryEmail(e) {
+        e.preventDefault();
+        var f = document.getElementById('discovery-form');
+        var fname = f.querySelector('#fname').value;
+        var lname = f.querySelector('#lname').value;
+        var email = f.querySelector('#email').value;
+        var company = f.querySelector('#company').value;
+        var team_size = f.querySelector('#team_size').value;
+        var use_case = f.querySelector('#use_case').value;
+        var contact_pref = f.querySelector('#contact_pref').value;
+        var body = 'Name: ' + fname + ' ' + lname + '\n'
+          + 'Email: ' + email + '\n'
+          + 'Business: ' + (company || 'Not provided') + '\n'
+          + 'Team Size: ' + (team_size || 'Not specified') + '\n'
+          + 'Preferred Contact: ' + contact_pref + '\n\n'
+          + 'Use Case:\n' + use_case;
+        var mailto = 'mailto:iromanus@gmail.com'
+          + '?subject=' + encodeURIComponent('FaiykeOS Discovery Call — ' + fname + ' ' + lname)
+          + '&body=' + encodeURIComponent(body);
+        window.location.href = mailto;
+      }
+      </script>
       <div class="or-divider">or email directly</div>
       <a href="mailto:hello@faiyke-ai.com?subject=FaiykeOS%20Done-For-You%20Enquiry" class="email-cta">
         📧 hello@faiyke-ai.com
