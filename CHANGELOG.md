@@ -4,6 +4,31 @@ All notable changes to ClaudeOS / FaiykeOS. Follows [Keep a Changelog](https://k
 
 ---
 
+## [v17.3] — 2026-06-22 — Sales Readiness, Delete Audit & UX Hardening
+
+### Added
+- **Chat history persistence** (`561e2e1`): conversation turns are now restored from the database on every page refresh. Previously conversation was lost on browser reload. Existing turns from `agent_conversations` + `agent_conversation_turns` tables (migration 017) are seeded into session state on first load via `GET /agents/<name>/conversations/turns`.
+- **Context degraded warning** (`561e2e1`): when the hybrid memory retrieval times out and falls back to fast FTS context, a subtle caption appears below the affected assistant response: _"Memory context unavailable — response may lack business-specific context."_ Signal is a null-byte sentinel in the context string emitted as an SSE `context_degraded` event. Runtime-only — does not persist across page refreshes.
+- **Agent descriptions in chat dropdown** (`561e2e1`): agent selectbox now shows `[CATEGORY] Description` alongside each agent name — clients can pick the right agent without guessing.
+- **White-label demo on landing page** (`561e2e1`): pure-CSS browser mockups in `docs/landing/index.html` showing default vs. client-branded sidebar side-by-side with a connecting arrow. No external deps.
+- **Memory audit trail in agent runs** (`561e2e1`): `agent_runs.input` JSON now includes `context_sources` field listing the top memory section headers injected into the agent (e.g. `["Namespace Context [global]", "Recent Activity"]`). No migration required — appended to existing JSON column.
+- **Usage page real navigation buttons** (`561e2e1`): actionable insight alerts (shown when Pulse Score < 60) now include a `Go →` button per alert that directly navigates to the relevant page (Agents, Tickets, Memory, Workflows).
+- **429 rate limit toast** (`cdd5584`): `api_get()` now detects HTTP 429 responses and shows a `st.toast` warning instead of silently returning None and showing "API offline".
+- **`/sync/status` cached** (`cdd5584`): added to `_READ_ONLY_PREFIXES` (30s TTL) — prevents rapid Settings page rerenders from exhausting rate limits on the sync status endpoint.
+- **Sync log conversations/turns API endpoint** (`561e2e1`): `GET /agents/<name>/conversations/turns?namespace=<ns>&limit=<n>` — returns most recent turns for the latest conversation in a given namespace.
+
+### Fixed
+- **Sync log Select All + Delete now fully works** (`c6525cd`): Select All was previously broken (Streamlit widget ordering violation — `session_state` modified after widget rendered). Fixed with flag-before-widget pattern. Delete was silently succeeding but `st.success()` was invisible because `st.rerun()` fired immediately after. Fixed by storing success message in `session_state["_synclog_del_msg"]` so it survives the rerun.
+- **Sync log cache causing deleted rows to reappear** (`c6525cd`): `/sync/log` was mistakenly added to `_READ_ONLY_PREFIXES` — 30s stale cache made deleted entries reappear on the next render. Removed.
+- **Settings "API offline" false alarm** (`cdd5584`): when sync status fetch fails (rate limit, timeout, or endpoint error), error now reads "Could not fetch sync status — API may be rate-limited or temporarily unavailable. Refresh to retry." rather than the misleading "API offline".
+- **Dead ctx_degraded history check removed** (`561e2e1`): `meta.ctx_degraded` check in the conversation history render loop was dead code — `agent_conversation_turns` has no metadata column, so seeded turns always had empty `meta`. Removed. Live streaming warning path unaffected.
+
+### Verified
+- **Full delete audit passed** (`scripts/test_deletes.py`): all 16 delete surfaces verified working end-to-end: memory single + bulk, agent run soft-delete (record stays in DB), workflow run, output single + bulk, API key single + bulk, session revoke single + bulk, ticket single + bulk, sync log single + bulk, user permanent delete.
+- **Sync log cleared**: 789 accumulated error entries (all `[Errno 11001] getaddrinfo failed` — Supabase DNS failures from offline periods) bulk-deleted.
+
+---
+
 ## [v17.2.1] — 2026-06-01 — UI Bugfix
 
 ### Fixed

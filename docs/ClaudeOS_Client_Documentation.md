@@ -1,7 +1,7 @@
 # ClaudeOS — Client Documentation
 
-**Version:** 13.1  
-**Last Updated:** 2026-05-23  
+**Version:** 17.3  
+**Last Updated:** 2026-06-22  
 **Brand:** #407E3C Green · White · #5a9e56 Accent
 
 ---
@@ -88,7 +88,9 @@ Conversational multi-turn chat with any agent. Each session maintains full conve
 - **Streaming responses** — tokens appear as they arrive, no waiting for the full output. Fully implemented via Server-Sent Events (SSE) with token-by-token rendering.
 - **Image/screenshot upload** — attach images for visual analysis (e.g. UI screenshots, charts, documents)
 - **Voice input** — click the microphone button, record audio, and the system auto-transcribes it into the prompt field
-- **Conversation history** — full back-and-forth exchange shown per agent; history persists for the session
+- **Conversation history** — full back-and-forth exchange shown per agent; **history is restored from the database on every page refresh** — conversations are never lost between sessions
+- **Agent descriptions in dropdown** — the agent selector shows `[CATEGORY] description` for each agent so you can choose the right specialist at a glance
+- **Context degraded warning** — if memory retrieval times out, a subtle caption appears under the affected response noting that business-specific context may be missing
 - **Clear conversation** — button resets the current conversation and starts a new session
 - **Eval score badges** — every assistant response shows its quality score after the async eval completes (~10 seconds)
 - **Token usage** — token count displayed after each response
@@ -172,8 +174,17 @@ Four sub-tabs providing full system visibility:
 
 ### Settings (Admin/Operator)
 - System configuration
-- Supabase sync controls — trigger manual push or view sync status
-- View environment and runtime info
+- Email notification status and test button
+- Supabase sync controls — trigger manual push, view per-table sync state, reset watermarks
+- **Sync Log** — view the last 50 sync run records with OK/fail counts and error detail; select entries individually or use **Select All**, then click **Delete Selected (N)** to remove them in one action; a confirmation message persists after delete
+
+### Usage (Client/Viewer only)
+- **Namespace Pulse Score** — composite 0–100 health gauge: quality×40% + ticket resolve×30% + memory freshness×20% + workflow health×10%
+- **How is Pulse Score calculated?** — expandable breakdown with plain-English guidance per dimension
+- **KPI grid** — total runs, tokens used, estimated cost, average quality, output count
+- **Actionable alerts** — when Pulse Score < 60, targeted alerts appear with a **Go →** button that navigates directly to the relevant page (Agents, Tickets, Memory, or Workflows)
+- **Recent activity feed** — last 10 agent runs with status, agent name, and timestamps
+- **Memory summary** — total and recently-updated memory entry counts
 
 ### Admin Panel (Admin only)
 - **Users** — create, deactivate, unlock, and reset passwords for all users
@@ -334,6 +345,7 @@ curl -N "http://localhost:5000/api/v1/agents/writing-agent/stream?prompt=Hello&n
 | `token` | `{"type": "token", "text": "..."}` | One text chunk as it arrives |
 | `done` | `{"type": "done", "run_id": "...", "tokens_in": N, "tokens_out": N}` | Stream complete; includes run ID and token counts |
 | `error` | `{"type": "error", "message": "..."}` | An error occurred; run marked as failed |
+| `context_degraded` | `{"type": "context_degraded"}` | Memory retrieval timed out; agent used fast fallback context — response may lack business-specific detail |
 
 Every stream run is saved to the database automatically — the run appears in Run History with `status=done`, output, and token counts recorded.
 
@@ -380,6 +392,7 @@ curl http://localhost:5000/api/v1/memory \
 | GET | `/agents/{name}/stream` | SSE streaming response (token-by-token) |
 | GET | `/agents/{name}/.well-known/agent.json` | A2A Agent Card |
 | GET | `/agents/{name}/conversations` | List multi-turn conversation sessions |
+| GET | `/agents/{name}/conversations/turns` | Get most recent turns for latest conversation (used for history restore on page refresh) |
 | POST | `/agents/{name}/runs/{id}/cancel` | Cancel a pending/running run |
 | GET | `/outputs` | List outputs |
 | DELETE | `/outputs/bulk` | Bulk delete outputs |
@@ -459,6 +472,11 @@ Outputs and memory can be synced to Supabase for cloud backup and sharing.
 | Runs stuck as "running" | Restart server; stuck runs from crashed sessions are auto-cleaned on next health check |
 | Agents not responding | Check ANTHROPIC_API_KEY in .env; verify it is not expired or rate-limited |
 | ChromaDB slow on first start | Normal — sentence-transformers model loads on first request (~30-60s cold start) |
+| Settings shows "rate-limited" toast | Too many rapid page loads hit the sync status endpoint; wait a few seconds and refresh |
+| Settings shows "Could not fetch sync status" | Supabase sync status fetch failed — check .env SUPABASE_URL; if not configured, that section is expected |
+| Sync log Select All not working | Reload the Settings page and try again; if persists, hard-refresh the browser (Ctrl+Shift+R) |
+| Chat history missing after refresh | Check that Flask API is running; history loads from DB on first render of each agent/namespace pair |
+| "Context unavailable" caption on response | Memory retrieval timed out for that response; subsequent messages will have full context once ChromaDB recovers |
 
 ---
 

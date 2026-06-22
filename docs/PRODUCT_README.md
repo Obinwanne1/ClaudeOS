@@ -1,6 +1,6 @@
 # FaiykeOS — Product Package
 
-**Version:** 17.2.1 | **Built by:** faiyke-ai | **License:** See below
+**Version:** 17.3 | **Built by:** faiyke-ai | **License:** See below
 
 ---
 
@@ -104,6 +104,20 @@ python scripts/create_admin.py --username admin --password YourPass123!
 Open `http://localhost:8501` — login with your admin credentials.
 
 ---
+
+## What's New in v17.3
+
+| Change | Detail |
+|--------|--------|
+| Chat history restored on refresh | Conversation turns now reload from the database on every page load — no more lost chat history |
+| Agent descriptions in dropdown | Chat selectbox shows category + description per agent — pick the right specialist at a glance |
+| Context degraded warning | Live caption under any response where memory retrieval timed out — transparent about quality |
+| Actionable Pulse Score alerts | Usage page alerts now include **Go →** buttons that navigate directly to Agents, Tickets, Memory, or Workflows |
+| Sync log Select All + Delete fixed | Select All and bulk delete now fully work with persistent confirmation after delete |
+| 429 rate limit handled | Dashboard shows an informative toast instead of a misleading "API offline" error |
+| All 16 delete surfaces verified | Full end-to-end delete audit: memory, runs, workflow runs, outputs, API keys, sessions, tickets, sync log, users — all confirmed working |
+| Memory audit trail | Every agent run now records which memory sections were injected (`context_sources` field in run record) |
+| White-label demo on landing page | Side-by-side CSS browser mockup on the marketing page showing default vs. branded sidebar |
 
 ## What's New in v17.2
 
